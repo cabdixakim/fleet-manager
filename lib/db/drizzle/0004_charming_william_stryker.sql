@@ -1,0 +1,1 @@
+ALTER TABLE "company_settings" ADD COLUMN "revenue_attribution_policy" text DEFAULT 'ORIGINAL' NOT NULL;

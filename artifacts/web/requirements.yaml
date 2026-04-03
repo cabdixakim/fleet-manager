@@ -1,0 +1,23 @@
+packages:
+  "framer-motion": "Smooth page transitions and micro-interactions for the premium feel"
+  "@hookform/resolvers": "Zod validation for forms"
+  "react-hook-form": "Form state management"
+  "zod": "Schema validation for forms with z.coerce"
+  "recharts": "Dashboard analytics charts"
+  "date-fns": "Human-readable date formatting"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility for merging tailwind classes safely"
+  "@radix-ui/react-dialog": "Accessible modal dialogs"
+  "@radix-ui/react-select": "Accessible select dropdowns"
+  "@radix-ui/react-slot": "Component slotting for Button"
+  "@radix-ui/react-tooltip": "Accessible tooltips"
+
+images:
+  - path: "artifacts/web/public/images/dashboard-glow.png"
+    description: "Subtle dark blue and cyan abstract radial gradient glow on a black background, very minimal and premium, suitable for a dark mode app background"
+    aspect_ratio: "16:9"
+
+notes:
+  - Using generated hooks from @workspace/api-client-react
+  - Forms use zod for z.coerce to handle numeric inputs properly
+  - Implemented full dark mode logistics aesthetic

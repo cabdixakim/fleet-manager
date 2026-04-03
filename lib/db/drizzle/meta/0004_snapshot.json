@@ -1,0 +1,1834 @@
+{
+  "id": "aae16403-039f-4bfe-a9e3-8d82e5192d2d",
+  "prevId": "64c13d78-d922-4b6d-9a95-fbd3d49ea8e7",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.clients": {
+      "name": "clients",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ago_short_charge_rate": {
+          "name": "ago_short_charge_rate",
+          "type": "numeric(10, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "pms_short_charge_rate": {
+          "name": "pms_short_charge_rate",
+          "type": "numeric(10, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_balance": {
+          "name": "opening_balance",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.subcontractors": {
+      "name": "subcontractors",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commission_rate": {
+          "name": "commission_rate",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "opening_balance": {
+          "name": "opening_balance",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.trucks": {
+      "name": "trucks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "plate_number": {
+          "name": "plate_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trailer_plate": {
+          "name": "trailer_plate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subcontractor_id": {
+          "name": "subcontractor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'available'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "trucks_subcontractor_id_subcontractors_id_fk": {
+          "name": "trucks_subcontractor_id_subcontractors_id_fk",
+          "tableFrom": "trucks",
+          "tableTo": "subcontractors",
+          "columnsFrom": [
+            "subcontractor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "trucks_plate_number_unique": {
+          "name": "trucks_plate_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "plate_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.drivers": {
+      "name": "drivers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "passport_number": {
+          "name": "passport_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "license_number": {
+          "name": "license_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "status_effective_date": {
+          "name": "status_effective_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "monthly_salary": {
+          "name": "monthly_salary",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.batches": {
+      "name": "batches",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "route": {
+          "name": "route",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'planning'"
+        },
+        "rate_per_mt": {
+          "name": "rate_per_mt",
+          "type": "numeric(10, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nominated_date": {
+          "name": "nominated_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "loaded_date": {
+          "name": "loaded_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_date": {
+          "name": "delivered_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancellation_reason": {
+          "name": "cancellation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "batches_client_id_clients_id_fk": {
+          "name": "batches_client_id_clients_id_fk",
+          "tableFrom": "batches",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.trips": {
+      "name": "trips",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "truck_id": {
+          "name": "truck_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "product": {
+          "name": "product",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capacity": {
+          "name": "capacity",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'nominated'"
+        },
+        "loaded_qty": {
+          "name": "loaded_qty",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_qty": {
+          "name": "delivered_qty",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_start": {
+          "name": "mileage_start",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mileage_end": {
+          "name": "mileage_end",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel1": {
+          "name": "fuel1",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel2": {
+          "name": "fuel2",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuel3": {
+          "name": "fuel3",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancellation_reason": {
+          "name": "cancellation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "trips_batch_id_batches_id_fk": {
+          "name": "trips_batch_id_batches_id_fk",
+          "tableFrom": "trips",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trips_truck_id_trucks_id_fk": {
+          "name": "trips_truck_id_trucks_id_fk",
+          "tableFrom": "trips",
+          "tableTo": "trucks",
+          "columnsFrom": [
+            "truck_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trips_driver_id_drivers_id_fk": {
+          "name": "trips_driver_id_drivers_id_fk",
+          "tableFrom": "trips",
+          "tableTo": "drivers",
+          "columnsFrom": [
+            "driver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.trip_amendments": {
+      "name": "trip_amendments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amendment_type": {
+          "name": "amendment_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "old_truck_id": {
+          "name": "old_truck_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_truck_id": {
+          "name": "new_truck_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "old_driver_id": {
+          "name": "old_driver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_driver_id": {
+          "name": "new_driver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amended_at": {
+          "name": "amended_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "trip_amendments_trip_id_trips_id_fk": {
+          "name": "trip_amendments_trip_id_trips_id_fk",
+          "tableFrom": "trip_amendments",
+          "tableTo": "trips",
+          "columnsFrom": [
+            "trip_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.trip_expenses": {
+      "name": "trip_expenses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "truck_id": {
+          "name": "truck_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subcontractor_id": {
+          "name": "subcontractor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'trip'"
+        },
+        "cost_type": {
+          "name": "cost_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "expense_date": {
+          "name": "expense_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "settled": {
+          "name": "settled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "trip_expenses_trip_id_trips_id_fk": {
+          "name": "trip_expenses_trip_id_trips_id_fk",
+          "tableFrom": "trip_expenses",
+          "tableTo": "trips",
+          "columnsFrom": [
+            "trip_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "trip_expenses_batch_id_batches_id_fk": {
+          "name": "trip_expenses_batch_id_batches_id_fk",
+          "tableFrom": "trip_expenses",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trip_expenses_truck_id_trucks_id_fk": {
+          "name": "trip_expenses_truck_id_trucks_id_fk",
+          "tableFrom": "trip_expenses",
+          "tableTo": "trucks",
+          "columnsFrom": [
+            "truck_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trip_expenses_subcontractor_id_subcontractors_id_fk": {
+          "name": "trip_expenses_subcontractor_id_subcontractors_id_fk",
+          "tableFrom": "trip_expenses",
+          "tableTo": "subcontractors",
+          "columnsFrom": [
+            "subcontractor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clearances": {
+      "name": "clearances",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checkpoint": {
+          "name": "checkpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_type": {
+          "name": "document_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_number": {
+          "name": "document_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requested'"
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "clearances_trip_id_trips_id_fk": {
+          "name": "clearances_trip_id_trips_id_fk",
+          "tableFrom": "clearances",
+          "tableTo": "trips",
+          "columnsFrom": [
+            "trip_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.delivery_notes": {
+      "name": "delivery_notes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attachment_url": {
+          "name": "attachment_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "delivery_notes_trip_id_trips_id_fk": {
+          "name": "delivery_notes_trip_id_trips_id_fk",
+          "tableFrom": "delivery_notes",
+          "tableTo": "trips",
+          "columnsFrom": [
+            "trip_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.driver_payroll_allocations": {
+      "name": "driver_payroll_allocations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "payroll_id": {
+          "name": "payroll_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "driver_payroll_allocations_payroll_id_driver_payroll_id_fk": {
+          "name": "driver_payroll_allocations_payroll_id_driver_payroll_id_fk",
+          "tableFrom": "driver_payroll_allocations",
+          "tableTo": "driver_payroll",
+          "columnsFrom": [
+            "payroll_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.driver_payroll": {
+      "name": "driver_payroll",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "month": {
+          "name": "month",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "year": {
+          "name": "year",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "monthly_salary": {
+          "name": "monthly_salary",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trips_count": {
+          "name": "trips_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "driver_payroll_driver_id_drivers_id_fk": {
+          "name": "driver_payroll_driver_id_drivers_id_fk",
+          "tableFrom": "driver_payroll",
+          "tableTo": "drivers",
+          "columnsFrom": [
+            "driver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.client_transactions": {
+      "name": "client_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_date": {
+          "name": "transaction_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "client_transactions_client_id_clients_id_fk": {
+          "name": "client_transactions_client_id_clients_id_fk",
+          "tableFrom": "client_transactions",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "client_transactions_batch_id_batches_id_fk": {
+          "name": "client_transactions_batch_id_batches_id_fk",
+          "tableFrom": "client_transactions",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.subcontractor_transactions": {
+      "name": "subcontractor_transactions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "subcontractor_id": {
+          "name": "subcontractor_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trip_id": {
+          "name": "trip_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transaction_date": {
+          "name": "transaction_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "subcontractor_transactions_subcontractor_id_subcontractors_id_fk": {
+          "name": "subcontractor_transactions_subcontractor_id_subcontractors_id_fk",
+          "tableFrom": "subcontractor_transactions",
+          "tableTo": "subcontractors",
+          "columnsFrom": [
+            "subcontractor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontractor_transactions_trip_id_trips_id_fk": {
+          "name": "subcontractor_transactions_trip_id_trips_id_fk",
+          "tableFrom": "subcontractor_transactions",
+          "tableTo": "trips",
+          "columnsFrom": [
+            "trip_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "subcontractor_transactions_driver_id_drivers_id_fk": {
+          "name": "subcontractor_transactions_driver_id_drivers_id_fk",
+          "tableFrom": "subcontractor_transactions",
+          "tableTo": "drivers",
+          "columnsFrom": [
+            "driver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.company_expenses": {
+      "name": "company_expenses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "expense_date": {
+          "name": "expense_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invoices": {
+      "name": "invoices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "invoice_number": {
+          "name": "invoice_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_loaded_qty": {
+          "name": "total_loaded_qty",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_delivered_qty": {
+          "name": "total_delivered_qty",
+          "type": "numeric(10, 3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "rate_per_mt": {
+          "name": "rate_per_mt",
+          "type": "numeric(10, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_revenue": {
+          "name": "gross_revenue",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_short_charge": {
+          "name": "total_short_charge",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "net_revenue": {
+          "name": "net_revenue",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "issued_date": {
+          "name": "issued_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invoices_batch_id_batches_id_fk": {
+          "name": "invoices_batch_id_batches_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "invoices_client_id_clients_id_fk": {
+          "name": "invoices_client_id_clients_id_fk",
+          "tableFrom": "invoices",
+          "tableTo": "clients",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "invoices_invoice_number_unique": {
+          "name": "invoices_invoice_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "invoice_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.company_settings": {
+      "name": "company_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'My Transport Company'"
+        },
+        "logo_url": {
+          "name": "logo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'USD'"
+        },
+        "tax_id": {
+          "name": "tax_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "website": {
+          "name": "website",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "recovery_code_hash": {
+          "name": "recovery_code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_email": {
+          "name": "owner_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opening_balance": {
+          "name": "opening_balance",
+          "type": "numeric(14, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "revenue_attribution_policy": {
+          "name": "revenue_attribution_policy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ORIGINAL'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'operations'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.audit_logs": {
+      "name": "audit_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_name": {
+          "name": "user_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity": {
+          "name": "entity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.truck_driver_assignments": {
+      "name": "truck_driver_assignments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "truck_id": {
+          "name": "truck_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "driver_id": {
+          "name": "driver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "unassigned_at": {
+          "name": "unassigned_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "truck_driver_assignments_truck_id_trucks_id_fk": {
+          "name": "truck_driver_assignments_truck_id_trucks_id_fk",
+          "tableFrom": "truck_driver_assignments",
+          "tableTo": "trucks",
+          "columnsFrom": [
+            "truck_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "truck_driver_assignments_driver_id_drivers_id_fk": {
+          "name": "truck_driver_assignments_driver_id_drivers_id_fk",
+          "tableFrom": "truck_driver_assignments",
+          "tableTo": "drivers",
+          "columnsFrom": [
+            "driver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

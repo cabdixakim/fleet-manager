@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1773886645050,
+      "tag": "0000_wonderful_sharon_ventura",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1773888640122,
+      "tag": "0001_brave_jack_power",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773888713710,
+      "tag": "0002_zippy_cargill",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774219303155,
+      "tag": "0003_fixed_mathemanic",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774220263715,
+      "tag": "0004_charming_william_stryker",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1774224718456,
+      "tag": "0005_sharp_black_widow",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774916800000,
+      "tag": "0006_add_clearance_document_url",
+      "breakpoints": true
+    }
+  ]
+}

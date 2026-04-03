@@ -1,0 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+}
+
+:root {
+  /* Forced Dark Mode for Logistics Platform */
+  --background: 240 10% 4%;
+  --foreground: 0 0% 98%;
+  
+  --card: 240 10% 6%;
+  --card-foreground: 0 0% 98%;
+  
+  --popover: 240 10% 8%;
+  --popover-foreground: 0 0% 98%;
+  
+  /* Bright Cyan/Blue for Primary Actions */
+  --primary: 191 97% 40%;
+  --primary-foreground: 240 10% 4%;
+  
+  --secondary: 240 10% 12%;
+  --secondary-foreground: 0 0% 98%;
+  
+  --muted: 240 10% 12%;
+  --muted-foreground: 240 5% 65%;
+  
+  /* Amber/Orange for Logistics Transit states */
+  --accent: 38 92% 50%;
+  --accent-foreground: 240 10% 4%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  --warning: 48 96% 53%;
+  --warning-foreground: 240 10% 4%;
+
+  --success: 142 71% 45%;
+  --success-foreground: 240 10% 4%;
+  
+  --border: 240 10% 15%;
+  --input: 240 10% 15%;
+  --ring: 191 97% 40%;
+  
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 240 10% 4%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 6%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 8%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 191 97% 40%;
+  --primary-foreground: 240 10% 4%;
+  --secondary: 240 10% 12%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 10% 12%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 240 10% 4%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --warning: 48 96% 53%;
+  --warning-foreground: 240 10% 4%;
+  --success: 142 71% 45%;
+  --success-foreground: 240 10% 4%;
+  --border: 240 10% 15%;
+  --input: 240 10% 15%;
+  --ring: 191 97% 40%;
+  --radius: 0.75rem;
+}
+
+.light {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 4%;
+  --primary: 191 97% 40%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 10% 96%;
+  --secondary-foreground: 240 10% 30%;
+  --muted: 240 10% 92%;
+  --muted-foreground: 240 5% 40%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 240 10% 4%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --warning: 48 96% 53%;
+  --warning-foreground: 240 10% 4%;
+  --success: 142 71% 45%;
+  --success-foreground: 240 10% 4%;
+  --border: 240 10% 90%;
+  --input: 240 10% 90%;
+  --ring: 191 97% 40%;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  html {
+    font-size: 13px;
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/30 selection:text-primary-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    @apply tracking-tight font-bold;
+  }
+
+  /* Custom Scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-card/60 backdrop-blur-xl border border-white/5 shadow-2xl shadow-black/50;
+  }
+  
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary via-blue-400 to-accent;
+  }
+  
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10 hover:border-primary/30;
+  }
+}
+
+/* ── Multi-page print styles ── */
+@media print {
+  /* Unlock root height/overflow constraints so all content renders */
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* The outermost layout flex container (h-[100dvh] overflow-hidden) */
+  #root > div {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  /* Main content column */
+  main {
+    height: auto !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-height: none !important;
+  }
+
+  /* Unlock every scroll container — let content flow to paper */
+  div, section, article {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Tables: allow page breaks between rows, repeat header on each page */
+  table {
+    page-break-inside: auto;
+    width: 100% !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  /* Cards: try to stay together but allow breaks if card is tall */
+  .rounded-xl, .rounded-lg {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Rechart SVGs don't scale well — keep them contained */
+  .recharts-wrapper {
+    page-break-inside: avoid;
+  }
+}

@@ -1,0 +1,42 @@
+plugin:runtime-error-plugin] transactions.map is not a function. (In 'transactions.map(
+          (t) => /* @__PURE__ */ jsxDEV("tr", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:108:14", "data-component-name": "tr", className: "border-b border-border/50 last:border-0 hover:bg-secondary/20", children: [
+            /* @__PURE__ */ jsxDEV("td", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:109:16", "data-component-name": "td", className: "px-4 py-3 text-xs text-muted-foreground", children: formatDate(t.transactionDate) }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 109,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:110:16", "data-component-name": "td", className: "px-4 py-3", children: /* @__PURE__ */ jsxDEV("span", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:110:42", "data-component-name": "span", className: "capitalize text-xs font-medium", children: t.type.replace(/_/g, " ") }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 110,
+              columnNumber: 134
+            }, this) }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 110,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:111:16", "data-component-name": "td", className: "px-4 py-3 text-muted-foreground text-xs", children: t.description ?? "-" }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 111,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:112:16", "data-component-name": "td", className: "px-4 py-3 text-xs font-mono text-muted-foreground", children: t.reference ?? "-" }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 112,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:113:16", "data-component-name": "td", className: `px-4 py-3 font-medium ${t.type === "payment" || t.type === "advance" ? "text-success" : "text-foreground"}`, children: t.type === "payment" || t.type === "advance" ? `(${formatCurrency(t.amount)})` : formatCurrency(t.amount) }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 113,
+              columnNumber: 17
+            }, this),
+            /* @__PURE__ */ jsxDEV("td", { "data-replit-metadata": "artifacts/web/src/pages/Clients.tsx:116:16", "data-component-name": "td", className: "px-4 py-3 text-muted-foreground", children: formatCurrency(t.runningBalance ?? 0) }, void 0, false, {
+              fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+              lineNumber: 116,
+              columnNumber: 17
+            }, this)
+          ] }, t.id, true, {
+            fileName: "/home/runner/workspace/artifacts/web/src/pages/Clients.tsx",
+            lineNumber: 108,
+            columnNumber: 13
+          }, this)
+        )', 'transactions.map' is undefined)

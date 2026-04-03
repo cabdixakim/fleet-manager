@@ -1,0 +1,2514 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 2.0.0
+  description: TransportPro - Transportation Business Management API
+servers:
+  - url: /api
+tags:
+  - name: health
+  - name: dashboard
+  - name: clients
+  - name: subcontractors
+  - name: trucks
+  - name: drivers
+  - name: payroll
+  - name: batches
+  - name: trips
+  - name: expenses
+  - name: clearances
+  - name: invoices
+  - name: finance
+  - name: reports
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /dashboard/metrics:
+    get:
+      operationId: getDashboardMetrics
+      tags: [dashboard]
+      summary: Dashboard KPIs
+      responses:
+        "200":
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardMetrics"
+
+  /dashboard/analytics:
+    get:
+      operationId: getDashboardAnalytics
+      tags: [dashboard]
+      summary: Analytics data
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [month, quarter, year]
+            default: month
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsData"
+
+  /clients:
+    get:
+      operationId: getClients
+      tags: [clients]
+      summary: List clients
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      summary: Create client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      summary: Get client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientDetail"
+    put:
+      operationId: updateClient
+      tags: [clients]
+      summary: Update client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    delete:
+      operationId: deleteClient
+      tags: [clients]
+      summary: Delete client
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /clients/{id}/transactions:
+    get:
+      operationId: getClientTransactions
+      tags: [clients]
+      summary: Get client ledger transactions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientLedger"
+    post:
+      operationId: createClientTransaction
+      tags: [clients]
+      summary: Add client transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientTransactionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientTransaction"
+
+  /client-transactions/{id}:
+    put:
+      operationId: updateClientTransaction
+      tags: [clients]
+      summary: Update client transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientTransactionInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientTransaction"
+    delete:
+      operationId: deleteClientTransaction
+      tags: [clients]
+      summary: Delete client transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /subcontractors:
+    get:
+      operationId: getSubcontractors
+      tags: [subcontractors]
+      summary: List subcontractors
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subcontractor"
+    post:
+      operationId: createSubcontractor
+      tags: [subcontractors]
+      summary: Create subcontractor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubcontractorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subcontractor"
+
+  /subcontractors/{id}:
+    get:
+      operationId: getSubcontractor
+      tags: [subcontractors]
+      summary: Get subcontractor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubcontractorDetail"
+    put:
+      operationId: updateSubcontractor
+      tags: [subcontractors]
+      summary: Update subcontractor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubcontractorInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subcontractor"
+    delete:
+      operationId: deleteSubcontractor
+      tags: [subcontractors]
+      summary: Delete subcontractor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /subcontractors/{id}/transactions:
+    get:
+      operationId: getSubcontractorTransactions
+      tags: [subcontractors]
+      summary: Get subcontractor ledger
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ledger
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubcontractorLedger"
+    post:
+      operationId: createSubcontractorTransaction
+      tags: [subcontractors]
+      summary: Add subcontractor transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubcontractorTransactionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubcontractorTransaction"
+
+  /subcontractor-transactions/{id}:
+    put:
+      operationId: updateSubcontractorTransaction
+      tags: [subcontractors]
+      summary: Update subcontractor transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubcontractorTransactionInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubcontractorTransaction"
+    delete:
+      operationId: deleteSubcontractorTransaction
+      tags: [subcontractors]
+      summary: Delete subcontractor transaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /trucks:
+    get:
+      operationId: getTrucks
+      tags: [trucks]
+      summary: List trucks
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Truck"
+    post:
+      operationId: createTruck
+      tags: [trucks]
+      summary: Create truck
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TruckInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Truck"
+
+  /trucks/{id}:
+    get:
+      operationId: getTruck
+      tags: [trucks]
+      summary: Get truck
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Truck"
+    put:
+      operationId: updateTruck
+      tags: [trucks]
+      summary: Update truck
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TruckInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Truck"
+    delete:
+      operationId: deleteTruck
+      tags: [trucks]
+      summary: Delete truck
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /drivers:
+    get:
+      operationId: getDrivers
+      tags: [drivers]
+      summary: List drivers
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Driver"
+    post:
+      operationId: createDriver
+      tags: [drivers]
+      summary: Create driver
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+
+  /drivers/{id}:
+    get:
+      operationId: getDriver
+      tags: [drivers]
+      summary: Get driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+    put:
+      operationId: updateDriver
+      tags: [drivers]
+      summary: Update driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DriverInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Driver"
+    delete:
+      operationId: deleteDriver
+      tags: [drivers]
+      summary: Delete driver
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /payroll:
+    get:
+      operationId: getPayrollRuns
+      tags: [payroll]
+      summary: List payroll runs
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRun"
+    post:
+      operationId: createPayrollRun
+      tags: [payroll]
+      summary: Run monthly payroll
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayrollRunInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PayrollRun"
+
+  /batches:
+    get:
+      operationId: getBatches
+      tags: [batches]
+      summary: List batches
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: clientId
+          in: query
+          schema:
+            type: integer
+        - name: route
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Batch"
+    post:
+      operationId: createBatch
+      tags: [batches]
+      summary: Create batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+
+  /batches/{id}:
+    get:
+      operationId: getBatch
+      tags: [batches]
+      summary: Get batch with all trips
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchDetail"
+    put:
+      operationId: updateBatch
+      tags: [batches]
+      summary: Update batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+
+  /batches/{id}/nominate:
+    post:
+      operationId: nominateTrucks
+      tags: [batches]
+      summary: Bulk nominate trucks to a batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkNominationInput"
+      responses:
+        "201":
+          description: Nominated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trip"
+
+  /batches/{id}/financials:
+    get:
+      operationId: getBatchFinancials
+      tags: [batches]
+      summary: Get batch financial summary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchFinancials"
+
+  /trips/{id}:
+    get:
+      operationId: getTrip
+      tags: [trips]
+      summary: Get trip detail with financials
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripDetail"
+    put:
+      operationId: updateTrip
+      tags: [trips]
+      summary: Update trip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripUpdateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+    delete:
+      operationId: deleteTrip
+      tags: [trips]
+      summary: Remove trip from batch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /trips/{id}/amend:
+    post:
+      operationId: amendTrip
+      tags: [trips]
+      summary: Amend a trip (swap truck or driver)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripAmendmentInput"
+      responses:
+        "200":
+          description: Amended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trip"
+
+  /trips/{id}/expenses:
+    get:
+      operationId: getTripExpenses
+      tags: [expenses]
+      summary: Get trip expenses
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TripExpense"
+    post:
+      operationId: createTripExpense
+      tags: [expenses]
+      summary: Add trip expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripExpenseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripExpense"
+
+  /trip-expenses/{id}:
+    put:
+      operationId: updateTripExpense
+      tags: [expenses]
+      summary: Update trip expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TripExpenseInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TripExpense"
+    delete:
+      operationId: deleteTripExpense
+      tags: [expenses]
+      summary: Delete trip expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /trips/{id}/clearances:
+    get:
+      operationId: getTripClearances
+      tags: [clearances]
+      summary: Get clearances for a trip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Clearance"
+    post:
+      operationId: createClearance
+      tags: [clearances]
+      summary: Add clearance document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearanceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clearance"
+
+  /clearances/{id}:
+    put:
+      operationId: updateClearance
+      tags: [clearances]
+      summary: Update clearance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClearanceInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Clearance"
+    delete:
+      operationId: deleteClearance
+      tags: [clearances]
+      summary: Delete clearance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /clearances/board:
+    get:
+      operationId: getClearanceBoard
+      tags: [clearances]
+      summary: Cross-batch clearance board
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClearanceBoardRow"
+
+  /trips/{id}/delivery-note:
+    get:
+      operationId: getTripDeliveryNote
+      tags: [trips]
+      summary: Get delivery note for trip
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryNote"
+    post:
+      operationId: createDeliveryNote
+      tags: [trips]
+      summary: Create or update delivery note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliveryNoteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryNote"
+
+  /invoices:
+    get:
+      operationId: getInvoices
+      tags: [invoices]
+      summary: List invoices
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invoice"
+    post:
+      operationId: createInvoice
+      tags: [invoices]
+      summary: Create invoice from batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      tags: [invoices]
+      summary: Get invoice detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceDetail"
+    put:
+      operationId: updateInvoice
+      tags: [invoices]
+      summary: Update invoice status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceUpdateInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /company-expenses:
+    get:
+      operationId: getCompanyExpenses
+      tags: [finance]
+      summary: List company overhead expenses
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CompanyExpense"
+    post:
+      operationId: createCompanyExpense
+      tags: [finance]
+      summary: Add company expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyExpenseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyExpense"
+
+  /company-expenses/{id}:
+    put:
+      operationId: updateCompanyExpense
+      tags: [finance]
+      summary: Update company expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyExpenseInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanyExpense"
+    delete:
+      operationId: deleteCompanyExpense
+      tags: [finance]
+      summary: Delete company expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /reports/pnl:
+    get:
+      operationId: getPnlReport
+      tags: [reports]
+      summary: Company P&L report
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [month, quarter, year]
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PnlReport"
+
+  /reports/commission:
+    get:
+      operationId: getCommissionReport
+      tags: [reports]
+      summary: Commission earned report
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [month, quarter, year]
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommissionReport"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    DashboardMetrics:
+      type: object
+      properties:
+        activeBatches:
+          type: integer
+        trucksInTransit:
+          type: integer
+        pendingClearances:
+          type: integer
+        commissionThisMonth:
+          type: number
+        totalReceivables:
+          type: number
+        totalPayables:
+          type: number
+        uninvoicedBatches:
+          type: integer
+        activeDrivers:
+          type: integer
+        recentBatches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Batch"
+      required: [activeBatches, trucksInTransit, pendingClearances, commissionThisMonth, totalReceivables, totalPayables, uninvoicedBatches, activeDrivers, recentBatches]
+
+    AnalyticsData:
+      type: object
+      properties:
+        commissionByPeriod:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              commission:
+                type: number
+              revenue:
+                type: number
+              expenses:
+                type: number
+            required: [label, commission, revenue, expenses]
+        revenueByRoute:
+          type: array
+          items:
+            type: object
+            properties:
+              route:
+                type: string
+              revenue:
+                type: number
+              commission:
+                type: number
+              trips:
+                type: integer
+            required: [route, revenue, commission, trips]
+        revenueByClient:
+          type: array
+          items:
+            type: object
+            properties:
+              clientName:
+                type: string
+              revenue:
+                type: number
+              commission:
+                type: number
+            required: [clientName, revenue, commission]
+        shortsByProduct:
+          type: array
+          items:
+            type: object
+            properties:
+              product:
+                type: string
+              totalShortCharge:
+                type: number
+              avgShortPct:
+                type: number
+            required: [product, totalShortCharge, avgShortPct]
+        topSubcontractors:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              trips:
+                type: integer
+              commission:
+                type: number
+            required: [name, trips, commission]
+      required: [commissionByPeriod, revenueByRoute, revenueByClient, shortsByProduct, topSubcontractors]
+
+    Client:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contactEmail:
+          type: string
+          nullable: true
+        contactPhone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        agoShortChargeRate:
+          type: number
+        pmsShortChargeRate:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        balance:
+          type: number
+          description: Outstanding balance (positive = owes us)
+        createdAt:
+          type: string
+      required: [id, name, agoShortChargeRate, pmsShortChargeRate, balance, createdAt]
+
+    ClientDetail:
+      allOf:
+        - $ref: "#/components/schemas/Client"
+        - type: object
+          properties:
+            transactions:
+              type: array
+              items:
+                $ref: "#/components/schemas/ClientTransaction"
+          required: [transactions]
+
+    ClientInput:
+      type: object
+      properties:
+        name:
+          type: string
+        contactEmail:
+          type: string
+          nullable: true
+        contactPhone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        agoShortChargeRate:
+          type: number
+        pmsShortChargeRate:
+          type: number
+        notes:
+          type: string
+          nullable: true
+      required: [name, agoShortChargeRate, pmsShortChargeRate]
+
+    ClientTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        type:
+          type: string
+          enum: [invoice, advance, payment, adjustment]
+        amount:
+          type: number
+        reference:
+          type: string
+          nullable: true
+        batchId:
+          type: integer
+          nullable: true
+        batchName:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        transactionDate:
+          type: string
+        createdAt:
+          type: string
+      required: [id, clientId, type, amount, transactionDate, createdAt]
+
+    ClientTransactionInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [invoice, advance, payment, adjustment]
+        amount:
+          type: number
+        reference:
+          type: string
+          nullable: true
+        batchId:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        transactionDate:
+          type: string
+      required: [type, amount, transactionDate]
+
+    ClientLedger:
+      type: object
+      properties:
+        client:
+          $ref: "#/components/schemas/Client"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClientTransaction"
+        totalInvoiced:
+          type: number
+        totalAdvances:
+          type: number
+        totalPayments:
+          type: number
+        balance:
+          type: number
+      required: [client, transactions, totalInvoiced, totalAdvances, totalPayments, balance]
+
+    Subcontractor:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        contactEmail:
+          type: string
+          nullable: true
+        contactPhone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        commissionRate:
+          type: number
+        notes:
+          type: string
+          nullable: true
+        balance:
+          type: number
+          description: Outstanding balance (positive = we owe them)
+        truckCount:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, name, commissionRate, balance, truckCount, createdAt]
+
+    SubcontractorDetail:
+      allOf:
+        - $ref: "#/components/schemas/Subcontractor"
+        - type: object
+          properties:
+            transactions:
+              type: array
+              items:
+                $ref: "#/components/schemas/SubcontractorTransaction"
+            trucks:
+              type: array
+              items:
+                $ref: "#/components/schemas/Truck"
+          required: [transactions, trucks]
+
+    SubcontractorInput:
+      type: object
+      properties:
+        name:
+          type: string
+        contactEmail:
+          type: string
+          nullable: true
+        contactPhone:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        commissionRate:
+          type: number
+        notes:
+          type: string
+          nullable: true
+      required: [name, commissionRate]
+
+    SubcontractorTransaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        subcontractorId:
+          type: integer
+        type:
+          type: string
+          enum: [net_payable, advance_given, payment_made, driver_salary, adjustment]
+        amount:
+          type: number
+        tripId:
+          type: integer
+          nullable: true
+        driverId:
+          type: integer
+          nullable: true
+        driverName:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        transactionDate:
+          type: string
+        createdAt:
+          type: string
+      required: [id, subcontractorId, type, amount, transactionDate, createdAt]
+
+    SubcontractorTransactionInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [net_payable, advance_given, payment_made, driver_salary, adjustment]
+        amount:
+          type: number
+        tripId:
+          type: integer
+          nullable: true
+        driverId:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        transactionDate:
+          type: string
+      required: [type, amount, transactionDate]
+
+    SubcontractorLedger:
+      type: object
+      properties:
+        subcontractor:
+          $ref: "#/components/schemas/Subcontractor"
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubcontractorTransaction"
+        totalNetPayable:
+          type: number
+        totalAdvancesGiven:
+          type: number
+        totalDriverSalaries:
+          type: number
+        totalPaymentsMade:
+          type: number
+        balance:
+          type: number
+      required: [subcontractor, transactions, totalNetPayable, totalAdvancesGiven, totalDriverSalaries, totalPaymentsMade, balance]
+
+    Truck:
+      type: object
+      properties:
+        id:
+          type: integer
+        plateNumber:
+          type: string
+        trailerPlate:
+          type: string
+          nullable: true
+        subcontractorId:
+          type: integer
+        subcontractorName:
+          type: string
+        status:
+          type: string
+          enum: [available, on_trip, maintenance, idle]
+        notes:
+          type: string
+          nullable: true
+        assignedDriverName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, plateNumber, subcontractorId, subcontractorName, status, createdAt]
+
+    TruckInput:
+      type: object
+      properties:
+        plateNumber:
+          type: string
+        trailerPlate:
+          type: string
+          nullable: true
+        subcontractorId:
+          type: integer
+        status:
+          type: string
+          enum: [available, on_trip, maintenance, idle]
+        notes:
+          type: string
+          nullable: true
+      required: [plateNumber, subcontractorId, status]
+
+    Driver:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        passportNumber:
+          type: string
+          nullable: true
+        licenseNumber:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, suspended, terminated]
+        statusEffectiveDate:
+          type: string
+          nullable: true
+        monthlySalary:
+          type: number
+        assignedTruckId:
+          type: integer
+          nullable: true
+        assignedTruckPlate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, name, status, monthlySalary, createdAt]
+
+    DriverInput:
+      type: object
+      properties:
+        name:
+          type: string
+        passportNumber:
+          type: string
+          nullable: true
+        licenseNumber:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, suspended, terminated]
+        statusEffectiveDate:
+          type: string
+          nullable: true
+        monthlySalary:
+          type: number
+        assignedTruckId:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [name, status, monthlySalary]
+
+    PayrollRun:
+      type: object
+      properties:
+        id:
+          type: integer
+        driverId:
+          type: integer
+        driverName:
+          type: string
+        month:
+          type: integer
+        year:
+          type: integer
+        monthlySalary:
+          type: number
+        tripsCount:
+          type: integer
+        amountPerTrip:
+          type: number
+        createdAt:
+          type: string
+      required: [id, driverId, driverName, month, year, monthlySalary, tripsCount, amountPerTrip, createdAt]
+
+    PayrollRunInput:
+      type: object
+      properties:
+        month:
+          type: integer
+        year:
+          type: integer
+      required: [month, year]
+
+    Batch:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        route:
+          type: string
+          enum: [dar_to_lubumbashi, beira_to_lubumbashi]
+        status:
+          type: string
+          enum: [planning, loading, in_transit, delivered, invoiced, cancelled]
+        ratePerMt:
+          type: number
+        nominatedDate:
+          type: string
+          nullable: true
+        loadedDate:
+          type: string
+          nullable: true
+        deliveredDate:
+          type: string
+          nullable: true
+        cancellationReason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        truckCount:
+          type: integer
+        activeTrips:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, name, clientId, clientName, route, status, ratePerMt, truckCount, activeTrips, createdAt]
+
+    BatchInput:
+      type: object
+      properties:
+        name:
+          type: string
+        clientId:
+          type: integer
+        route:
+          type: string
+          enum: [dar_to_lubumbashi, beira_to_lubumbashi]
+        status:
+          type: string
+          enum: [planning, loading, in_transit, delivered, invoiced, cancelled]
+        ratePerMt:
+          type: number
+        nominatedDate:
+          type: string
+          nullable: true
+        loadedDate:
+          type: string
+          nullable: true
+        deliveredDate:
+          type: string
+          nullable: true
+        cancellationReason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [name, clientId, route, status, ratePerMt]
+
+    BatchDetail:
+      allOf:
+        - $ref: "#/components/schemas/Batch"
+        - type: object
+          properties:
+            trips:
+              type: array
+              items:
+                $ref: "#/components/schemas/Trip"
+          required: [trips]
+
+    BatchFinancials:
+      type: object
+      properties:
+        batchId:
+          type: integer
+        batchName:
+          type: string
+        totalCapacity:
+          type: number
+        totalLoadedQty:
+          type: number
+        totalDeliveredQty:
+          type: number
+        grossRevenue:
+          type: number
+        totalCommission:
+          type: number
+        totalShortCharges:
+          type: number
+        totalTripExpenses:
+          type: number
+        totalDriverSalaries:
+          type: number
+        totalNetPayable:
+          type: number
+        netProfit:
+          type: number
+        tripBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/TripFinancials"
+      required: [batchId, batchName, totalCapacity, totalLoadedQty, totalDeliveredQty, grossRevenue, totalCommission, totalShortCharges, totalTripExpenses, totalDriverSalaries, totalNetPayable, netProfit, tripBreakdown]
+
+    BulkNominationInput:
+      type: object
+      properties:
+        nominations:
+          type: array
+          items:
+            $ref: "#/components/schemas/NominationItem"
+      required: [nominations]
+
+    NominationItem:
+      type: object
+      properties:
+        truckId:
+          type: integer
+        driverId:
+          type: integer
+          nullable: true
+        product:
+          type: string
+          enum: [AGO, PMS]
+        capacity:
+          type: number
+      required: [truckId, product, capacity]
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: integer
+        batchId:
+          type: integer
+        batchName:
+          type: string
+          nullable: true
+        truckId:
+          type: integer
+        truckPlate:
+          type: string
+        trailerPlate:
+          type: string
+          nullable: true
+        driverId:
+          type: integer
+          nullable: true
+        driverName:
+          type: string
+          nullable: true
+        subcontractorId:
+          type: integer
+        subcontractorName:
+          type: string
+        product:
+          type: string
+          enum: [AGO, PMS]
+        capacity:
+          type: number
+        status:
+          type: string
+          enum: [nominated, amended_out, cancelled, loading, loaded, in_transit, at_zambia_entry, at_drc_entry, delivered]
+        loadedQty:
+          type: number
+          nullable: true
+        deliveredQty:
+          type: number
+          nullable: true
+        mileageStart:
+          type: number
+          nullable: true
+        mileageEnd:
+          type: number
+          nullable: true
+        fuel1:
+          type: number
+          nullable: true
+        fuel2:
+          type: number
+          nullable: true
+        fuel3:
+          type: number
+          nullable: true
+        cancellationReason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, batchId, truckId, truckPlate, subcontractorId, subcontractorName, product, capacity, status, createdAt]
+
+    TripDetail:
+      allOf:
+        - $ref: "#/components/schemas/Trip"
+        - type: object
+          properties:
+            expenses:
+              type: array
+              items:
+                $ref: "#/components/schemas/TripExpense"
+            clearances:
+              type: array
+              items:
+                $ref: "#/components/schemas/Clearance"
+            amendments:
+              type: array
+              items:
+                $ref: "#/components/schemas/TripAmendment"
+            deliveryNote:
+              $ref: "#/components/schemas/DeliveryNote"
+              nullable: true
+            financials:
+              $ref: "#/components/schemas/TripFinancials"
+          required: [expenses, clearances, amendments, financials]
+
+    TripFinancials:
+      type: object
+      properties:
+        grossRevenue:
+          type: number
+          nullable: true
+        commission:
+          type: number
+          nullable: true
+        shortQty:
+          type: number
+          nullable: true
+        allowancePct:
+          type: number
+          nullable: true
+        allowanceQty:
+          type: number
+          nullable: true
+        chargeableShort:
+          type: number
+          nullable: true
+        shortCharge:
+          type: number
+          nullable: true
+        tripExpensesTotal:
+          type: number
+        driverSalaryAllocation:
+          type: number
+        netPayable:
+          type: number
+          nullable: true
+      required: [tripExpensesTotal, driverSalaryAllocation]
+
+    TripUpdateInput:
+      type: object
+      properties:
+        driverId:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [nominated, amended_out, cancelled, loading, loaded, in_transit, at_zambia_entry, at_drc_entry, delivered]
+        loadedQty:
+          type: number
+          nullable: true
+        deliveredQty:
+          type: number
+          nullable: true
+        mileageStart:
+          type: number
+          nullable: true
+        mileageEnd:
+          type: number
+          nullable: true
+        fuel1:
+          type: number
+          nullable: true
+        fuel2:
+          type: number
+          nullable: true
+        fuel3:
+          type: number
+          nullable: true
+        cancellationReason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    TripAmendmentInput:
+      type: object
+      properties:
+        amendmentType:
+          type: string
+          enum: [truck_swap, driver_swap, cancellation]
+        newTruckId:
+          type: integer
+          nullable: true
+        newDriverId:
+          type: integer
+          nullable: true
+        reason:
+          type: string
+      required: [amendmentType, reason]
+
+    TripAmendment:
+      type: object
+      properties:
+        id:
+          type: integer
+        tripId:
+          type: integer
+        amendmentType:
+          type: string
+        oldTruckId:
+          type: integer
+          nullable: true
+        newTruckId:
+          type: integer
+          nullable: true
+        oldDriverId:
+          type: integer
+          nullable: true
+        newDriverId:
+          type: integer
+          nullable: true
+        reason:
+          type: string
+        amendedAt:
+          type: string
+      required: [id, tripId, amendmentType, reason, amendedAt]
+
+    TripExpense:
+      type: object
+      properties:
+        id:
+          type: integer
+        tripId:
+          type: integer
+        costType:
+          type: string
+        description:
+          type: string
+          nullable: true
+        amount:
+          type: number
+        currency:
+          type: string
+        createdAt:
+          type: string
+      required: [id, tripId, costType, amount, currency, createdAt]
+
+    TripExpenseInput:
+      type: object
+      properties:
+        costType:
+          type: string
+        description:
+          type: string
+          nullable: true
+        amount:
+          type: number
+        currency:
+          type: string
+          default: USD
+      required: [costType, amount]
+
+    Clearance:
+      type: object
+      properties:
+        id:
+          type: integer
+        tripId:
+          type: integer
+        checkpoint:
+          type: string
+          enum: [zambia_entry, drc_entry]
+        documentType:
+          type: string
+        documentNumber:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [requested, pending, approved, rejected]
+        requestedAt:
+          type: string
+          nullable: true
+        approvedAt:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, tripId, checkpoint, documentType, status, createdAt]
+
+    ClearanceInput:
+      type: object
+      properties:
+        checkpoint:
+          type: string
+          enum: [zambia_entry, drc_entry]
+        documentType:
+          type: string
+        documentNumber:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [requested, pending, approved, rejected]
+        requestedAt:
+          type: string
+          nullable: true
+        approvedAt:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+      required: [checkpoint, documentType, status]
+
+    ClearanceBoardRow:
+      type: object
+      properties:
+        tripId:
+          type: integer
+        truckPlate:
+          type: string
+        batchName:
+          type: string
+        tripStatus:
+          type: string
+        zambiaEntry:
+          type: array
+          items:
+            $ref: "#/components/schemas/Clearance"
+        drcEntry:
+          type: array
+          items:
+            $ref: "#/components/schemas/Clearance"
+      required: [tripId, truckPlate, batchName, tripStatus, zambiaEntry, drcEntry]
+
+    DeliveryNote:
+      type: object
+      properties:
+        id:
+          type: integer
+        tripId:
+          type: integer
+        content:
+          type: string
+        attachmentUrl:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, tripId, content, createdAt]
+
+    DeliveryNoteInput:
+      type: object
+      properties:
+        content:
+          type: string
+        attachmentUrl:
+          type: string
+          nullable: true
+      required: [content]
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoiceNumber:
+          type: string
+        batchId:
+          type: integer
+        batchName:
+          type: string
+        clientId:
+          type: integer
+        clientName:
+          type: string
+        totalLoadedQty:
+          type: number
+        totalDeliveredQty:
+          type: number
+        ratePerMt:
+          type: number
+        grossRevenue:
+          type: number
+        totalShortCharge:
+          type: number
+        netRevenue:
+          type: number
+        status:
+          type: string
+          enum: [draft, sent, paid, overdue]
+        issuedDate:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+      required: [id, invoiceNumber, batchId, batchName, clientId, clientName, totalLoadedQty, totalDeliveredQty, ratePerMt, grossRevenue, totalShortCharge, netRevenue, status, createdAt]
+
+    InvoiceDetail:
+      allOf:
+        - $ref: "#/components/schemas/Invoice"
+        - type: object
+          properties:
+            lineItems:
+              type: array
+              items:
+                $ref: "#/components/schemas/InvoiceLineItem"
+          required: [lineItems]
+
+    InvoiceLineItem:
+      type: object
+      properties:
+        tripId:
+          type: integer
+        truckPlate:
+          type: string
+        product:
+          type: string
+        loadedQty:
+          type: number
+        deliveredQty:
+          type: number
+        shortQty:
+          type: number
+        allowanceQty:
+          type: number
+        chargeableShort:
+          type: number
+        shortCharge:
+          type: number
+        grossRevenue:
+          type: number
+        netRevenue:
+          type: number
+      required: [tripId, truckPlate, product, loadedQty, deliveredQty, shortQty, allowanceQty, chargeableShort, shortCharge, grossRevenue, netRevenue]
+
+    InvoiceInput:
+      type: object
+      properties:
+        batchId:
+          type: integer
+        issuedDate:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [draft, sent, paid, overdue]
+      required: [batchId, status]
+
+    InvoiceUpdateInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [draft, sent, paid, overdue]
+        issuedDate:
+          type: string
+          nullable: true
+        dueDate:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+
+    CompanyExpense:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+          enum: [rent, utilities, staff, travel, legal, marketing, other]
+        description:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        expenseDate:
+          type: string
+        createdAt:
+          type: string
+      required: [id, category, description, amount, currency, expenseDate, createdAt]
+
+    CompanyExpenseInput:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [rent, utilities, staff, travel, legal, marketing, other]
+        description:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+          default: USD
+        expenseDate:
+          type: string
+      required: [category, description, amount, expenseDate]
+
+    PnlReport:
+      type: object
+      properties:
+        period:
+          type: string
+        totalCommission:
+          type: number
+        totalOverheads:
+          type: number
+        netProfit:
+          type: number
+        commissionByMonth:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              commission:
+                type: number
+              overheads:
+                type: number
+              netProfit:
+                type: number
+            required: [label, commission, overheads, netProfit]
+        expensesByCategory:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+              total:
+                type: number
+            required: [category, total]
+      required: [period, totalCommission, totalOverheads, netProfit, commissionByMonth, expensesByCategory]
+
+    CommissionReport:
+      type: object
+      properties:
+        period:
+          type: string
+        totalCommission:
+          type: number
+        totalGrossRevenue:
+          type: number
+        commissionBySubcontractor:
+          type: array
+          items:
+            type: object
+            properties:
+              subcontractorName:
+                type: string
+              commissionRate:
+                type: number
+              grossRevenue:
+                type: number
+              commission:
+                type: number
+              trips:
+                type: integer
+            required: [subcontractorName, commissionRate, grossRevenue, commission, trips]
+        commissionByBatch:
+          type: array
+          items:
+            type: object
+            properties:
+              batchName:
+                type: string
+              clientName:
+                type: string
+              route:
+                type: string
+              grossRevenue:
+                type: number
+              commission:
+                type: number
+            required: [batchName, clientName, route, grossRevenue, commission]
+        monthlyTrend:
+          type: array
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              commission:
+                type: number
+            required: [label, commission]
+      required: [period, totalCommission, totalGrossRevenue, commissionBySubcontractor, commissionByBatch, monthlyTrend]
