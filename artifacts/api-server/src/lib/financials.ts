@@ -14,6 +14,8 @@ import { eq, sql } from "drizzle-orm";
 export const REVENUE_RECOGNISED_STATUSES = ["delivered", "completed", "invoiced", "amended_out"];
 
 export type TripFinancials = {
+  agentFeePerMt: number | null;
+  agentFeeTotal: number | null;
   grossRevenue: number | null;
   commission: number | null;
   /** Commission rate as a percentage (e.g. 5 for 5%). */
@@ -110,7 +112,7 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
       : trip.truckId;
 
   const [batch] = await db
-    .select({ ratePerMt: batchesTable.ratePerMt, clientId: batchesTable.clientId })
+    .select({ ratePerMt: batchesTable.ratePerMt, clientId: batchesTable.clientId, agentFeePerMt: batchesTable.agentFeePerMt })
     .from(batchesTable)
     .where(eq(batchesTable.id, trip.batchId));
 
@@ -118,6 +120,7 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
   const tripStatus = trip.status;
 
   const NONE: Omit<TripFinancials, "tripExpensesTotal" | "driverSalaryAllocation" | "isRevenueHeld" | "projectedGross" | "tripStatus"> = {
+    agentFeePerMt: null, agentFeeTotal: null,
     grossRevenue: null, commission: null, commissionRatePct: null, billingModel: "commission", subRatePerMt: null, subDefaultRatePerMt: null,
     shortQty: null, allowancePct: null, allowanceQty: null, chargeableShort: null,
     shortCharge: null, subShortChargeRate: null, clientShortCharge: null, clientShortChargeRate: null,
@@ -231,6 +234,9 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
 
   // Revenue recognised — full calculation
   const grossRevenue = projectedGross;
+  const agentFeePerMtValue = batch.agentFeePerMt != null ? parseFloat(batch.agentFeePerMt) : 0;
+  const agentFeeTotal = loadedQty * agentFeePerMtValue;
+  const effectiveBase = grossRevenue - agentFeeTotal;
 
   let shortQty: number | null = null;
   let allowanceQty: number | null = null;
@@ -256,16 +262,18 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
 
   if (billingModel === "rate_differential" && effectiveSubRatePerMt != null) {
     const subGross = loadedQty * effectiveSubRatePerMt;
-    commission = grossRevenue - subGross; // company keeps the spread
+    commission = effectiveBase - subGross; // company keeps the spread after agent fee
     commissionRatePct = grossRevenue > 0 ? (commission / grossRevenue) * 100 : 0;
     netPayable = subGross - effectiveSubShortCharge - tripExpensesTotal - driverSalaryAllocation;
   } else {
-    commission = grossRevenue * commissionRate;
+    commission = effectiveBase * commissionRate;
     commissionRatePct = commissionRate * 100;
-    netPayable = grossRevenue - commission - effectiveSubShortCharge - tripExpensesTotal - driverSalaryAllocation;
+    netPayable = effectiveBase - commission - effectiveSubShortCharge - tripExpensesTotal - driverSalaryAllocation;
   }
 
   return {
+    agentFeePerMt: agentFeePerMtValue > 0 ? agentFeePerMtValue : null,
+    agentFeeTotal: agentFeeTotal > 0 ? agentFeeTotal : null,
     grossRevenue, commission, commissionRatePct, billingModel, subRatePerMt: effectiveSubRatePerMt, subDefaultRatePerMt,
     shortQty, allowancePct, allowanceQty, chargeableShort,
     shortCharge, subShortChargeRate, clientShortCharge, clientShortChargeRate,

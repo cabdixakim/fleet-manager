@@ -284,6 +284,82 @@ export function useGetCommissionBreakdown(params: { period?: string; year?: numb
   });
 }
 
+export function useGetAgents() {
+  return useQuery({
+    queryKey: ["/api/agents"],
+    queryFn: async () => {
+      const res = await fetch("/api/agents", { credentials: "include" });
+      return res.json() as Promise<any[]>;
+    },
+  });
+}
+
+export function useGetAgent(id: number | null) {
+  return useQuery({
+    queryKey: ["/api/agents", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/agents/${id}`, { credentials: "include" });
+      return res.json() as Promise<any>;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch("/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
+      return res.json();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/agents"] }),
+  });
+}
+
+export function useUpdateAgent(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch(`/api/agents/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
+      return res.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/agents"] }); qc.invalidateQueries({ queryKey: ["/api/agents", id] }); },
+  });
+}
+
+export function useGetAgentTransactions(agentId: number | null) {
+  return useQuery({
+    queryKey: ["/api/agents", agentId, "transactions"],
+    queryFn: async () => {
+      const res = await fetch(`/api/agents/${agentId}/transactions`, { credentials: "include" });
+      return res.json() as Promise<any[]>;
+    },
+    enabled: !!agentId,
+  });
+}
+
+export function useCreateAgentTransaction(agentId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch(`/api/agents/${agentId}/transactions`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
+      return res.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/agents", agentId, "transactions"] }); qc.invalidateQueries({ queryKey: ["/api/agents"] }); qc.invalidateQueries({ queryKey: ["/api/agents", agentId] }); },
+  });
+}
+
+export function useDeleteAgentTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ txnId, agentId }: { txnId: number; agentId: number }) => {
+      await fetch(`/api/agents/transactions/${txnId}`, { method: "DELETE", credentials: "include" });
+      return { txnId, agentId };
+    },
+    onSuccess: ({ agentId }) => { qc.invalidateQueries({ queryKey: ["/api/agents"] }); qc.invalidateQueries({ queryKey: ["/api/agents", agentId, "transactions"] }); },
+  });
+}
+
 export function useGetEntityAnalytics(params: { entity: string; ids: number[]; period?: string; year?: number; month?: number }) {
   const { entity, ids, period = "all", year, month } = params;
   const idsStr = ids.join(",");

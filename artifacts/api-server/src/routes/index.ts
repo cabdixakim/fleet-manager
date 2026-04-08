@@ -25,6 +25,7 @@ import auditLogsRouter from "./auditLogs";
 import truckDriverAssignmentsRouter from "./truckDriverAssignments";
 import periodsRouter from "./periods";
 import nominationsRouter from "./nominations";
+import agentsRouter from "./agents";
 
 const router: IRouter = Router();
 
@@ -55,5 +56,6 @@ router.use("/truck-driver-engagements", truckDriverAssignmentsRouter);
 router.use("/truck-driver-engagements-all-current", truckDriverAssignmentsRouter);
 router.use("/periods", periodsRouter);
 router.use("/nominations", nominationsRouter);
+router.use("/agents", agentsRouter);
 
 export default router;

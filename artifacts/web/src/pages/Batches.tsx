@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useGetBatches, useCreateBatch, useUpdateBatch, useGetClients } from "@workspace/api-client-react";
+import { useGetBatches, useCreateBatch, useUpdateBatch, useGetClients, useGetAgents } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -28,7 +28,7 @@ export default function Batches() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", clientId: "", route: DEFAULT_ROUTE, ratePerMt: "", notes: "" });
+  const [form, setForm] = useState({ name: "", clientId: "", route: DEFAULT_ROUTE, ratePerMt: "", agentId: "", agentFeePerMt: "", notes: "" });
   const [editBatch, setEditBatch] = useState<any | null>(null);
   const [cancelBatch, setCancelBatch] = useState<any | null>(null);
   const [batchRevertDialog, setBatchRevertDialog] = useState<{ open: boolean; fromStatus: string; toStatus: string } | null>(null);
@@ -37,6 +37,7 @@ export default function Batches() {
   if (statusFilter !== "all") params.status = statusFilter;
   const { data: batches = [], isLoading } = useGetBatches(params);
   const { data: clients = [] } = useGetClients();
+  const { data: agents = [] } = useGetAgents();
   const { mutateAsync: createBatch, isPending } = useCreateBatch();
   const { mutateAsync: updateBatch, isPending: updating } = useUpdateBatch();
 
@@ -46,10 +47,10 @@ export default function Batches() {
 
   const handleCreate = async () => {
     if (!form.name || !form.clientId || !form.ratePerMt) return;
-    await createBatch({ data: { ...form, clientId: parseInt(form.clientId), ratePerMt: parseFloat(form.ratePerMt), status: "planning" } });
+    await createBatch({ data: { ...form, clientId: parseInt(form.clientId), ratePerMt: parseFloat(form.ratePerMt), ...(form.agentId ? { agentId: parseInt(form.agentId), agentFeePerMt: form.agentFeePerMt ? parseFloat(form.agentFeePerMt) : null } : { agentId: null, agentFeePerMt: null }), status: "planning" } });
     qc.invalidateQueries({ queryKey: ["/api/batches"] });
     setShowCreate(false);
-    setForm({ name: "", clientId: "", route: DEFAULT_ROUTE, ratePerMt: "", notes: "" });
+    setForm({ name: "", clientId: "", route: DEFAULT_ROUTE, ratePerMt: "", agentId: "", agentFeePerMt: "", notes: "" });
   };
 
   const performBatchUpdate = async (revertReason?: string) => {
@@ -61,6 +62,8 @@ export default function Batches() {
         ratePerMt: parseFloat(editBatch.ratePerMt),
         notes: editBatch.notes,
         status: editBatch.status,
+        agentId: editBatch.agentId ? parseInt(editBatch.agentId) : null,
+        agentFeePerMt: editBatch.agentFeePerMt ? parseFloat(editBatch.agentFeePerMt) : null,
         ...(revertReason ? { revertReason } : {}),
       } as any,
     });
@@ -195,6 +198,24 @@ export default function Batches() {
               <Label>Rate per MT (USD) *</Label>
               <Input type="number" placeholder="0.00" value={form.ratePerMt} onChange={(e) => setForm({ ...form, ratePerMt: e.target.value })} className="mt-1.5" />
             </div>
+            {(agents as any[]).length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Agent <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <Select value={form.agentId} onValueChange={(v) => setForm({ ...form, agentId: v === "none" ? "" : v })}>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="No agent" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No agent</SelectItem>
+                      {(agents as any[]).map((a: any) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Agent fee/MT <span className="text-muted-foreground text-xs">(USD)</span></Label>
+                  <Input type="number" placeholder="0.00" value={form.agentFeePerMt} onChange={(e) => setForm({ ...form, agentFeePerMt: e.target.value })} className="mt-1.5" disabled={!form.agentId} />
+                </div>
+              </div>
+            )}
             <div>
               <Label>Notes</Label>
               <Input placeholder="Optional" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="mt-1.5" />
@@ -227,6 +248,24 @@ export default function Batches() {
                 </Select>
               </div>
               <div><Label>Rate per MT (USD) *</Label><Input type="number" value={editBatch.ratePerMt} onChange={(e) => setEditBatch({ ...editBatch, ratePerMt: e.target.value })} className="mt-1.5" /></div>
+              {(agents as any[]).length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label>Agent <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                    <Select value={editBatch.agentId ? String(editBatch.agentId) : "none"} onValueChange={(v) => setEditBatch({ ...editBatch, agentId: v === "none" ? null : v })}>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="No agent" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No agent</SelectItem>
+                        {(agents as any[]).map((a: any) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Agent fee/MT <span className="text-muted-foreground text-xs">(USD)</span></Label>
+                    <Input type="number" placeholder="0.00" value={editBatch.agentFeePerMt ?? ""} onChange={(e) => setEditBatch({ ...editBatch, agentFeePerMt: e.target.value })} className="mt-1.5" disabled={!editBatch.agentId} />
+                  </div>
+                </div>
+              )}
               <div><Label>Notes</Label><Input value={editBatch.notes ?? ""} onChange={(e) => setEditBatch({ ...editBatch, notes: e.target.value })} className="mt-1.5" /></div>
             </div>
           )}

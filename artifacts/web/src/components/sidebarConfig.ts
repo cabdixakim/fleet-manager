@@ -1,4 +1,16 @@
-export const sidebarConfig = [
+export type SidebarLink = {
+  label: string;
+  path: string;
+  icon: string;
+  subtle?: boolean;
+};
+
+export type SidebarGroup = {
+  section: string;
+  links: SidebarLink[];
+};
+
+export const sidebarConfig: SidebarGroup[] = [
   {
     section: "Operations",
     links: [
@@ -25,6 +37,7 @@ export const sidebarConfig = [
       { label: "Expenses", path: "/finance", icon: "dollarSign" },
       { label: "Reports", path: "/reports", icon: "barChart" },
       { label: "Periods", path: "/periods", icon: "calendar" },
+      { label: "Agents", path: "/agents", icon: "mapPin", subtle: true },
     ],
   },
   {

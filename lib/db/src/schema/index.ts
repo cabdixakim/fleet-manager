@@ -19,3 +19,4 @@ export * from "./auditLogs";
 export * from "./truckDriverAssignments";
 export * from "./periods";
 export * from "./periods.relations";
+export * from "./agents";
