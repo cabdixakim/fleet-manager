@@ -39,7 +39,7 @@ const QUARTERS = [
 function buildYearOptions() {
   const current = new Date().getFullYear();
   const years = [];
-  for (let y = current; y >= 2023; y--) years.push(y);
+  for (let y = 2023; y <= current; y++) years.push(y);
   return years;
 }
 
