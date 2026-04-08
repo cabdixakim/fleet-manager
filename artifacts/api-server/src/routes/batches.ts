@@ -481,11 +481,13 @@ router.post("/:id/raise-invoice", async (req, res, next) => {
     }).returning();
 
     // Create accounting entry in client ledger for balance tracking
+    // Use netRevenue (gross minus client short charge credit) so that the ledger reflects
+    // what the client actually owes, and cancellation reversals are perfectly symmetrical.
     const [tx] = await db.insert(clientTransactionsTable).values({
       clientId: batch.clientId,
       batchId: id,
       type: "invoice",
-      amount: grossRevenue.toFixed(2),
+      amount: netRevenue.toFixed(2),
       reference: invoiceNumber,
       invoiceId: invoice.id,
       description: `Invoice ${invoiceNumber} — ${batch.name} (${selectedIds.length} trip${selectedIds.length !== 1 ? "s" : ""})`,
