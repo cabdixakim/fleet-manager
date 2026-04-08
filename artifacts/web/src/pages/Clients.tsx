@@ -382,24 +382,29 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
           ) : (
             <div className="space-y-2">
               {filteredBatches.map((b: any) => (
-                <div key={b.id} className="bg-card border border-border rounded-xl px-5 py-4 flex items-center gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-foreground text-sm">{b.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColor[b.status] ?? "bg-secondary text-muted-foreground"}`}>{b.status?.replace(/_/g, " ")}</span>
+                <Link key={b.id} href={`/batches/${b.id}`}>
+                  <div className="bg-card border border-border rounded-xl px-5 py-4 flex items-center gap-4 cursor-pointer hover:border-primary/40 hover:bg-card/80 transition-all group">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-foreground text-sm">{b.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${statusColor[b.status] ?? "bg-secondary text-muted-foreground"}`}>{b.status?.replace(/_/g, " ")}</span>
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                        {b.route && <span>{b.route}</span>}
+                        {b.productType && <><span>·</span><span>{b.productType}</span></>}
+                        {b.loadDate && <><span>·</span><span>Load: {formatDate(b.loadDate)}</span></>}
+                        {b.estimatedDeliveryDate && <><span>·</span><span>ETA: {formatDate(b.estimatedDeliveryDate)}</span></>}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                      {b.route && <span>{b.route}</span>}
-                      {b.productType && <><span>·</span><span>{b.productType}</span></>}
-                      {b.loadDate && <><span>·</span><span>Load: {formatDate(b.loadDate)}</span></>}
-                      {b.estimatedDeliveryDate && <><span>·</span><span>ETA: {formatDate(b.estimatedDeliveryDate)}</span></>}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        {b.grossRevenue && <p className="text-sm font-semibold text-foreground">{formatCurrency(b.grossRevenue)}</p>}
+                        {b.totalLitres && <p className="text-xs text-muted-foreground">{b.totalLitres?.toLocaleString()} L</p>}
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    {b.grossRevenue && <p className="text-sm font-semibold text-foreground">{formatCurrency(b.grossRevenue)}</p>}
-                    {b.totalLitres && <p className="text-xs text-muted-foreground">{b.totalLitres?.toLocaleString()} L</p>}
-                  </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

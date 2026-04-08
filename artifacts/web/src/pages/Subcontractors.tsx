@@ -112,9 +112,15 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
     finally { setAddingOtherExpense(false); }
   };
 
+  const { data: subTrips = [] } = useQuery<any[]>({
+    queryKey: [`/api/trips`, "sub", id],
+    queryFn: () => fetch(`/api/trips?subcontractorId=${id}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!id,
+  });
+
   const [showTx, setShowTx] = useState(false);
   const [txForm, setTxForm] = useState({ type: "payment_made", amount: "", description: "", reference: "" });
-  const [activeTab, setActiveTab] = useState<"ledger" | "expenses" | "otherExpenses">("ledger");
+  const [activeTab, setActiveTab] = useState<"ledger" | "expenses" | "otherExpenses" | "trips">("ledger");
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [editForm, setEditForm] = useState<any>(null);
@@ -322,11 +328,14 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-border">
-        {(["ledger", "expenses", "otherExpenses"] as const).map((tab) => (
+      <div className="flex gap-1 mb-4 border-b border-border overflow-x-auto">
+        {(["ledger", "trips", "expenses", "otherExpenses"] as const).map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {tab === "ledger" ? "Account Ledger" : tab === "expenses" ? `Trip Expenses (${(expenses as any[]).length})` : `Other Expenses${(otherExpenses as any[]).length ? ` (${(otherExpenses as any[]).length})` : ""}`}
+            className={`px-4 py-2 text-sm font-medium whitespace-nowrap capitalize transition-colors border-b-2 -mb-px ${activeTab === tab ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            {tab === "ledger" ? "Account Ledger"
+              : tab === "trips" ? `Trips (${(subTrips as any[]).length})`
+              : tab === "expenses" ? `Trip Expenses (${(expenses as any[]).length})`
+              : `Other Expenses${(otherExpenses as any[]).length ? ` (${(otherExpenses as any[]).length})` : ""}`}
           </button>
         ))}
       </div>
@@ -513,6 +522,51 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
             </table>
           </div>
         </>
+      )}
+
+      {activeTab === "trips" && (
+        <div className="space-y-2">
+          {(subTrips as any[]).length === 0 ? (
+            <div className="bg-card border border-border rounded-xl py-12 flex flex-col items-center text-center">
+              <Receipt className="w-8 h-8 text-muted-foreground/30 mb-2" />
+              <p className="text-muted-foreground text-sm">No trips assigned to this subcontractor</p>
+            </div>
+          ) : (subTrips as any[]).map((t: any) => {
+            const statusColors: Record<string, string> = {
+              nominated: "bg-slate-500/20 text-slate-300",
+              loading: "bg-amber-500/20 text-amber-400",
+              loaded: "bg-blue-500/20 text-blue-400",
+              in_transit: "bg-cyan-500/20 text-cyan-400",
+              at_zambia_entry: "bg-indigo-500/20 text-indigo-300",
+              at_drc_entry: "bg-violet-500/20 text-violet-300",
+              delivered: "bg-green-500/20 text-green-400",
+              completed: "bg-green-600/20 text-green-500",
+              cancelled: "bg-red-500/20 text-red-400",
+              amended_out: "bg-orange-500/20 text-orange-400",
+            };
+            return (
+              <Link key={t.id} href={`/trips/${t.id}`}>
+                <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-primary/40 hover:bg-card/80 transition-all group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="text-xs font-mono text-muted-foreground">#{t.id}</span>
+                      <span className="text-sm font-semibold text-foreground truncate">{t.batchName ?? "-"}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${statusColors[t.status] ?? "bg-secondary text-muted-foreground"}`}>
+                        {t.status?.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                      {t.truckPlate && <span className="font-mono">{t.truckPlate}</span>}
+                      {t.batchRoute && <><span>·</span><span>{t.batchRoute.replace(/_/g, " → ")}</span></>}
+                      {t.loadedQty != null && <><span>·</span><span>{t.loadedQty.toLocaleString()} MT</span></>}
+                    </div>
+                  </div>
+                  <span className="text-muted-foreground group-hover:text-primary transition-colors text-xs">→</span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       )}
 
       {/* Add Other Expense Dialog */}

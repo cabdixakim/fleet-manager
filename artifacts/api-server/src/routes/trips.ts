@@ -28,7 +28,7 @@ const router = Router();
 // GET /api/trips — list all trips with joins
 router.get("/", async (req, res, next) => {
   try {
-    const { status, batchId, truckId, search } = req.query as Record<string, string>;
+    const { status, batchId, truckId, subcontractorId, search } = req.query as Record<string, string>;
     const rows = await db
       .select({
         id: tripsTable.id,
@@ -42,6 +42,7 @@ router.get("/", async (req, res, next) => {
         driverId: tripsTable.driverId,
         driverName: driversTable.name,
         subcontractorName: subcontractorsTable.name,
+        subcontractorId: trucksTable.subcontractorId,
         product: tripsTable.product,
         capacity: tripsTable.capacity,
         status: tripsTable.status,
@@ -62,6 +63,7 @@ router.get("/", async (req, res, next) => {
     if (status) filtered = filtered.filter((r) => r.status === status);
     if (batchId) filtered = filtered.filter((r) => r.batchId === parseInt(batchId));
     if (truckId) filtered = filtered.filter((r) => r.truckId === parseInt(truckId));
+    if (subcontractorId) filtered = filtered.filter((r) => r.subcontractorId === parseInt(subcontractorId));
     if (search) {
       const s = search.toLowerCase();
       filtered = filtered.filter((r) =>
