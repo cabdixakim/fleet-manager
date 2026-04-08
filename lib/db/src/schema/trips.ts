@@ -40,6 +40,12 @@ export const tripsTable = pgTable("trips", {
   // Optional per-trip short charge rate overrides ($/MT). Falls back to client/sub defaults when null.
   clientShortRateOverride: numeric("client_short_rate_override", { precision: 10, scale: 4 }),
   subShortRateOverride: numeric("sub_short_rate_override", { precision: 10, scale: 4 }),
+  // Rate snapshots — stamped at nomination time so changing sub/client rates never rewrites history.
+  // Falls back to live lookup for trips created before snapshots were introduced.
+  commissionRateSnapshot: numeric("commission_rate_snapshot", { precision: 8, scale: 4 }),   // sub commission % (e.g. 8.0000)
+  defaultSubRateSnapshot: numeric("default_sub_rate_snapshot", { precision: 12, scale: 4 }), // sub's default rate/MT (rate_differential model)
+  subShortRateSnapshot: numeric("sub_short_rate_snapshot", { precision: 10, scale: 4 }),     // sub short charge $/MT for this product
+  clientShortRateSnapshot: numeric("client_short_rate_snapshot", { precision: 10, scale: 4 }), // client short charge $/MT for this product
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

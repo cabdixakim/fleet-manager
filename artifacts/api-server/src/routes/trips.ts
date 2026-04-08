@@ -15,7 +15,7 @@ import {
   agentTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { calculateTripFinancials } from "../lib/financials";
+import { calculateTripFinancials, snapTripRates } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 
 // Status workflow order — higher index = further along
@@ -427,6 +427,9 @@ router.post("/:id/amend", async (req, res, next) => {
       await db.update(trucksTable).set({ status: "available" }).where(eq(trucksTable.id, trip.truckId));
       await db.update(trucksTable).set({ status: "on_trip" }).where(eq(trucksTable.id, newTruckId));
       updates.truckId = newTruckId;
+      // Re-stamp rate snapshots for the new truck's subcontractor
+      const rateSnap = await snapTripRates(newTruckId, trip.product, trip.batchId);
+      Object.assign(updates, rateSnap);
     }
     if (newDriverId) updates.driverId = newDriverId;
     if (amendmentType === "capacity_change" && newCapacity != null) {

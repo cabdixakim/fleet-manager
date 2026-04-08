@@ -84,6 +84,10 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
       subRatePerMt: tripsTable.subRatePerMt,
       clientShortRateOverride: tripsTable.clientShortRateOverride,
       subShortRateOverride: tripsTable.subShortRateOverride,
+      commissionRateSnapshot: tripsTable.commissionRateSnapshot,
+      defaultSubRateSnapshot: tripsTable.defaultSubRateSnapshot,
+      subShortRateSnapshot: tripsTable.subShortRateSnapshot,
+      clientShortRateSnapshot: tripsTable.clientShortRateSnapshot,
     })
     .from(tripsTable)
     .where(eq(tripsTable.id, tripId));
@@ -165,9 +169,15 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
     .from(subcontractorsTable)
     .where(eq(subcontractorsTable.id, truck.subcontractorId));
 
-  const commissionRate = parseFloat(sub?.commissionRate ?? "0") / 100;
-  // Cascade: trip-level override → sub default → commission model
-  const subDefaultRatePerMt = sub?.defaultSubRatePerMt != null ? parseFloat(sub.defaultSubRatePerMt) : null;
+  // Commission rate: prefer snapshot (stamped at nomination) → live from sub (legacy trips)
+  const commissionRate = trip.commissionRateSnapshot != null
+    ? parseFloat(trip.commissionRateSnapshot) / 100
+    : parseFloat(sub?.commissionRate ?? "0") / 100;
+
+  // Sub default rate/MT: cascade → trip explicit override → snapshot → live from sub
+  const subDefaultRatePerMt = trip.defaultSubRateSnapshot != null
+    ? parseFloat(trip.defaultSubRateSnapshot)
+    : (sub?.defaultSubRatePerMt != null ? parseFloat(sub.defaultSubRatePerMt) : null);
   const effectiveSubRatePerMt = tripSubRatePerMt ?? subDefaultRatePerMt;
   const billingModel: "commission" | "rate_differential" = effectiveSubRatePerMt != null ? "rate_differential" : "commission";
 
@@ -175,11 +185,10 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
   let clientShortChargeRate = 0;
   const allowancePct = trip.product === "AGO" ? 0.3 : 0.5;
 
-  const subShortRate = parseFloat(
-    trip.product === "AGO"
-      ? (sub?.agoShortChargeRate ?? "0")
-      : (sub?.pmsShortChargeRate ?? "0")
-  );
+  // Sub short rate: prefer snapshot → live from sub
+  const subShortRate = trip.subShortRateSnapshot != null
+    ? parseFloat(trip.subShortRateSnapshot)
+    : parseFloat(trip.product === "AGO" ? (sub?.agoShortChargeRate ?? "0") : (sub?.pmsShortChargeRate ?? "0"));
 
   if (batch.clientId) {
     const [client] = await db
@@ -187,9 +196,10 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
       .from(clientsTable)
       .where(eq(clientsTable.id, batch.clientId));
     if (client) {
-      clientShortChargeRate = parseFloat(
-        trip.product === "AGO" ? (client.agoShortChargeRate ?? "0") : (client.pmsShortChargeRate ?? "0")
-      );
+      // Client short rate: prefer snapshot → live from client
+      clientShortChargeRate = trip.clientShortRateSnapshot != null
+        ? parseFloat(trip.clientShortRateSnapshot)
+        : parseFloat(trip.product === "AGO" ? (client.agoShortChargeRate ?? "0") : (client.pmsShortChargeRate ?? "0"));
       // Sub rate takes priority; fall back to client rate if sub hasn't set their own
       subShortChargeRate = subShortRate > 0 ? subShortRate : clientShortChargeRate;
     }
@@ -281,4 +291,60 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
     tripExpensesTotal, driverSalaryAllocation, netPayable,
     isRevenueHeld: false, projectedGross, tripStatus,
   };
+}
+
+/**
+ * Looks up the current rates for a given truck + product + batch and returns
+ * the values that should be snapshotted onto the trip at nomination time.
+ * Call this after inserting or amending a trip's truck assignment and persist
+ * the result back to the trip row.
+ */
+export async function snapTripRates(truckId: number, product: string, batchId: number): Promise<{
+  commissionRateSnapshot: string | null;
+  defaultSubRateSnapshot: string | null;
+  subShortRateSnapshot: string | null;
+  clientShortRateSnapshot: string | null;
+}> {
+  const [truck] = await db
+    .select({ subcontractorId: trucksTable.subcontractorId })
+    .from(trucksTable)
+    .where(eq(trucksTable.id, truckId));
+
+  let commissionRateSnapshot: string | null = null;
+  let defaultSubRateSnapshot: string | null = null;
+  let subShortRateSnapshot: string | null = null;
+
+  if (truck?.subcontractorId) {
+    const [sub] = await db
+      .select({
+        commissionRate: subcontractorsTable.commissionRate,
+        defaultSubRatePerMt: subcontractorsTable.defaultSubRatePerMt,
+        agoShortChargeRate: subcontractorsTable.agoShortChargeRate,
+        pmsShortChargeRate: subcontractorsTable.pmsShortChargeRate,
+      })
+      .from(subcontractorsTable)
+      .where(eq(subcontractorsTable.id, truck.subcontractorId));
+
+    if (sub) {
+      commissionRateSnapshot = sub.commissionRate ?? null;
+      defaultSubRateSnapshot = sub.defaultSubRatePerMt ?? null;
+      subShortRateSnapshot = (product === "AGO" ? sub.agoShortChargeRate : sub.pmsShortChargeRate) ?? null;
+    }
+  }
+
+  const [batch] = await db
+    .select({ clientId: batchesTable.clientId })
+    .from(batchesTable)
+    .where(eq(batchesTable.id, batchId));
+
+  let clientShortRateSnapshot: string | null = null;
+  if (batch?.clientId) {
+    const [client] = await db
+      .select({ agoShortChargeRate: clientsTable.agoShortChargeRate, pmsShortChargeRate: clientsTable.pmsShortChargeRate })
+      .from(clientsTable)
+      .where(eq(clientsTable.id, batch.clientId));
+    clientShortRateSnapshot = (client ? (product === "AGO" ? client.agoShortChargeRate : client.pmsShortChargeRate) : null) ?? null;
+  }
+
+  return { commissionRateSnapshot, defaultSubRateSnapshot, subShortRateSnapshot, clientShortRateSnapshot };
 }

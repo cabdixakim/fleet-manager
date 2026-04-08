@@ -14,7 +14,7 @@ import {
   subcontractorTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, and, sql, count, inArray, isNull, not } from "drizzle-orm";
-import { calculateTripFinancials } from "../lib/financials";
+import { calculateTripFinancials, snapTripRates } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 
 const router = Router();
@@ -322,9 +322,11 @@ router.post("/:id/nominate", async (req, res, next) => {
 
     const created = await Promise.all(
       nominations.map(async (n) => {
+        // Snap rates before inserting so they're baked in from day one
+        const rateSnap = await snapTripRates(n.truckId, n.product, batchId);
         const [trip] = await db
           .insert(tripsTable)
-          .values({ batchId, truckId: n.truckId, driverId: n.driverId ?? null, product: n.product, capacity: n.capacity.toString(), status: "nominated" })
+          .values({ batchId, truckId: n.truckId, driverId: n.driverId ?? null, product: n.product, capacity: n.capacity.toString(), status: "nominated", ...rateSnap })
           .returning();
         await db.update(trucksTable).set({ status: "on_trip" }).where(eq(trucksTable.id, n.truckId));
         const [truck] = await db.select({ plateNumber: trucksTable.plateNumber, trailerPlate: trucksTable.trailerPlate, subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, n.truckId));
