@@ -217,10 +217,10 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
               </p>
               <p className="text-xs text-muted-foreground font-medium">{balance >= 0 ? "Total Receivable" : "Credit Balance"}</p>
               {(client as any).unbilledReceivable > 0 && (
-                <p className="text-xs text-amber-400/60 mt-0.5">+ {formatCurrency((client as any).unbilledReceivable)} unbilled (delivered)</p>
+                <p className="text-xs text-amber-400 mt-0.5">+ {formatCurrency((client as any).unbilledReceivable)} unbilled (delivered)</p>
               )}
               {(client as any).projectedReceivable > 0 && (
-                <p className="text-xs text-muted-foreground/40 mt-0.5">+ {formatCurrency((client as any).projectedReceivable)} projected (in transit)</p>
+                <p className="text-xs text-sky-400 mt-0.5">+ {formatCurrency((client as any).projectedReceivable)} in transit</p>
               )}
             </div>
             <div className="sm:hidden flex flex-wrap gap-1.5 mt-3">
@@ -251,10 +251,10 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
               </p>
               <p className="text-xs text-muted-foreground font-medium">{balance >= 0 ? "Total Receivable" : "Credit Balance"}</p>
               {(client as any).unbilledReceivable > 0 && (
-                <p className="text-xs text-amber-400/60 mt-0.5">+ {formatCurrency((client as any).unbilledReceivable)} unbilled (delivered)</p>
+                <p className="text-xs text-amber-400 mt-0.5">+ {formatCurrency((client as any).unbilledReceivable)} unbilled (delivered)</p>
               )}
               {(client as any).projectedReceivable > 0 && (
-                <p className="text-xs text-muted-foreground/40 mt-0.5">+ {formatCurrency((client as any).projectedReceivable)} projected (in transit)</p>
+                <p className="text-xs text-sky-400 mt-0.5">+ {formatCurrency((client as any).projectedReceivable)} in transit</p>
               )}
             </div>
             <div className="flex flex-wrap gap-1.5 justify-end">
@@ -660,6 +660,12 @@ export default function Clients() {
                       <div className="text-right">
                         <span className={`text-base font-bold ${balance >= 0 ? "text-destructive" : "text-green-400"}`}>{formatCurrency(Math.abs(balance))}</span>
                         <p className="text-xs text-muted-foreground">{balance >= 0 ? "Receivable" : "Credit"}</p>
+                        {(c as any).unbilledReceivable > 0 && (
+                          <p className="text-[10px] text-amber-400 mt-0.5">+{formatCurrency((c as any).unbilledReceivable)} unbilled</p>
+                        )}
+                        {(c as any).projectedReceivable > 0 && (
+                          <p className="text-[10px] text-sky-400/70 mt-0.5">+{formatCurrency((c as any).projectedReceivable)} in transit</p>
+                        )}
                       </div>
                       <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>

@@ -44,10 +44,41 @@ router.get("/", async (_req, res, next) => {
     const clients = await db.select().from(clientsTable)
       .where(showAll ? undefined : eq(clientsTable.isActive, true))
       .orderBy(clientsTable.name);
+
+    // Bulk-fetch unbilled receivable (delivered/completed, not invoiced) per client
+    const unbilledRows = await db
+      .select({ clientId: batchesTable.clientId, qty: tripsTable.loadedQty, rate: batchesTable.ratePerMt })
+      .from(tripsTable)
+      .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .where(and(inArray(tripsTable.status, ["delivered", "completed"]), isNull(tripsTable.invoiceId)));
+
+    // Bulk-fetch projected receivable (loaded/in-transit, not invoiced) per client
+    const projectedRows = await db
+      .select({ clientId: batchesTable.clientId, qty: tripsTable.loadedQty, rate: batchesTable.ratePerMt })
+      .from(tripsTable)
+      .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .where(and(inArray(tripsTable.status, ["loaded", "in_transit", "at_zambia_entry", "at_drc_entry"]), isNull(tripsTable.invoiceId)));
+
+    const unbilledByClient: Record<number, number> = {};
+    for (const r of unbilledRows) {
+      if (r.clientId == null) continue;
+      unbilledByClient[r.clientId] = (unbilledByClient[r.clientId] ?? 0) + parseFloat(r.qty ?? "0") * parseFloat(r.rate ?? "0");
+    }
+    const projectedByClient: Record<number, number> = {};
+    for (const r of projectedRows) {
+      if (r.clientId == null) continue;
+      projectedByClient[r.clientId] = (projectedByClient[r.clientId] ?? 0) + parseFloat(r.qty ?? "0") * parseFloat(r.rate ?? "0");
+    }
+
     const withBalances = await Promise.all(
       clients.map(async (c) => {
         const balance = await getClientBalance(c.id);
-        return { ...c, balance };
+        return {
+          ...c,
+          balance,
+          unbilledReceivable: unbilledByClient[c.id] ?? 0,
+          projectedReceivable: projectedByClient[c.id] ?? 0,
+        };
       })
     );
     res.json(withBalances);
