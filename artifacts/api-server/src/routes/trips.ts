@@ -12,6 +12,7 @@ import {
   deliveryNotesTable,
   clientsTable,
   companySettingsTable,
+  agentTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { calculateTripFinancials } from "../lib/financials";
@@ -258,6 +259,31 @@ router.put("/:id", async (req, res, next) => {
     const { revertReason, ...dbBody } = req.body as Record<string, any>;
     const [trip] = await db.update(tripsTable).set(dbBody).where(eq(tripsTable.id, id)).returning();
     if (!trip) return res.status(404).json({ error: "Not found" });
+
+    // Auto-record agent fee_earned when trip becomes loaded (upfront, before delivery)
+    if (dbBody.status === "loaded" && before?.status !== "loaded") {
+      try {
+        const [batchInfo] = await db
+          .select({ agentId: batchesTable.agentId, agentFeePerMt: batchesTable.agentFeePerMt, name: batchesTable.name })
+          .from(batchesTable)
+          .where(eq(batchesTable.id, trip.batchId));
+        if (batchInfo?.agentId && batchInfo?.agentFeePerMt && trip.loadedQty) {
+          const loadedQty = parseFloat(trip.loadedQty);
+          const feePerMt = parseFloat(batchInfo.agentFeePerMt);
+          if (loadedQty > 0 && feePerMt > 0) {
+            await db.insert(agentTransactionsTable).values({
+              agentId: batchInfo.agentId,
+              batchId: trip.batchId,
+              tripId: id,
+              type: "fee_earned",
+              amount: (loadedQty * feePerMt).toFixed(2),
+              description: `Fee earned — Trip #${id} (${batchInfo.name ?? ""})`,
+              transactionDate: new Date(),
+            });
+          }
+        }
+      } catch { /* agent fee is non-critical — don't block the trip update */ }
+    }
 
     // Truck status auto-transitions based on trip lifecycle
     if (dbBody.status === "cancelled") {

@@ -18,6 +18,7 @@ export const agentTransactionsTable = pgTable("agent_transactions", {
   type: text("type").notNull(), // fee_earned | payment | adjustment
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   batchId: integer("batch_id"),
+  tripId: integer("trip_id"),
   description: text("description"),
   transactionDate: timestamp("transaction_date").defaultNow().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

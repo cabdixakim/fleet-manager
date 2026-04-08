@@ -502,7 +502,6 @@ router.get("/:id/period-statement", async (req, res, next) => {
 
     const tripDetails = [];
     let totalGross = 0;
-    let totalAgentFee = 0;
     let totalCommission = 0;
     let totalShortCharges = 0;
     let totalTripExpenses = 0;
@@ -512,8 +511,9 @@ router.get("/:id/period-statement", async (req, res, next) => {
     for (const trip of deliveredTrips) {
       try {
         const fin = await calculateTripFinancials(trip.id);
-        const gross = fin.grossRevenue ?? 0;
+        const fullGross = fin.grossRevenue ?? 0;
         const agentFee = fin.agentFeeTotal ?? 0;
+        const gross = fullGross - agentFee; // sub sees net freight rate — agent fee is not disclosed
         const commission = fin.commission ?? 0;
         const shortCharge = fin.shortCharge ?? 0;
         const tripExpenses = fin.tripExpensesTotal ?? 0;
@@ -521,7 +521,6 @@ router.get("/:id/period-statement", async (req, res, next) => {
         const net = fin.netPayable ?? 0;
 
         totalGross += gross;
-        totalAgentFee += agentFee;
         totalCommission += commission;
         totalShortCharges += shortCharge;
         totalTripExpenses += tripExpenses;
@@ -537,7 +536,6 @@ router.get("/:id/period-statement", async (req, res, next) => {
           status: trip.status,
           createdAt: trip.createdAt,
           gross,
-          agentFee,
           commission,
           shortCharge,
           chargeableShort: fin.chargeableShort ?? 0,
@@ -590,7 +588,6 @@ router.get("/:id/period-statement", async (req, res, next) => {
       otherExpenses: otherExpenses.map((e) => ({ ...e, truckPlate: truckMap[e.truckId!] ?? "", amount: parseFloat(e.amount) })),
       summary: {
         gross: totalGross,
-        agentFee: totalAgentFee,
         commission: totalCommission,
         shortCharges: totalShortCharges,
         tripExpenses: totalTripExpenses,

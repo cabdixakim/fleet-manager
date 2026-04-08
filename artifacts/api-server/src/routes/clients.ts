@@ -89,33 +89,41 @@ router.get("/:id", async (req, res, next) => {
 
     const balance = await getClientBalance(id);
 
-    // Uninvoiced delivered: trips that are revenue-recognised but not yet on an invoice
-    const REVENUE_STATUSES = ["delivered", "completed", "invoiced", "amended_out"];
+    // Uninvoiced delivered: trips delivered/completed but not yet on an invoice
     const uninvoicedTrips = await db
-      .select({
-        loadedQty: tripsTable.loadedQty,
-        ratePerMt: batchesTable.ratePerMt,
-      })
+      .select({ loadedQty: tripsTable.loadedQty, ratePerMt: batchesTable.ratePerMt })
       .from(tripsTable)
       .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
-      .where(
-        and(
-          eq(batchesTable.clientId, id),
-          inArray(tripsTable.status, ["delivered", "completed"]),
-          isNull(tripsTable.invoiceId)
-        )
-      );
+      .where(and(
+        eq(batchesTable.clientId, id),
+        inArray(tripsTable.status, ["delivered", "completed"]),
+        isNull(tripsTable.invoiceId)
+      ));
 
-    const uninvoicedDelivered = uninvoicedTrips.reduce((sum, t) => {
-      const qty = parseFloat(t.loadedQty ?? "0");
-      const rate = parseFloat(t.ratePerMt ?? "0");
-      return sum + qty * rate;
+    const unbilledReceivable = uninvoicedTrips.reduce((sum, t) => {
+      return sum + parseFloat(t.loadedQty ?? "0") * parseFloat(t.ratePerMt ?? "0");
+    }, 0);
+
+    // Projected receivable: trips that are loaded or in transit (not yet delivered)
+    const projectedTrips = await db
+      .select({ loadedQty: tripsTable.loadedQty, ratePerMt: batchesTable.ratePerMt })
+      .from(tripsTable)
+      .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .where(and(
+        eq(batchesTable.clientId, id),
+        inArray(tripsTable.status, ["loaded", "in_transit", "at_zambia_entry", "at_drc_entry"]),
+        isNull(tripsTable.invoiceId)
+      ));
+
+    const projectedReceivable = projectedTrips.reduce((sum, t) => {
+      return sum + parseFloat(t.loadedQty ?? "0") * parseFloat(t.ratePerMt ?? "0");
     }, 0);
 
     res.json({
       ...client,
       balance,
-      uninvoicedDelivered,
+      unbilledReceivable,
+      projectedReceivable,
       transactions: transactions.map((t) => ({ ...t, amount: parseFloat(t.amount) })),
     });
   } catch (e) { next(e); }

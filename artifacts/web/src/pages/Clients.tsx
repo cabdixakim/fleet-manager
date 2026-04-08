@@ -216,8 +216,11 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 {formatCurrency(Math.abs(balance))}
               </p>
               <p className="text-xs text-muted-foreground font-medium">{balance >= 0 ? "Total Receivable" : "Credit Balance"}</p>
-              {(client as any).uninvoicedDelivered > 0 && (
-                <p className="text-xs text-muted-foreground/50 mt-0.5">+ {formatCurrency((client as any).uninvoicedDelivered)} delivered, not yet invoiced</p>
+              {(client as any).unbilledReceivable > 0 && (
+                <p className="text-xs text-amber-400/60 mt-0.5">+ {formatCurrency((client as any).unbilledReceivable)} unbilled (delivered)</p>
+              )}
+              {(client as any).projectedReceivable > 0 && (
+                <p className="text-xs text-muted-foreground/40 mt-0.5">+ {formatCurrency((client as any).projectedReceivable)} projected (in transit)</p>
               )}
             </div>
             <div className="sm:hidden flex flex-wrap gap-1.5 mt-3">
@@ -247,8 +250,11 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 {formatCurrency(Math.abs(balance))}
               </p>
               <p className="text-xs text-muted-foreground font-medium">{balance >= 0 ? "Total Receivable" : "Credit Balance"}</p>
-              {(client as any).uninvoicedDelivered > 0 && (
-                <p className="text-xs text-muted-foreground/50 mt-0.5">+ {formatCurrency((client as any).uninvoicedDelivered)} delivered, not yet invoiced</p>
+              {(client as any).unbilledReceivable > 0 && (
+                <p className="text-xs text-amber-400/60 mt-0.5">+ {formatCurrency((client as any).unbilledReceivable)} unbilled (delivered)</p>
+              )}
+              {(client as any).projectedReceivable > 0 && (
+                <p className="text-xs text-muted-foreground/40 mt-0.5">+ {formatCurrency((client as any).projectedReceivable)} projected (in transit)</p>
               )}
             </div>
             <div className="flex flex-wrap gap-1.5 justify-end">
