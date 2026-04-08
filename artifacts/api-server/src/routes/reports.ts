@@ -47,12 +47,13 @@ router.get("/pnl", async (req, res, next) => {
     const { start, end } = getPeriodRange(period as string, currentYear, currentMonth);
 
     const deliveredTrips = await db
-      .select({ id: tripsTable.id, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId })
+      .select({ id: tripsTable.id, deliveredAt: tripsTable.deliveredAt, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId })
       .from(tripsTable)
       .where(and(
         inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
-        gte(tripsTable.createdAt, start),
-        lte(tripsTable.createdAt, end),
+        // Filter by deliveredAt (accurate); fall back to createdAt for legacy trips with no stamp
+        gte(sql`coalesce(${tripsTable.deliveredAt}, ${tripsTable.createdAt})`, start),
+        lte(sql`coalesce(${tripsTable.deliveredAt}, ${tripsTable.createdAt})`, end),
       ));
 
     let totalGrossRevenue = 0;
@@ -84,7 +85,7 @@ router.get("/pnl", async (req, res, next) => {
         totalSubShortPenalties += subSc;
         totalClientShortCredits += clientSc;
 
-        const key = monthKey(new Date(t.createdAt));
+        const key = monthKey(new Date(t.deliveredAt ?? t.createdAt));
         if (!monthlyMap[key]) monthlyMap[key] = { commission: 0, tripExpenses: 0, driverSalaries: 0, overheads: 0 };
         monthlyMap[key].commission += c;
         monthlyMap[key].tripExpenses += te;
@@ -192,12 +193,12 @@ router.get("/commission", async (req, res, next) => {
     const { start, end } = getPeriodRange(period as string, currentYear, currentMonth);
 
     const deliveredTrips = await db
-      .select({ id: tripsTable.id, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId })
+      .select({ id: tripsTable.id, deliveredAt: tripsTable.deliveredAt, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId })
       .from(tripsTable)
       .where(and(
         inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
-        gte(tripsTable.createdAt, start),
-        lte(tripsTable.createdAt, end),
+        gte(sql`coalesce(${tripsTable.deliveredAt}, ${tripsTable.createdAt})`, start),
+        lte(sql`coalesce(${tripsTable.deliveredAt}, ${tripsTable.createdAt})`, end),
       ));
 
     let totalCommission = 0;
@@ -216,7 +217,7 @@ router.get("/commission", async (req, res, next) => {
         totalCommission += c;
         totalGrossRevenue += g;
 
-        const key = monthKey(new Date(t.createdAt));
+        const key = monthKey(new Date(t.deliveredAt ?? t.createdAt));
         monthlyData[key] = (monthlyData[key] ?? 0) + c;
 
         const [truck] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, t.truckId));
@@ -297,13 +298,14 @@ router.get("/commission-breakdown", async (req, res, next) => {
         product: tripsTable.product,
         loadedQty: tripsTable.loadedQty,
         deliveredQty: tripsTable.deliveredQty,
+        deliveredAt: tripsTable.deliveredAt,
         createdAt: tripsTable.createdAt,
       })
       .from(tripsTable)
       .where(and(
         inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
-        gte(tripsTable.createdAt, start),
-        lte(tripsTable.createdAt, end),
+        gte(sql`coalesce(${tripsTable.deliveredAt}, ${tripsTable.createdAt})`, start),
+        lte(sql`coalesce(${tripsTable.deliveredAt}, ${tripsTable.createdAt})`, end),
       ));
 
     const rows = [];
@@ -342,7 +344,7 @@ router.get("/commission-breakdown", async (req, res, next) => {
           product: t.product,
           truckPlate: truck?.plateNumber ?? "",
           subcontractorName: subName,
-          deliveredDate: t.createdAt,
+          deliveredDate: t.deliveredAt ?? t.createdAt,
           loadedQty: t.loadedQty ? parseFloat(t.loadedQty) : null,
           deliveredQty: t.deliveredQty ? parseFloat(t.deliveredQty) : null,
           ratePerMt: batch?.ratePerMt ? parseFloat(batch.ratePerMt) : null,
@@ -437,9 +439,10 @@ router.get("/entity-analytics", async (req, res, next) => {
         const delivered = trips.filter((t) => t.status === "delivered");
         const totalLoaded = delivered.reduce((s, t) => s + parseFloat(t.loadedQty ?? "0"), 0);
         const totalDelivered = delivered.reduce((s, t) => s + parseFloat(t.deliveredQty ?? "0"), 0);
-        const revenue = delivered.reduce((s, t) => s + parseFloat(t.deliveredQty ?? "0") * parseFloat(t.ratePerMt ?? "0"), 0);
+        // Revenue is based on loaded qty (what the client is charged for), not delivered qty
+        const revenue = delivered.reduce((s, t) => s + parseFloat(t.loadedQty ?? "0") * parseFloat(t.ratePerMt ?? "0"), 0);
         const expTotal = expenses.reduce((s, e) => s + parseFloat(e.amount ?? "0"), 0);
-        const trend = buildMonthlyTrend(delivered, (t) => parseFloat(t.deliveredQty ?? "0") * parseFloat(t.ratePerMt ?? "0"));
+        const trend = buildMonthlyTrend(delivered, (t) => parseFloat(t.loadedQty ?? "0") * parseFloat(t.ratePerMt ?? "0"));
         return {
           id: truck.id, name: truck.name, subName: truck.sub ?? "",
           metrics: {
@@ -463,22 +466,39 @@ router.get("/entity-analytics", async (req, res, next) => {
     if (entity === "subcontractor") {
       const subs = await db.select().from(subcontractorsTable).where(inArray(subcontractorsTable.id, entityIds));
 
-      const result = subs.map((sub) => {
+      // Use calculateTripFinancials per trip so commission uses snapshotted rates (not live rates),
+      // handles rate_differential model, agent fees and short penalties correctly.
+      const result = await Promise.all(subs.map(async (sub) => {
         const trips = allTrips.filter((t) => t.subId === sub.id);
         const expenses = allExpenses.filter((e) => e.subId === sub.id);
-        const delivered = trips.filter((t) => t.status === "delivered");
-        const totalLoaded = delivered.reduce((s, t) => s + parseFloat(t.loadedQty ?? "0"), 0);
-        const totalDelivered = delivered.reduce((s, t) => s + parseFloat(t.deliveredQty ?? "0"), 0);
-        const grossRevenue = delivered.reduce((s, t) => s + parseFloat(t.deliveredQty ?? "0") * parseFloat(t.ratePerMt ?? "0"), 0);
-        const commRate = parseFloat(sub.commissionRate ?? "0") / 100;
-        const commission = grossRevenue * commRate;
+        const delivered = trips.filter((t) => REVENUE_RECOGNISED_STATUSES.includes(t.status) && t.status !== "amended_out");
+
+        let totalLoaded = 0;
+        let totalDelivered = 0;
+        let grossRevenue = 0;
+        let commission = 0;
+        let netPayable = 0;
+
+        for (const t of delivered) {
+          try {
+            const fin = await calculateTripFinancials(t.id);
+            totalLoaded += parseFloat(t.loadedQty ?? "0");
+            totalDelivered += parseFloat(t.deliveredQty ?? "0");
+            grossRevenue += fin.grossRevenue ?? 0;
+            commission += fin.commission ?? 0;
+            netPayable += fin.netPayable ?? 0;
+          } catch {}
+        }
+
         const expTotal = expenses.reduce((s, e) => s + parseFloat(e.amount ?? "0"), 0);
-        const netPayable = grossRevenue - commission - expTotal;
-        const trend = buildMonthlyTrend(delivered, (t) => parseFloat(t.deliveredQty ?? "0") * parseFloat(t.ratePerMt ?? "0"));
+        const trend = buildMonthlyTrend(
+          delivered.filter((t) => t.status === "delivered"),
+          (t) => parseFloat(t.loadedQty ?? "0") * parseFloat(t.ratePerMt ?? "0"),
+        );
         return {
           id: sub.id, name: sub.name, subName: `${sub.commissionRate}% commission`,
           metrics: {
-            tripsCompleted: delivered.length,
+            tripsCompleted: delivered.filter((t) => t.status === "delivered").length,
             tripsCancelled: trips.filter((t) => t.status === "cancelled").length,
             totalLoaded: round2(totalLoaded),
             totalDelivered: round2(totalDelivered),
@@ -491,7 +511,7 @@ router.get("/entity-analytics", async (req, res, next) => {
           },
           trend,
         };
-      });
+      }));
       return res.json({ entity, entities: result });
     }
 

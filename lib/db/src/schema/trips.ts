@@ -47,6 +47,8 @@ export const tripsTable = pgTable("trips", {
   subShortRateSnapshot: numeric("sub_short_rate_snapshot", { precision: 10, scale: 4 }),     // sub short charge $/MT for this product
   clientShortRateSnapshot: numeric("client_short_rate_snapshot", { precision: 10, scale: 4 }), // client short charge $/MT for this product
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Stamped when the trip status first reaches 'delivered' — used for accurate P&L date bucketing
+  deliveredAt: timestamp("delivered_at"),
 });
 
 export const insertTripSchema = createInsertSchema(tripsTable).omit({ id: true, createdAt: true });

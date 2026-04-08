@@ -10,6 +10,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, desc, sql, count, and, gte, lte, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { calculateTripFinancials } from "../lib/financials";
 
 const router = Router();
 
@@ -45,11 +46,23 @@ router.get("/", async (_req, res, next) => {
       .where(showAll ? undefined : eq(clientsTable.isActive, true))
       .orderBy(clientsTable.name);
 
-    // Bulk-fetch unbilled receivable (delivered/completed, not invoiced) per client
+    // Bulk-fetch unbilled receivable (delivered/completed, not invoiced) per client.
+    // Include short-charge fields so we can subtract the client credit and show the net we'll actually collect.
     const unbilledRows = await db
-      .select({ clientId: batchesTable.clientId, qty: tripsTable.loadedQty, rate: batchesTable.ratePerMt })
+      .select({
+        clientId: batchesTable.clientId,
+        loadedQty: tripsTable.loadedQty,
+        deliveredQty: tripsTable.deliveredQty,
+        rate: batchesTable.ratePerMt,
+        product: tripsTable.product,
+        clientShortRateSnapshot: tripsTable.clientShortRateSnapshot,
+        clientShortRateOverride: tripsTable.clientShortRateOverride,
+        agoShortRate: clientsTable.agoShortChargeRate,
+        pmsShortRate: clientsTable.pmsShortChargeRate,
+      })
       .from(tripsTable)
       .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .leftJoin(clientsTable, eq(batchesTable.clientId, clientsTable.id))
       .where(and(inArray(tripsTable.status, ["delivered", "completed"]), isNull(tripsTable.invoiceId)));
 
     // Bulk-fetch projected receivable (loaded/in-transit, not invoiced) per client
@@ -62,7 +75,23 @@ router.get("/", async (_req, res, next) => {
     const unbilledByClient: Record<number, number> = {};
     for (const r of unbilledRows) {
       if (r.clientId == null) continue;
-      unbilledByClient[r.clientId] = (unbilledByClient[r.clientId] ?? 0) + parseFloat(r.qty ?? "0") * parseFloat(r.rate ?? "0");
+      const loadedQty = parseFloat(r.loadedQty ?? "0");
+      const ratePerMt = parseFloat(r.rate ?? "0");
+      const gross = loadedQty * ratePerMt;
+      // Subtract client short charge if delivered qty is known
+      let clientShortCharge = 0;
+      if (r.deliveredQty != null) {
+        const deliveredQty = parseFloat(r.deliveredQty);
+        const allowancePct = r.product === "AGO" ? 0.3 : 0.5;
+        const allowanceQty = loadedQty * (allowancePct / 100);
+        const chargeableShort = Math.max(0, Math.max(0, loadedQty - deliveredQty) - allowanceQty);
+        const baseRate = r.product === "AGO" ? parseFloat(r.agoShortRate ?? "0") : parseFloat(r.pmsShortRate ?? "0");
+        const effectiveRate = r.clientShortRateOverride != null
+          ? parseFloat(r.clientShortRateOverride)
+          : (r.clientShortRateSnapshot != null ? parseFloat(r.clientShortRateSnapshot) : baseRate);
+        clientShortCharge = chargeableShort * effectiveRate;
+      }
+      unbilledByClient[r.clientId] = (unbilledByClient[r.clientId] ?? 0) + gross - clientShortCharge;
     }
     const projectedByClient: Record<number, number> = {};
     for (const r of projectedRows) {
@@ -120,9 +149,10 @@ router.get("/:id", async (req, res, next) => {
 
     const balance = await getClientBalance(id);
 
-    // Uninvoiced delivered: trips delivered/completed but not yet on an invoice
+    // Uninvoiced delivered: trips delivered/completed but not yet on an invoice.
+    // Use calculateTripFinancials to get the real net (gross minus client short charge).
     const uninvoicedTrips = await db
-      .select({ loadedQty: tripsTable.loadedQty, ratePerMt: batchesTable.ratePerMt })
+      .select({ id: tripsTable.id })
       .from(tripsTable)
       .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
       .where(and(
@@ -131,9 +161,13 @@ router.get("/:id", async (req, res, next) => {
         isNull(tripsTable.invoiceId)
       ));
 
-    const unbilledReceivable = uninvoicedTrips.reduce((sum, t) => {
-      return sum + parseFloat(t.loadedQty ?? "0") * parseFloat(t.ratePerMt ?? "0");
-    }, 0);
+    let unbilledReceivable = 0;
+    for (const t of uninvoicedTrips) {
+      try {
+        const fin = await calculateTripFinancials(t.id);
+        unbilledReceivable += (fin.grossRevenue ?? 0) - (fin.clientShortCharge ?? 0);
+      } catch {}
+    }
 
     // Projected receivable: trips that are loaded or in transit (not yet delivered)
     const projectedTrips = await db

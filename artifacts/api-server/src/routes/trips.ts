@@ -259,6 +259,12 @@ router.put("/:id", async (req, res, next) => {
 
     // Strip internal fields before DB write
     const { revertReason, ...dbBody } = req.body as Record<string, any>;
+
+    // Stamp deliveredAt the first time a trip reaches 'delivered' — used for accurate P&L date bucketing
+    if (dbBody.status === "delivered" && !before?.deliveredAt) {
+      dbBody.deliveredAt = new Date();
+    }
+
     const [trip] = await db.update(tripsTable).set(dbBody).where(eq(tripsTable.id, id)).returning();
     if (!trip) return res.status(404).json({ error: "Not found" });
 

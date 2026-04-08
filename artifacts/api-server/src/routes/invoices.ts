@@ -443,8 +443,35 @@ router.put("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const [invoice] = await db.select({ invoiceNumber: invoicesTable.invoiceNumber, netRevenue: invoicesTable.netRevenue, batchId: invoicesTable.batchId }).from(invoicesTable).where(eq(invoicesTable.id, id));
+    const [invoice] = await db
+      .select({ invoiceNumber: invoicesTable.invoiceNumber, netRevenue: invoicesTable.netRevenue, batchId: invoicesTable.batchId, clientId: invoicesTable.clientId })
+      .from(invoicesTable)
+      .where(eq(invoicesTable.id, id));
     if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+    // Reverse any ledger entries that were posted when this invoice was raised
+    // (same logic as cancel — prevents orphaned balances on the client ledger)
+    if (invoice.clientId) {
+      const ledgerEntries = await db
+        .select({ amount: clientTransactionsTable.amount })
+        .from(clientTransactionsTable)
+        .where(and(eq(clientTransactionsTable.invoiceId, id), eq(clientTransactionsTable.type, "invoice")));
+      for (const entry of ledgerEntries) {
+        const amt = parseFloat(entry.amount);
+        if (amt > 0) {
+          await db.insert(clientTransactionsTable).values({
+            clientId: invoice.clientId,
+            batchId: invoice.batchId,
+            invoiceId: id,
+            type: "adjustment",
+            amount: (-amt).toFixed(2),
+            reference: `VOID — ${invoice.invoiceNumber}`,
+            description: `Invoice ${invoice.invoiceNumber} deleted — reversal of original charge`,
+            transactionDate: new Date(),
+          });
+        }
+      }
+    }
 
     // Unstamp all trips that were on this invoice
     await db.update(tripsTable).set({ invoiceId: null }).where(eq(tripsTable.invoiceId, id));
@@ -469,7 +496,7 @@ router.delete("/:id", async (req, res, next) => {
       action: "delete",
       entity: "invoice",
       entityId: id,
-      description: `Deleted invoice ${invoice.invoiceNumber}${invoice.netRevenue ? ` ($${parseFloat(invoice.netRevenue).toLocaleString("en-US", { minimumFractionDigits: 2 })})` : ""} — trips de-linked, batch reverted to Delivered`,
+      description: `Deleted invoice ${invoice.invoiceNumber}${invoice.netRevenue ? ` ($${parseFloat(invoice.netRevenue).toLocaleString("en-US", { minimumFractionDigits: 2 })})` : ""} — ledger reversed, trips de-linked, batch reverted to Delivered`,
     });
     res.json({ success: true });
   } catch (e) { next(e); }
