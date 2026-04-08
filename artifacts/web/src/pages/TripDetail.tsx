@@ -947,6 +947,9 @@ export default function TripDetail() {
                 <h3 className="text-sm font-semibold text-foreground mb-4">Calculation Breakdown</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Gross Revenue (Loaded × Client Rate)</span><span>{fin.grossRevenue != null ? formatCurrency(fin.grossRevenue) : "-"}</span></div>
+                  {fin.agentFeeTotal != null && fin.agentFeeTotal > 0 && (
+                    <div className="flex justify-between text-destructive"><span>− Agent Fee ({fin.agentFeePerMt != null ? formatCurrency(fin.agentFeePerMt) : "—"}/MT)</span><span>({formatCurrency(fin.agentFeeTotal)})</span></div>
+                  )}
                   {fin.billingModel === "rate_differential" ? (
                     <>
                       <div className="flex justify-between text-muted-foreground"><span className="pl-4">Sub Rate: {fin.subRatePerMt != null ? formatCurrency(fin.subRatePerMt) : "—"}/MT × {formatNumber(trip.loadedQty ?? 0)} MT loaded</span></div>

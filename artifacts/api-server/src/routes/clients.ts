@@ -4,10 +4,11 @@ import {
   clientsTable,
   clientTransactionsTable,
   batchesTable,
+  tripsTable,
   usersTable,
   periodsTable,
 } from "@workspace/db/schema";
-import { eq, desc, sql, count, and, gte, lte } from "drizzle-orm";
+import { eq, desc, sql, count, and, gte, lte, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 const router = Router();
@@ -88,9 +89,33 @@ router.get("/:id", async (req, res, next) => {
 
     const balance = await getClientBalance(id);
 
+    // Uninvoiced delivered: trips that are revenue-recognised but not yet on an invoice
+    const REVENUE_STATUSES = ["delivered", "completed", "invoiced", "amended_out"];
+    const uninvoicedTrips = await db
+      .select({
+        loadedQty: tripsTable.loadedQty,
+        ratePerMt: batchesTable.ratePerMt,
+      })
+      .from(tripsTable)
+      .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .where(
+        and(
+          eq(batchesTable.clientId, id),
+          inArray(tripsTable.status, ["delivered", "completed"]),
+          isNull(tripsTable.invoiceId)
+        )
+      );
+
+    const uninvoicedDelivered = uninvoicedTrips.reduce((sum, t) => {
+      const qty = parseFloat(t.loadedQty ?? "0");
+      const rate = parseFloat(t.ratePerMt ?? "0");
+      return sum + qty * rate;
+    }, 0);
+
     res.json({
       ...client,
       balance,
+      uninvoicedDelivered,
       transactions: transactions.map((t) => ({ ...t, amount: parseFloat(t.amount) })),
     });
   } catch (e) { next(e); }

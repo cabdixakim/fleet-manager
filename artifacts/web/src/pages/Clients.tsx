@@ -216,6 +216,9 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 {formatCurrency(Math.abs(balance))}
               </p>
               <p className="text-xs text-muted-foreground font-medium">{balance >= 0 ? "Total Receivable" : "Credit Balance"}</p>
+              {(client as any).uninvoicedDelivered > 0 && (
+                <p className="text-xs text-muted-foreground/50 mt-0.5">+ {formatCurrency((client as any).uninvoicedDelivered)} delivered, not yet invoiced</p>
+              )}
             </div>
             <div className="sm:hidden flex flex-wrap gap-1.5 mt-3">
               <Button size="sm" onClick={() => setShowTx(true)}><Plus className="w-3.5 h-3.5 mr-1" />Record Tx</Button>
@@ -244,6 +247,9 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 {formatCurrency(Math.abs(balance))}
               </p>
               <p className="text-xs text-muted-foreground font-medium">{balance >= 0 ? "Total Receivable" : "Credit Balance"}</p>
+              {(client as any).uninvoicedDelivered > 0 && (
+                <p className="text-xs text-muted-foreground/50 mt-0.5">+ {formatCurrency((client as any).uninvoicedDelivered)} delivered, not yet invoiced</p>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5 justify-end">
               <Button size="sm" onClick={() => setShowTx(true)}><Plus className="w-3.5 h-3.5 mr-1" />Record Tx</Button>

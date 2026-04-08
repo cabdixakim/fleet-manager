@@ -457,6 +457,9 @@ export default function SubcontractorStatement() {
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-sm font-semibold text-foreground mb-4">Deduction Waterfall</p>
                 <WaterfallRow label="Gross Revenue (Loaded × Rate)" value={statement.summary.gross} />
+                {(statement.summary.agentFee ?? 0) > 0 && (
+                  <WaterfallRow label="Agent Fee" value={statement.summary.agentFee ?? 0} deduct isSub />
+                )}
                 <WaterfallRow label="Commission" value={statement.summary.commission} deduct isSub />
                 <WaterfallRow label="Short Charges" value={statement.summary.shortCharges} deduct isSub />
                 <WaterfallRow label="Trip Expenses" value={statement.summary.tripExpenses} deduct isSub />
@@ -509,6 +512,7 @@ export default function SubcontractorStatement() {
                         <th className="px-3 py-3 text-left font-medium text-muted-foreground">Truck</th>
                         <th className="px-3 py-3 text-left font-medium text-muted-foreground">Route</th>
                         <th className="px-3 py-3 text-right font-medium text-muted-foreground">Gross</th>
+                        {statement.summary.agentFee > 0 && <th className="px-3 py-3 text-right font-medium text-muted-foreground text-red-400">Agent</th>}
                         <th className="px-3 py-3 text-right font-medium text-muted-foreground text-red-400">Comm.</th>
                         <th className="px-3 py-3 text-right font-medium text-muted-foreground text-red-400">Short</th>
                         <th className="px-3 py-3 text-right font-medium text-muted-foreground text-red-400">Expns.</th>
@@ -527,6 +531,7 @@ export default function SubcontractorStatement() {
                           <td className="px-3 py-2.5 font-mono text-muted-foreground">{t.truckPlate}</td>
                           <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap">{getRouteLabel(t.route ?? "")}</td>
                           <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(t.gross)}</td>
+                          {statement.summary.agentFee > 0 && <td className="px-3 py-2.5 text-right font-mono text-red-400">{(t.agentFee ?? 0) > 0 ? `−${formatCurrency(t.agentFee ?? 0)}` : <span className="text-muted-foreground/40">—</span>}</td>}
                           <td className="px-3 py-2.5 text-right font-mono text-red-400">{t.commission > 0 ? `−${formatCurrency(t.commission)}` : <span className="text-muted-foreground/40">—</span>}</td>
                           <td className="px-3 py-2.5 text-right font-mono text-red-400">{t.shortCharge > 0 ? `−${formatCurrency(t.shortCharge)}` : <span className="text-muted-foreground/40">—</span>}</td>
                           <td className="px-3 py-2.5 text-right font-mono text-red-400">{t.tripExpenses > 0 ? `−${formatCurrency(t.tripExpenses)}` : <span className="text-muted-foreground/40">—</span>}</td>
@@ -539,6 +544,7 @@ export default function SubcontractorStatement() {
                       <tr>
                         <td colSpan={3} className="px-3 py-3 text-xs font-bold text-foreground">TOTAL ({statement.trips.length} trips)</td>
                         <td className="px-3 py-3 text-right font-mono font-bold">{formatCurrency(statement.summary.gross)}</td>
+                        {statement.summary.agentFee > 0 && <td className="px-3 py-3 text-right font-mono font-bold text-red-400">−{formatCurrency(statement.summary.agentFee)}</td>}
                         <td className="px-3 py-3 text-right font-mono font-bold text-red-400">−{formatCurrency(statement.summary.commission)}</td>
                         <td className="px-3 py-3 text-right font-mono font-bold text-red-400">−{formatCurrency(statement.summary.shortCharges)}</td>
                         <td className="px-3 py-3 text-right font-mono font-bold text-red-400">−{formatCurrency(statement.summary.tripExpenses)}</td>
