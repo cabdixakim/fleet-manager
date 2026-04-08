@@ -21,11 +21,12 @@ function getPeriodRange(period: string, year: number, month?: number): { start: 
   const now = new Date();
   if (period === "month") {
     const m = (month ?? now.getMonth() + 1) - 1;
-    const y = year;
-    return { start: new Date(y, m, 1), end: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+    return { start: new Date(year, m, 1), end: new Date(year, m + 1, 0, 23, 59, 59, 999) };
   }
   if (period === "quarter") {
-    const q = Math.floor(now.getMonth() / 3);
+    // `month` here encodes the quarter: 1=Q1, 2=Q2, 3=Q3, 4=Q4
+    // If not supplied, default to current quarter
+    const q = month != null ? (month - 1) : Math.floor(now.getMonth() / 3);
     return { start: new Date(year, q * 3, 1), end: new Date(year, q * 3 + 3, 0, 23, 59, 59, 999) };
   }
   if (period === "year") {

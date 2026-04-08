@@ -14,11 +14,40 @@ import {
   LineChart, Line,
 } from "recharts";
 
-const PERIODS = [
-  { value: "month", label: "This Month" },
-  { value: "quarter", label: "This Quarter" },
-  { value: "year", label: "This Year" },
+const PERIOD_TYPES = [
+  { value: "month", label: "Monthly" },
+  { value: "quarter", label: "Quarterly" },
+  { value: "year", label: "Yearly" },
 ];
+
+const MONTHS = [
+  { value: 1, label: "January" }, { value: 2, label: "February" },
+  { value: 3, label: "March" }, { value: 4, label: "April" },
+  { value: 5, label: "May" }, { value: 6, label: "June" },
+  { value: 7, label: "July" }, { value: 8, label: "August" },
+  { value: 9, label: "September" }, { value: 10, label: "October" },
+  { value: 11, label: "November" }, { value: 12, label: "December" },
+];
+
+const QUARTERS = [
+  { value: 1, label: "Q1 (Jan–Mar)" },
+  { value: 2, label: "Q2 (Apr–Jun)" },
+  { value: 3, label: "Q3 (Jul–Sep)" },
+  { value: 4, label: "Q4 (Oct–Dec)" },
+];
+
+function buildYearOptions() {
+  const current = new Date().getFullYear();
+  const years = [];
+  for (let y = current; y >= 2023; y--) years.push(y);
+  return years;
+}
+
+function periodLabel(type: string, year: number, month: number, quarter: number) {
+  if (type === "month") return `${MONTHS[month - 1]?.label ?? ""} ${year}`;
+  if (type === "quarter") return `Q${quarter} ${year}`;
+  return String(year);
+}
 
 const ENTITY_PERIODS = [
   { value: "all", label: "All Time" },
@@ -126,6 +155,7 @@ const CHART_GRID_COLOR = "hsl(var(--border))";
 const CHART_AXIS_COLOR = "hsl(var(--muted-foreground))";
 
 export default function Reports() {
+  const now = new Date();
   const [period, setPeriod] = useState("month");
   const [activeReport, setActiveReport] = useState<"commission" | "analytics" | "pnl" | "entities">("pnl");
   const [entityType, setEntityType] = useState("truck");
@@ -133,9 +163,23 @@ export default function Reports() {
   const [entityPeriod, setEntityPeriod] = useState("all");
   const [analyticMetric, setAnalyticMetric] = useState("tripsCompleted");
 
+  // P&L-specific time selectors
+  const [pnlPeriodType, setPnlPeriodType] = useState("month");
+  const [pnlYear, setPnlYear] = useState(now.getFullYear());
+  const [pnlMonth, setPnlMonth] = useState(now.getMonth() + 1);
+  const [pnlQuarter, setPnlQuarter] = useState(Math.floor(now.getMonth() / 3) + 1);
+
+  // Derive the `month` param sent to the backend:
+  // - for monthly: the selected month number (1–12)
+  // - for quarterly: the quarter number 1–4 (backend interprets it as quarter index)
+  // - for yearly: undefined
+  const pnlMonthParam = pnlPeriodType === "month" ? pnlMonth : pnlPeriodType === "quarter" ? pnlQuarter : undefined;
+
+  const yearOptions = buildYearOptions();
+
   const { data: analytics, isLoading: analyticsLoading } = useGetDashboardAnalytics({ period });
   const { data: commissionData, isLoading: commLoading } = useGetCommissionReport({ period });
-  const { data: pnl, isLoading: pnlLoading } = useGetPnlReport({ period });
+  const { data: pnl, isLoading: pnlLoading } = useGetPnlReport({ period: pnlPeriodType, year: pnlYear, month: pnlMonthParam });
   const { data: breakdown, isLoading: breakdownLoading } = useGetCommissionBreakdown({ period });
   const { data: entityList } = useGetEntityList();
   const { data: entityAnalytics, isLoading: entityLoading } = useGetEntityAnalytics({
@@ -221,10 +265,39 @@ export default function Reports() {
         subtitle="Profit & loss, revenue analytics and commission reporting"
         actions={
           <>
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>{PERIODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
-            </Select>
+            {activeReport === "pnl" ? (
+              <>
+                {/* Period type */}
+                <Select value={pnlPeriodType} onValueChange={setPnlPeriodType}>
+                  <SelectTrigger className="w-32 h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>{PERIOD_TYPES.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+                </Select>
+                {/* Month picker — only for monthly */}
+                {pnlPeriodType === "month" && (
+                  <Select value={String(pnlMonth)} onValueChange={(v) => setPnlMonth(Number(v))}>
+                    <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{MONTHS.map((m) => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                {/* Quarter picker — only for quarterly */}
+                {pnlPeriodType === "quarter" && (
+                  <Select value={String(pnlQuarter)} onValueChange={(v) => setPnlQuarter(Number(v))}>
+                    <SelectTrigger className="w-40 h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>{QUARTERS.map((q) => <SelectItem key={q.value} value={String(q.value)}>{q.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                {/* Year picker */}
+                <Select value={String(pnlYear)} onValueChange={(v) => setPnlYear(Number(v))}>
+                  <SelectTrigger className="w-24 h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>{yearOptions.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+                </Select>
+              </>
+            ) : (
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="w-36 h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>{PERIOD_TYPES.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
             <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="w-4 h-4 mr-2" />Print</Button>
             <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-2" />Export</Button>
           </>
@@ -240,7 +313,10 @@ export default function Reports() {
             {activeReport === "entities" && "Entity Analytics Report"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Period: {period === "month" ? "This Month" : period === "quarter" ? "This Quarter" : "This Year"} · Printed {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+            Period: {activeReport === "pnl"
+              ? periodLabel(pnlPeriodType, pnlYear, pnlMonth, pnlQuarter)
+              : period === "month" ? "This Month" : period === "quarter" ? "This Quarter" : "This Year"
+            } · Printed {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}
           </p>
         </div>
 
@@ -303,7 +379,7 @@ export default function Reports() {
                     <div className="bg-card border border-border rounded-xl overflow-hidden">
                       <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-foreground">Income Statement</h3>
-                        <span className="text-xs text-muted-foreground capitalize">{p.period ?? ""}</span>
+                        <span className="text-xs text-muted-foreground">{periodLabel(pnlPeriodType, pnlYear, pnlMonth, pnlQuarter)}</span>
                       </div>
                       <div className="divide-y divide-border/40">
                         {/* Commission */}
