@@ -1,0 +1,104 @@
+Apr 09 18:00:29  [34m╭────────────[34m[30m[44m git repo clone [0m[0m[34m───────────╼[0m
+Apr 09 18:00:29  [34m│[0m [34m › fetching app source code[0m
+Apr 09 18:00:29  [34m│[0m => Selecting branch "main"
+Apr 09 18:00:31  [34m│[0m => Checking out commit "c4353a68b45a17e75584c4185152eff2bb225a93"
+Apr 09 18:00:31  [34m│[0m 
+Apr 09 18:00:31  [34m│[0m [32m ✔ cloned repo to [35m/workspace[0m[0m
+Apr 09 18:00:31  [34m╰────────────────────────────────────────╼[0m
+Apr 09 18:00:31  
+Apr 09 18:00:32  [34m╭────────────[34m[30m[44m buildpack detection [0m[0m[34m───────────╼[0m
+Apr 09 18:00:32  [34m│[0m [34m › using Ubuntu 22.04 stack[0m
+Apr 09 18:00:33  [34m│[0m Detected the following buildpacks suitable to build your app:
+Apr 09 18:00:33  [34m│[0m 
+Apr 09 18:00:33  [34m│[0m    digitalocean/nodejs-appdetect  v0.1.2    
+Apr 09 18:00:33  [34m│[0m    heroku/nodejs                  v0.338.5  (Node.js)
+Apr 09 18:00:33  [34m│[0m    digitalocean/procfile          v0.1.0    (Procfile)
+Apr 09 18:00:33  [34m│[0m    digitalocean/custom            v0.2.0    (Custom Build Command)
+Apr 09 18:00:33  [34m╰─────────────────────────────────────────────╼[0m
+Apr 09 18:00:33  
+Apr 09 18:00:33  [34m╭────────────[34m[30m[44m app build [0m[0m[34m───────────╼[0m
+Apr 09 18:00:33  [34m│[0m [33;1mWarning: [0mno analyzed metadata found at path '/layers/analyzed.toml'
+Apr 09 18:00:33  [34m│[0m Timer: Builder started at 2026-04-09T18:00:33Z
+Apr 09 18:00:33  [34m│[0m Project contains pnpm-lock.yaml, using pnpm
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m -----> Creating runtime environment
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m        NPM_CONFIG_LOGLEVEL=error
+Apr 09 18:00:34  [34m│[0m        NODE_VERBOSE=false
+Apr 09 18:00:34  [34m│[0m        NODE_ENV=
+Apr 09 18:00:34  [34m│[0m        NODE_MODULES_CACHE=true
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m -----> Installing binaries
+Apr 09 18:00:34  [34m│[0m        engines.node (package.json):   >=20
+Apr 09 18:00:34  [34m│[0m        engines.npm (package.json):    unspecified (use default)
+Apr 09 18:00:34  [34m│[0m        engines.pnpm (package.json):   >=10
+Apr 09 18:00:34  [34m│[0m        packageManager (package.json): pnpm@10.26.1
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m         !     Multiple pnpm versions declared
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m               The package.json file indicates the target version of pnpm to install in two fields:
+Apr 09 18:00:34  [34m│[0m               - "packageManager": "pnpm@10.26.1"
+Apr 09 18:00:34  [34m│[0m               - "engines.pnpm": ">=10"
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m               If both fields are present, then "packageManager" will take precedence and "pnpm@10.26.1" will be installed.
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m               To ensure we install the version of pnpm you want, remove one of these fields.
+Apr 09 18:00:34  [34m│[0m               https://devcenter.heroku.com/articles/nodejs-support
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m        Resolving node version >=20...
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m        ! The requested Node.js version is using a wide range (>=20) that can resolve to a Node.js major version
+Apr 09 18:00:34  [34m│[0m          higher than you intended. Limiting the requested range to a major LTS range like `22.x` is recommended.
+Apr 09 18:00:34  [34m│[0m          https://devcenter.heroku.com/articles/nodejs-support#specifying-a-node-js-version
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m        ! The resolved Node.js version has been limited to the Active LTS (22.22.1) for the requested range of `>=20`.
+Apr 09 18:00:34  [34m│[0m          To opt-out of this behavior, set the following config var: `NODEJS_ALLOW_WIDE_RANGE=true`
+Apr 09 18:00:34  [34m│[0m          https://devcenter.heroku.com/articles/nodejs-support#supported-node-js-versions
+Apr 09 18:00:34  [34m│[0m        
+Apr 09 18:00:34  [34m│[0m        Downloading and installing node 22.22.1...
+Apr 09 18:00:35  [34m│[0m        Validating checksum
+Apr 09 18:00:37  [34m│[0m        Using default npm version: 10.9.4
+Apr 09 18:00:37  [34m│[0m        Downloading and installing pnpm (10.26.1)
+Apr 09 18:00:39  [34m│[0m        Using pnpm 10.26.1
+Apr 09 18:00:41  [34m│[0m        
+Apr 09 18:00:41  [34m│[0m -----> Installing dependencies
+Apr 09 18:00:41  [34m│[0m        Running 'pnpm install' with pnpm-lock.yaml
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:49  [34m│[0m -----> Build
+Apr 09 18:00:49  [34m│[0m        Running build
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:49  [34m│[0m        > workspace@0.0.0 build /workspace
+Apr 09 18:00:49  [34m│[0m        > pnpm run typecheck && pnpm -r --if-present run build
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:49  [34m│[0m        > workspace@0.0.0 typecheck /workspace
+Apr 09 18:00:49  [34m│[0m        > pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:49  [34m│[0m        > workspace@0.0.0 typecheck:libs /workspace
+Apr 09 18:00:49  [34m│[0m        > tsc --build
+Apr 09 18:00:49  [34m│[0m        
+Apr 09 18:00:57  [34m│[0m        /workspace/artifacts/api-server:
+Apr 09 18:00:57  [34m│[0m         ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Apr 09 18:00:57  [34m│[0m        Exit status 2
+Apr 09 18:00:57  [34m│[0m         ELIFECYCLE  Command failed with exit code 2.
+Apr 09 18:00:57  [34m│[0m         ELIFECYCLE  Command failed with exit code 2.
+Apr 09 18:00:57  [34m│[0m 
+Apr 09 18:00:57  [34m│[0m -----> Build failed
+Apr 09 18:00:57  [34m│[0m        
+Apr 09 18:00:57  [34m│[0m        We're sorry this build is failing! You can troubleshoot common issues here:
+Apr 09 18:00:57  [34m│[0m        https://devcenter.heroku.com/articles/troubleshooting-node-deploys
+Apr 09 18:00:57  [34m│[0m        
+Apr 09 18:00:57  [34m│[0m        Some possible problems:
+Apr 09 18:00:57  [34m│[0m        
+Apr 09 18:00:57  [34m│[0m        - Dangerous semver range (>) in engines.node
+Apr 09 18:00:57  [34m│[0m          https://devcenter.heroku.com/articles/nodejs-support#specifying-a-node-js-version
+Apr 09 18:00:57  [34m│[0m        
+Apr 09 18:00:57  [34m│[0m        Love,
+Apr 09 18:00:57  [34m│[0m        Heroku
+Apr 09 18:00:57  [34m│[0m        
+Apr 09 18:00:57  [34m│[0m Timer: Builder ran for 23.571676684s and ended at 2026-04-09T18:00:57Z
+Apr 09 18:00:57  [34m│[0m [31;1mERROR: [0mfailed to build: exit status 2
+Apr 09 18:00:57  [34m│[0m 
+Apr 09 18:00:57  [34m│[0m 
+Apr 09 18:00:57  [34m│[0m [31m ✘ build failed[0m
