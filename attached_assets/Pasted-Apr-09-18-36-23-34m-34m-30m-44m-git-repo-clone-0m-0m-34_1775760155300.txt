@@ -1,0 +1,124 @@
+Apr 09 18:36:23  [34m╭────────────[34m[30m[44m git repo clone [0m[0m[34m───────────╼[0m
+Apr 09 18:36:23  [34m│[0m [34m › fetching app source code[0m
+Apr 09 18:36:23  [34m│[0m => Selecting branch "main"
+Apr 09 18:36:26  [34m│[0m => Checking out commit "631b4681ea29ce16776ad22efb64398c161f9643"
+Apr 09 18:36:26  [34m│[0m 
+Apr 09 18:36:26  [34m│[0m [32m ✔ cloned repo to [35m/workspace[0m[0m
+Apr 09 18:36:26  [34m╰────────────────────────────────────────╼[0m
+Apr 09 18:36:26  
+Apr 09 18:36:26  [34m╭────────────[34m[30m[44m buildpack detection [0m[0m[34m───────────╼[0m
+Apr 09 18:36:26  [34m│[0m [34m › using Ubuntu 22.04 stack[0m
+Apr 09 18:36:28  [34m│[0m Detected the following buildpacks suitable to build your app:
+Apr 09 18:36:28  [34m│[0m 
+Apr 09 18:36:28  [34m│[0m    digitalocean/nodejs-appdetect  v0.1.2    
+Apr 09 18:36:28  [34m│[0m    heroku/nodejs                  v0.338.5  (Node.js)
+Apr 09 18:36:28  [34m│[0m    digitalocean/procfile          v0.1.0    (Procfile)
+Apr 09 18:36:28  [34m│[0m    digitalocean/custom            v0.2.0    (Custom Build Command)
+Apr 09 18:36:28  [34m╰─────────────────────────────────────────────╼[0m
+Apr 09 18:36:28  
+Apr 09 18:36:28  [34m╭────────────[34m[30m[44m app build [0m[0m[34m───────────╼[0m
+Apr 09 18:36:28  [34m│[0m [33;1mWarning: [0mno analyzed metadata found at path '/layers/analyzed.toml'
+Apr 09 18:36:28  [34m│[0m Timer: Builder started at 2026-04-09T18:36:28Z
+Apr 09 18:36:28  [34m│[0m Project contains pnpm-lock.yaml, using pnpm
+Apr 09 18:36:29  [34m│[0m        
+Apr 09 18:36:29  [34m│[0m -----> Creating runtime environment
+Apr 09 18:36:29  [34m│[0m        
+Apr 09 18:36:29  [34m│[0m        NPM_CONFIG_LOGLEVEL=error
+Apr 09 18:36:29  [34m│[0m        NODE_VERBOSE=false
+Apr 09 18:36:29  [34m│[0m        NODE_ENV=
+Apr 09 18:36:29  [34m│[0m        NODE_MODULES_CACHE=true
+Apr 09 18:36:29  [34m│[0m        
+Apr 09 18:36:29  [34m│[0m -----> Installing binaries
+Apr 09 18:36:29  [34m│[0m        engines.node (package.json):   22.x
+Apr 09 18:36:29  [34m│[0m        engines.npm (package.json):    unspecified (use default)
+Apr 09 18:36:29  [34m│[0m        engines.pnpm (package.json):   unspecified (use default)
+Apr 09 18:36:29  [34m│[0m        packageManager (package.json): pnpm@10.26.1
+Apr 09 18:36:29  [34m│[0m        
+Apr 09 18:36:29  [34m│[0m        Resolving node version 22.x...
+Apr 09 18:36:29  [34m│[0m        Downloading and installing node 22.22.1...
+Apr 09 18:36:30  [34m│[0m        Validating checksum
+Apr 09 18:36:33  [34m│[0m        Using default npm version: 10.9.4
+Apr 09 18:36:33  [34m│[0m        Downloading and installing pnpm (10.26.1)
+Apr 09 18:36:36  [34m│[0m        Using pnpm 10.26.1
+Apr 09 18:36:38  [34m│[0m        
+Apr 09 18:36:38  [34m│[0m -----> Installing dependencies
+Apr 09 18:36:38  [34m│[0m        Running 'pnpm install' with pnpm-lock.yaml
+Apr 09 18:36:47  [34m│[0m        
+Apr 09 18:36:47  [34m│[0m -----> Build
+Apr 09 18:36:47  [34m│[0m        Running build
+Apr 09 18:36:47  [34m│[0m        
+Apr 09 18:36:47  [34m│[0m        > workspace@0.0.0 build /workspace
+Apr 09 18:36:47  [34m│[0m        > pnpm run typecheck:libs && pnpm --filter @workspace/web run build && pnpm --filter @workspace/api-server run build
+Apr 09 18:36:47  [34m│[0m        
+Apr 09 18:36:48  [34m│[0m        
+Apr 09 18:36:48  [34m│[0m        > workspace@0.0.0 typecheck:libs /workspace
+Apr 09 18:36:48  [34m│[0m        > tsc --build
+Apr 09 18:36:48  [34m│[0m        
+Apr 09 18:36:54  [34m│[0m        
+Apr 09 18:36:54  [34m│[0m        > @workspace/web@0.0.0 build /workspace/artifacts/web
+Apr 09 18:36:54  [34m│[0m        > vite build --config vite.config.ts
+Apr 09 18:36:54  [34m│[0m        
+Apr 09 18:36:54  [34m│[0m        vite v7.3.1 building client environment for production...
+Apr 09 18:36:54  [34m│[0m        transforming...
+Apr 09 18:36:57  [34m│[0m        src/components/ui/select.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+Apr 09 18:36:57  [34m│[0m        src/components/ui/tooltip.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+Apr 09 18:36:57  [34m│[0m        src/components/ui/label.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+Apr 09 18:36:57  [34m│[0m        src/components/ui/dropdown-menu.tsx (2:0): Error when using sourcemap for reporting an error: Can't resolve original location of error.
+Apr 09 18:37:01  [34m│[0m        ✓ 2789 modules transformed.
+Apr 09 18:37:01  [34m│[0m        rendering chunks...
+Apr 09 18:37:01  [34m│[0m        computing gzip size...
+Apr 09 18:37:01  [34m│[0m        dist/public/index.html                     0.74 kB │ gzip:   0.41 kB
+Apr 09 18:37:01  [34m│[0m        dist/public/assets/index-CJhASEEY.css    148.76 kB │ gzip:  23.14 kB
+Apr 09 18:37:01  [34m│[0m        dist/public/assets/index-CcStyXlI.js   1,758.16 kB │ gzip: 475.59 kB
+Apr 09 18:37:01  [34m│[0m        
+Apr 09 18:37:01  [34m│[0m        (!) Some chunks are larger than 500 kB after minification. Consider:
+Apr 09 18:37:01  [34m│[0m        - Using dynamic import() to code-split the application
+Apr 09 18:37:01  [34m│[0m        - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+Apr 09 18:37:01  [34m│[0m        - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+Apr 09 18:37:01  [34m│[0m        ✓ built in 7.48s
+Apr 09 18:37:02  [34m│[0m        
+Apr 09 18:37:02  [34m│[0m        > @workspace/api-server@0.0.0 build /workspace/artifacts/api-server
+Apr 09 18:37:02  [34m│[0m        > tsx ./build.ts
+Apr 09 18:37:02  [34m│[0m        
+Apr 09 18:37:02  [34m│[0m        building server...
+Apr 09 18:37:03  [34m│[0m        
+Apr 09 18:37:03  [34m│[0m          dist/index.cjs  1.6mb ⚠️
+Apr 09 18:37:03  [34m│[0m        
+Apr 09 18:37:03  [34m│[0m        ⚡ Done in 169ms
+Apr 09 18:37:03  [34m│[0m        
+Apr 09 18:37:03  [34m│[0m -----> Caching build
+Apr 09 18:37:03  [34m│[0m        - pnpm cache
+Apr 09 18:37:03  [34m│[0m        
+Apr 09 18:37:03  [34m│[0m -----> Pruning devDependencies
+Apr 09 18:37:03  [34m│[0m        Skipping because NODE_ENV is not 'production'
+Apr 09 18:37:03  [34m│[0m        
+Apr 09 18:37:03  [34m│[0m -----> Build succeeded!
+Apr 09 18:37:03  [34m│[0m  !     This app may not specify any way to start a node process
+Apr 09 18:37:03  [34m│[0m        https://devcenter.heroku.com/articles/nodejs-support#default-web-process-type
+Apr 09 18:37:03  [34m│[0m 
+Apr 09 18:37:03  [34m│[0m Timer: Builder ran for 34.974457699s and ended at 2026-04-09T18:37:03Z
+Apr 09 18:37:04  [34m╰───────────────────────────────────╼[0m
+Apr 09 18:37:04  
+Apr 09 18:37:04  [34m╭────────────[34m[30m[44m app upload [0m[0m[34m───────────╼[0m
+Apr 09 18:37:04  [34m│[0m [34m › uploading app container image to DOCR[0m
+Apr 09 18:37:04  [34m│[0m [33;1mWarning: [0mno analyzed metadata found at path '/layers/analyzed.toml'
+Apr 09 18:37:04  [34m│[0m Timer: Exporter started at 2026-04-09T18:37:04Z
+Apr 09 18:37:04  [34m│[0m Adding layer 'heroku/nodejs:profile'
+Apr 09 18:37:20  [34m│[0m Adding 1/1 app layer(s)
+Apr 09 18:37:20  [34m│[0m Adding layer 'buildpacksio/lifecycle:launcher'
+Apr 09 18:37:20  [34m│[0m Adding layer 'buildpacksio/lifecycle:config'
+Apr 09 18:37:20  [34m│[0m Adding label 'io.buildpacks.lifecycle.metadata'
+Apr 09 18:37:20  [34m│[0m Adding label 'io.buildpacks.build.metadata'
+Apr 09 18:37:20  [34m│[0m Adding label 'io.buildpacks.project.metadata'
+Apr 09 18:37:20  [34m│[0m no default process type
+Apr 09 18:37:20  [34m│[0m Timer: Saving <image-0>... started at 2026-04-09T18:37:20Z
+Apr 09 18:37:31  [34m│[0m *** Images (sha256:8780647fd6b271a957935db2467e3bacb92445535f693a4f97857da7df5994c2):
+Apr 09 18:37:31  [34m│[0m       <image-1>
+Apr 09 18:37:31  [34m│[0m Timer: Saving <image-2>... ran for 10.456504475s and ended at 2026-04-09T18:37:31Z
+Apr 09 18:37:31  [34m│[0m Timer: Exporter ran for 26.630601491s and ended at 2026-04-09T18:37:31Z
+Apr 09 18:37:31  [34m│[0m Timer: Cache started at 2026-04-09T18:37:31Z
+Apr 09 18:37:37  [34m│[0m Adding cache layer 'heroku/nodejs:shim'
+Apr 09 18:37:49  [34m│[0m [32m ✔ uploaded app image to DOCR[0m
+Apr 09 18:37:49  [34m╰────────────────────────────────────╼[0m
+Apr 09 18:37:49  
+Apr 09 18:37:50  [32m ✔ [0m[30m[42m build complete [0m[0m
