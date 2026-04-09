@@ -17,6 +17,8 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 const dbUrl = process.env["DATABASE_URL"];
 if (!dbUrl) throw new Error("DATABASE_URL is required");
 
+const isProd = process.env["NODE_ENV"] === "production";
+
 app.use(session({
   store: new PgSession({
     conString: dbUrl,
@@ -31,12 +33,25 @@ app.use(session({
   cookie: {
     httpOnly: true,
     maxAge: 30 * 24 * 60 * 60 * 1000,
-    secure: false,
+    // Secure cookies require HTTPS — enable in production, disable in local dev
+    secure: isProd,
     sameSite: "lax",
   },
 }));
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/api", router);
+
+// In production the Express server also serves the compiled React frontend so
+// that all /api/* calls and the SPA share the same origin (no CORS issues).
+// The frontend is built to artifacts/web/dist/public relative to the repo root.
+if (isProd) {
+  const frontendDist = path.join(process.cwd(), "artifacts/web/dist/public");
+  app.use(express.static(frontendDist));
+  // SPA fallback — any unmatched route returns index.html so client-side routing works
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
 
 export default app;
