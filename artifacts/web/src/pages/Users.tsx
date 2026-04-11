@@ -239,12 +239,16 @@ export default function UsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => openEdit(u)}>
-                            <Pencil className="w-4 h-4 mr-2" />Edit Profile
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
-                            <KeyRound className="w-4 h-4 mr-2" />Reset Password
-                          </DropdownMenuItem>
+                          {(u.role !== "owner" || u.id === currentUser?.id) && (
+                            <DropdownMenuItem onClick={() => openEdit(u)}>
+                              <Pencil className="w-4 h-4 mr-2" />Edit Profile
+                            </DropdownMenuItem>
+                          )}
+                          {(u.role !== "owner" || u.id === currentUser?.id) && (
+                            <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
+                              <KeyRound className="w-4 h-4 mr-2" />Reset Password
+                            </DropdownMenuItem>
+                          )}
                           {u.id !== currentUser?.id && !isProtected && (
                             <>
                               <DropdownMenuSeparator />
@@ -310,12 +314,16 @@ export default function UsersPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem onClick={() => openEdit(u)}>
-                                <Pencil className="w-4 h-4 mr-2" />Edit Profile
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
-                                <KeyRound className="w-4 h-4 mr-2" />Reset Password
-                              </DropdownMenuItem>
+                              {(u.role !== "owner" || u.id === currentUser?.id) && (
+                                <DropdownMenuItem onClick={() => openEdit(u)}>
+                                  <Pencil className="w-4 h-4 mr-2" />Edit Profile
+                                </DropdownMenuItem>
+                              )}
+                              {(u.role !== "owner" || u.id === currentUser?.id) && (
+                                <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
+                                  <KeyRound className="w-4 h-4 mr-2" />Reset Password
+                                </DropdownMenuItem>
+                              )}
                               {u.id !== currentUser?.id && !isProtected && (
                                 <>
                                   <DropdownMenuSeparator />

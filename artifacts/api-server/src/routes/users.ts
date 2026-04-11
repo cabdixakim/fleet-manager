@@ -67,6 +67,7 @@ router.post("/", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     const callerRole = await getCallerRole(req);
+    const callerUserId = (req.session as any)?.userId;
     if (!callerRole || !MANAGER_ROLES.includes(callerRole)) {
       return res.status(403).json({ error: "Only owner, admin, or system can modify users." });
     }
@@ -74,6 +75,11 @@ router.put("/:id", async (req, res, next) => {
     const { name, email, role, isActive, password } = req.body;
     const [before] = await db.select().from(usersTable).where(eq(usersTable.id, id));
     if (!before) return res.status(404).json({ error: "Not found" });
+
+    // Owner account can only be edited by system or by the owner themselves
+    if (before.role === "owner" && callerRole !== "system" && callerUserId !== id) {
+      return res.status(403).json({ error: "The owner account can only be edited by the owner themselves." });
+    }
 
     if (PROTECTED_ROLES.includes(before.role)) {
       if (role && role !== before.role) {
