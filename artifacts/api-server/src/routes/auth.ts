@@ -27,7 +27,8 @@ router.post("/login", async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase()));
-  if (!user || !user.isActive) return res.status(401).json({ error: "Invalid credentials" });
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  if (!user.isActive) return res.status(403).json({ error: "Your account has been locked. Please contact your administrator." });
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
