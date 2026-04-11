@@ -7,11 +7,14 @@ id = "3B4_FFSkEVBkAeYMFRJ2e"
 [[services]]
 localPort = 8080
 name = "API Server"
-paths = ["/"]
+paths = ["/api", "/uploads"]
 
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
 
 [services.production]
-build = "pnpm run build"
+build = "pnpm --filter @workspace/api-server run build"
 run = "node artifacts/api-server/dist/index.cjs"
+
+[services.production.health.startup]
+path = "/api/healthz"

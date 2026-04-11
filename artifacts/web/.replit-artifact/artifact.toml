@@ -22,5 +22,10 @@ PORT = "3000"
 BASE_PATH = "/"
 
 [services.production]
-build = "pnpm run build"
-run = "node artifacts/api-server/dist/index.cjs"
+build = ["pnpm", "--filter", "@workspace/web", "run", "build"]
+publicDir = "artifacts/web/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
