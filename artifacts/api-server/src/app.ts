@@ -49,7 +49,7 @@ if (isProd) {
   const frontendDist = path.join(process.cwd(), "artifacts/web/dist/public");
   app.use(express.static(frontendDist));
   // SPA fallback — any unmatched route returns index.html so client-side routing works
-  app.get("*", (_req, res) => {
+  app.use((_req, res) => {
     res.sendFile(path.join(frontendDist, "index.html"));
   });
 }
