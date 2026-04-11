@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search } from "lucide-react";
@@ -80,6 +81,7 @@ export default function TruckDetail() {
   const [linkTripId, setLinkTripId] = useState("");
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState("");
+  const [confirmDeleteExpenseId, setConfirmDeleteExpenseId] = useState<number | null>(null);
 
   const handleLinkToTrip = async () => {
     if (!linkExpense || !linkTripId) { setLinkError("Please select a trip."); return; }
@@ -676,7 +678,7 @@ export default function TruckDetail() {
                                   <ArrowRight className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => { if (confirm("Remove this expense?")) deleteExpense.mutate(e.id); }}
+                                  onClick={() => setConfirmDeleteExpenseId(e.id)}
                                   className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -800,6 +802,18 @@ export default function TruckDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={confirmDeleteExpenseId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteExpenseId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this expense?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone. The expense record will be permanently deleted.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={() => { if (confirmDeleteExpenseId !== null) { deleteExpense.mutate(confirmDeleteExpenseId); setConfirmDeleteExpenseId(null); } }}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

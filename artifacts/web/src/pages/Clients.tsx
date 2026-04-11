@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -41,6 +42,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const canAdjustOB = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
@@ -128,7 +130,7 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
       });
       if (!res.ok) {
         const err = await res.json();
-        alert(err.error ?? "Failed to adjust opening balance");
+        toast({ variant: "destructive", title: "Error", description: err.error ?? "Failed to adjust opening balance" });
         return;
       }
       qc.invalidateQueries({ queryKey: [`/api/clients/${id}`] });

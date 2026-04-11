@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompanySettings } from "@/hooks/useCompanySettings";
 import { useAuth } from "@/contexts/AuthContext";
@@ -186,6 +188,8 @@ export default function TripDetail() {
   const { data: drivers = [] } = useGetDrivers();
   const { user } = useAuth();
   const { settings: companySettings } = useCompanySettings();
+  const { toast } = useToast();
+  const [confirmRemoveClearanceId, setConfirmRemoveClearanceId] = useState<number | null>(null);
 
   const [activeTab, setActiveTab] = useState<"details" | "financials" | "clearances" | "expenses" | "amendments">("details");
   const [showExpense, setShowExpense] = useState(false);
@@ -214,7 +218,7 @@ export default function TripDetail() {
       const data = await res.json();
       setNoteForm((f) => ({ ...f, url: data.url }));
     } catch {
-      alert("File upload failed. Please try again.");
+      toast({ variant: "destructive", title: "Upload failed", description: "File upload failed. Please try again." });
     } finally {
       setUploading(false);
     }
@@ -241,7 +245,7 @@ export default function TripDetail() {
         headers: { "Content-Type": "application/json" },
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error ?? "Failed to unlink expense."); return; }
+      if (!res.ok) { toast({ variant: "destructive", title: "Error", description: data.error ?? "Failed to unlink expense." }); return; }
       invalidate();
     } finally { setUnlinkingExpenseId(null); }
   };
@@ -393,16 +397,21 @@ export default function TripDetail() {
       await updateClearance({ id: clearanceId, data: { documentUrl: data.url } as any });
       invalidate();
     } catch {
-      alert("Document upload failed. Please try again.");
+      toast({ variant: "destructive", title: "Upload failed", description: "Document upload failed. Please try again." });
     } finally {
       setUploadingClearanceDoc(null);
     }
   };
 
-  const handleClearanceDocRemove = async (clearanceId: number) => {
-    if (!confirm("Remove this document?")) return;
-    await updateClearance({ id: clearanceId, data: { documentUrl: null } as any });
+  const handleClearanceDocRemove = (clearanceId: number) => {
+    setConfirmRemoveClearanceId(clearanceId);
+  };
+
+  const handleClearanceDocRemoveConfirmed = async () => {
+    if (confirmRemoveClearanceId === null) return;
+    await updateClearance({ id: confirmRemoveClearanceId, data: { documentUrl: null } as any });
     invalidate();
+    setConfirmRemoveClearanceId(null);
   };
 
   const handleNoteSave = async () => {
@@ -1750,6 +1759,18 @@ export default function TripDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={confirmRemoveClearanceId !== null} onOpenChange={(open) => { if (!open) setConfirmRemoveClearanceId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove attached document?</AlertDialogTitle>
+            <AlertDialogDescription>The document link will be removed from this clearance record.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={handleClearanceDocRemoveConfirmed}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

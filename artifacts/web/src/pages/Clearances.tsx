@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 type ClearanceDoc = {
   id: number;
@@ -58,6 +60,8 @@ function ClearanceCard({
   const { mutateAsync: updateStatus, isPending } = useUpdateClearanceStatus();
   const cardRef = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const { toast } = useToast();
   const days = daysSince(doc.createdAt);
 
   useEffect(() => {
@@ -81,15 +85,15 @@ function ClearanceCard({
       const data = await res.json();
       await updateStatus({ id: doc.id, status: doc.status, documentUrl: data.url });
     } catch {
-      alert("Document upload failed. Please try again.");
+      toast({ variant: "destructive", title: "Upload failed", description: "Document upload failed. Please try again." });
     } finally {
       setUploading(false);
     }
   };
 
   const handleFileRemove = async () => {
-    if (!confirm("Remove attached document?")) return;
     await updateStatus({ id: doc.id, status: doc.status, documentUrl: null });
+    setConfirmRemove(false);
   };
 
   return (
@@ -146,7 +150,7 @@ function ClearanceCard({
                   <ExternalLink className="w-2.5 h-2.5" />
                 </a>
                 <button
-                  onClick={handleFileRemove}
+                  onClick={() => setConfirmRemove(true)}
                   disabled={isPending || uploading}
                   className="text-xs text-muted-foreground/50 hover:text-red-400 transition-colors disabled:opacity-40"
                   title="Remove document"
@@ -212,6 +216,18 @@ function ClearanceCard({
           </button>
         </div>
       </div>
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove attached document?</AlertDialogTitle>
+            <AlertDialogDescription>The document link will be removed from this clearance record.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={handleFileRemove}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -219,6 +235,7 @@ function ClearanceCard({
 export default function Clearances() {
   const [, navigate] = useLocation();
   const [searchParams] = useSearchParams();
+  const { toast } = useToast();
   const { data: boardTrips = [], isLoading } = useGetClearanceBoard();
   const { mutateAsync: updateStatus, isPending: saving } = useUpdateClearanceStatus();
 
@@ -268,7 +285,7 @@ export default function Clearances() {
       const data = await res.json();
       setEditDocUrl(data.url);
     } catch {
-      alert("Document upload failed. Please try again.");
+      toast({ variant: "destructive", title: "Upload failed", description: "Document upload failed. Please try again." });
     } finally {
       setEditUploading(false);
     }

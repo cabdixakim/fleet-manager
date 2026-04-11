@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 type Period = { id: number; name: string; startDate: string; endDate: string; isClosed: boolean };
@@ -32,6 +34,7 @@ function StatRow({ icon: Icon, label, value, warn }: { icon: React.ComponentType
 export default function Periods() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { toast } = useToast();
   const canManage = user?.role === "owner" || user?.role === "admin" || user?.role === "manager";
   const isAdmin = user?.role === "owner" || user?.role === "admin";
 
@@ -48,6 +51,7 @@ export default function Periods() {
   const [saving, setSaving] = useState(false);
   const [closing, setClosing] = useState(false);
   const [closeConfirm, setCloseConfirm] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<Period | null>(null);
 
   const { data: closePreview, isLoading: previewLoading } = useQuery<ClosePreview>({
     queryKey: ["/api/periods", showClose?.id, "close-preview"],
@@ -64,7 +68,7 @@ export default function Periods() {
         credentials: "include",
         body: JSON.stringify(form),
       });
-      if (!res.ok) { const e = await res.json(); alert(e.error ?? "Failed to create period"); return; }
+      if (!res.ok) { const e = await res.json(); toast({ variant: "destructive", title: "Failed to create period", description: e.error }); return; }
       qc.invalidateQueries({ queryKey: ["/api/periods"] });
       qc.invalidateQueries({ queryKey: ["current-period-header"] });
       setShowCreate(false);
@@ -82,7 +86,7 @@ export default function Periods() {
         credentials: "include",
         body: JSON.stringify({ name: showEdit.name, startDate: showEdit.startDate, endDate: showEdit.endDate }),
       });
-      if (!res.ok) { const e = await res.json(); alert(e.error ?? "Failed to update period"); return; }
+      if (!res.ok) { const e = await res.json(); toast({ variant: "destructive", title: "Failed to update period", description: e.error }); return; }
       qc.invalidateQueries({ queryKey: ["/api/periods"] });
       setShowEdit(null);
     } finally { setSaving(false); }
@@ -93,7 +97,7 @@ export default function Periods() {
     setClosing(true);
     try {
       const res = await fetch(`/api/periods/${showClose.id}/close`, { method: "POST", credentials: "include" });
-      if (!res.ok) { const e = await res.json(); alert(e.error ?? "Failed to close period"); return; }
+      if (!res.ok) { const e = await res.json(); toast({ variant: "destructive", title: "Failed to close period", description: e.error }); return; }
       qc.invalidateQueries({ queryKey: ["/api/periods"] });
       qc.invalidateQueries({ queryKey: ["current-period-header"] });
       qc.invalidateQueries({ queryKey: ["/api/clients"] });
@@ -108,18 +112,19 @@ export default function Periods() {
     setClosing(true);
     try {
       const res = await fetch(`/api/periods/${showReopen.id}/reopen`, { method: "POST", credentials: "include" });
-      if (!res.ok) { const e = await res.json(); alert(e.error ?? "Failed to reopen period"); return; }
+      if (!res.ok) { const e = await res.json(); toast({ variant: "destructive", title: "Failed to reopen period", description: e.error }); return; }
       qc.invalidateQueries({ queryKey: ["/api/periods"] });
       qc.invalidateQueries({ queryKey: ["current-period-header"] });
       setShowReopen(null);
     } finally { setClosing(false); }
   };
 
-  const handleDelete = async (p: Period) => {
-    if (!confirm(`Delete period "${p.name}"? This cannot be undone.`)) return;
-    const res = await fetch(`/api/periods/${p.id}`, { method: "DELETE", credentials: "include" });
-    if (!res.ok) { const e = await res.json(); alert(e.error ?? "Failed to delete"); return; }
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    const res = await fetch(`/api/periods/${confirmDelete.id}`, { method: "DELETE", credentials: "include" });
+    if (!res.ok) { const e = await res.json(); toast({ variant: "destructive", title: "Failed to delete period", description: e.error }); setConfirmDelete(null); return; }
     qc.invalidateQueries({ queryKey: ["/api/periods"] });
+    setConfirmDelete(null);
   };
 
   const openPeriods = (periods as Period[]).filter((p) => !p.isClosed);
@@ -173,7 +178,7 @@ export default function Periods() {
                             <Lock className="w-3.5 h-3.5 mr-1.5" />Close Period
                           </Button>
                           {isAdmin && (
-                            <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => handleDelete(p)}>Delete</Button>
+                            <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setConfirmDelete(p)}>Delete</Button>
                           )}
                         </div>
                       )}
@@ -325,6 +330,20 @@ export default function Periods() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Period Confirm */}
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{confirmDelete?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone. The period and all associated data will be permanently removed.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={handleDelete}>Delete Period</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Reopen Period Dialog */}
       <Dialog open={!!showReopen} onOpenChange={(o) => !o && setShowReopen(null)}>

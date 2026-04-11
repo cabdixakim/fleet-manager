@@ -20,8 +20,9 @@ const router = Router();
 function requireRole(req: any, ...roles: string[]) {
   const s = req.session as any;
   const userRole = s?.userRole;
-  if (!userRole || !roles.includes(userRole)) return false;
-  return true;
+  if (!userRole) return false;
+  if (userRole === "owner") return true;
+  return roles.includes(userRole);
 }
 
 // GET /periods/current — returns the most recent open period
