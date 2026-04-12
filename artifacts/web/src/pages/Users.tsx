@@ -239,25 +239,30 @@ export default function UsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          {(u.role !== "owner" || u.id === currentUser?.id) && (
-                            <DropdownMenuItem onClick={() => openEdit(u)}>
-                              <Pencil className="w-4 h-4 mr-2" />Edit Profile
-                            </DropdownMenuItem>
-                          )}
-                          {(u.role !== "owner" || u.id === currentUser?.id) && (
-                            <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
-                              <KeyRound className="w-4 h-4 mr-2" />Reset Password
-                            </DropdownMenuItem>
-                          )}
-                          {u.id !== currentUser?.id && !isProtected && (
+                          {u.role === "owner" && u.id !== currentUser?.id ? (
+                            <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground select-none">
+                              <Lock className="w-3 h-3 shrink-0" />
+                              Owner account is protected
+                            </div>
+                          ) : (
                             <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => setLockUser(u)} className={u.isActive ? "text-destructive" : "text-green-500"}>
-                                {u.isActive ? <><Lock className="w-4 h-4 mr-2" />Lock Account</> : <><LockOpen className="w-4 h-4 mr-2" />Unlock Account</>}
+                              <DropdownMenuItem onClick={() => openEdit(u)}>
+                                <Pencil className="w-4 h-4 mr-2" />Edit Profile
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setDeleteUser(u)} className="text-destructive">
-                                <Trash2 className="w-4 h-4 mr-2" />Delete User
+                              <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
+                                <KeyRound className="w-4 h-4 mr-2" />Reset Password
                               </DropdownMenuItem>
+                              {u.id !== currentUser?.id && !isProtected && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => setLockUser(u)} className={u.isActive ? "text-destructive" : "text-green-500"}>
+                                    {u.isActive ? <><Lock className="w-4 h-4 mr-2" />Lock Account</> : <><LockOpen className="w-4 h-4 mr-2" />Unlock Account</>}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setDeleteUser(u)} className="text-destructive">
+                                    <Trash2 className="w-4 h-4 mr-2" />Delete User
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </>
                           )}
                         </DropdownMenuContent>
@@ -314,25 +319,30 @@ export default function UsersPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48">
-                              {(u.role !== "owner" || u.id === currentUser?.id) && (
-                                <DropdownMenuItem onClick={() => openEdit(u)}>
-                                  <Pencil className="w-4 h-4 mr-2" />Edit Profile
-                                </DropdownMenuItem>
-                              )}
-                              {(u.role !== "owner" || u.id === currentUser?.id) && (
-                                <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
-                                  <KeyRound className="w-4 h-4 mr-2" />Reset Password
-                                </DropdownMenuItem>
-                              )}
-                              {u.id !== currentUser?.id && !isProtected && (
+                              {u.role === "owner" && u.id !== currentUser?.id ? (
+                                <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground select-none">
+                                  <Lock className="w-3 h-3 shrink-0" />
+                                  Owner account is protected
+                                </div>
+                              ) : (
                                 <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => setLockUser(u)} className={u.isActive ? "text-destructive" : "text-green-500"}>
-                                    {u.isActive ? <><Lock className="w-4 h-4 mr-2" />Lock Account</> : <><LockOpen className="w-4 h-4 mr-2" />Unlock Account</>}
+                                  <DropdownMenuItem onClick={() => openEdit(u)}>
+                                    <Pencil className="w-4 h-4 mr-2" />Edit Profile
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setDeleteUser(u)} className="text-destructive">
-                                    <Trash2 className="w-4 h-4 mr-2" />Delete User
+                                  <DropdownMenuItem onClick={() => { setResetUser(u); setNewPassword(""); }} className="text-amber-500">
+                                    <KeyRound className="w-4 h-4 mr-2" />Reset Password
                                   </DropdownMenuItem>
+                                  {u.id !== currentUser?.id && !isProtected && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem onClick={() => setLockUser(u)} className={u.isActive ? "text-destructive" : "text-green-500"}>
+                                        {u.isActive ? <><Lock className="w-4 h-4 mr-2" />Lock Account</> : <><LockOpen className="w-4 h-4 mr-2" />Unlock Account</>}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => setDeleteUser(u)} className="text-destructive">
+                                        <Trash2 className="w-4 h-4 mr-2" />Delete User
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
                                 </>
                               )}
                             </DropdownMenuContent>
