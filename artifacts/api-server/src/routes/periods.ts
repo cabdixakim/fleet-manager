@@ -98,6 +98,7 @@ router.get("/:id/financials", async (req, res, next) => {
       .select({
         id: tripsTable.id,
         truckId: tripsTable.truckId,
+        subcontractorId: tripsTable.subcontractorId,
         batchId: tripsTable.batchId,
         status: tripsTable.status,
       })
@@ -167,33 +168,28 @@ router.get("/:id/financials", async (req, res, next) => {
         totalTripExpenses += te;
         totalDriverSalaries += ds;
 
-        // Get subcontractor for this trip via truck
-        const [truck] = await db
-          .select({ subcontractorId: trucksTable.subcontractorId })
-          .from(trucksTable)
-          .where(eq(trucksTable.id, trip.truckId));
-
-        if (truck?.subcontractorId) {
-          if (!subMap[truck.subcontractorId]) {
+        // Use the snapshotted subcontractorId on the trip — accurate even if the truck was later reassigned
+        if (trip.subcontractorId) {
+          if (!subMap[trip.subcontractorId]) {
             const [sub] = await db
               .select({ id: subcontractorsTable.id, name: subcontractorsTable.name, commissionRate: subcontractorsTable.commissionRate })
               .from(subcontractorsTable)
-              .where(eq(subcontractorsTable.id, truck.subcontractorId));
-            subMap[truck.subcontractorId] = {
-              id: sub?.id ?? truck.subcontractorId,
+              .where(eq(subcontractorsTable.id, trip.subcontractorId));
+            subMap[trip.subcontractorId] = {
+              id: sub?.id ?? trip.subcontractorId,
               name: sub?.name ?? "Unknown",
               commissionRate: parseFloat(sub?.commissionRate ?? "0"),
               gross: 0, commission: 0, shortCharges: 0,
               tripExpenses: 0, driverSalaries: 0, netPayable: 0, trips: 0
             };
           }
-          subMap[truck.subcontractorId].gross += g;
-          subMap[truck.subcontractorId].commission += c;
-          subMap[truck.subcontractorId].shortCharges += sc;
-          subMap[truck.subcontractorId].tripExpenses += te;
-          subMap[truck.subcontractorId].driverSalaries += ds;
-          subMap[truck.subcontractorId].netPayable += net;
-          subMap[truck.subcontractorId].trips += 1;
+          subMap[trip.subcontractorId].gross += g;
+          subMap[trip.subcontractorId].commission += c;
+          subMap[trip.subcontractorId].shortCharges += sc;
+          subMap[trip.subcontractorId].tripExpenses += te;
+          subMap[trip.subcontractorId].driverSalaries += ds;
+          subMap[trip.subcontractorId].netPayable += net;
+          subMap[trip.subcontractorId].trips += 1;
         }
       } catch { /* skip on error */ }
     }

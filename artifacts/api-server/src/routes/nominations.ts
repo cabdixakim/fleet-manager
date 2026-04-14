@@ -87,7 +87,7 @@ router.get("/:batchId", async (req, res, next) => {
       .from(tripsTable)
       .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
       .leftJoin(driversTable, eq(tripsTable.driverId, driversTable.id))
-      .leftJoin(subcontractorsTable, eq(trucksTable.subcontractorId, subcontractorsTable.id))
+      .leftJoin(subcontractorsTable, eq(tripsTable.subcontractorId, subcontractorsTable.id))
       .where(eq(tripsTable.batchId, batchId));
 
     const allTrips = trips.map((t) => ({

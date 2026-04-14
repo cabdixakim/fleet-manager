@@ -533,7 +533,7 @@ router.get("/:id/financials", async (req, res, next) => {
     if (!batch) return res.status(404).json({ error: "Not found" });
 
     const trips = await db
-      .select({ id: tripsTable.id, loadedQty: tripsTable.loadedQty, deliveredQty: tripsTable.deliveredQty, capacity: tripsTable.capacity, truckPlate: trucksTable.plateNumber, product: tripsTable.product, status: tripsTable.status, subcontractorId: trucksTable.subcontractorId, invoiceId: tripsTable.invoiceId })
+      .select({ id: tripsTable.id, loadedQty: tripsTable.loadedQty, deliveredQty: tripsTable.deliveredQty, capacity: tripsTable.capacity, truckPlate: trucksTable.plateNumber, product: tripsTable.product, status: tripsTable.status, subcontractorId: tripsTable.subcontractorId, invoiceId: tripsTable.invoiceId })
       .from(tripsTable)
       .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
       .where(and(eq(tripsTable.batchId, batchId)));

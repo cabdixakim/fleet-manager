@@ -95,6 +95,7 @@ router.post("/", async (req, res, next) => {
           .select({
             id: tripsTable.id,
             truckId: tripsTable.truckId,
+            subcontractorId: tripsTable.subcontractorId,
           })
           .from(tripsTable)
           .where(
@@ -113,10 +114,9 @@ router.post("/", async (req, res, next) => {
             amount: perTrip.toFixed(2),
           });
 
-          const [truck] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, trip.truckId));
-          if (truck) {
+          if (trip.subcontractorId) {
             await db.insert(subcontractorTransactionsTable).values({
-              subcontractorId: truck.subcontractorId,
+              subcontractorId: trip.subcontractorId,
               type: "driver_salary",
               amount: perTrip.toFixed(2),
               tripId: trip.id,

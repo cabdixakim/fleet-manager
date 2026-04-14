@@ -588,16 +588,11 @@ router.post("/:id/expenses", async (req, res, next) => {
     // Auto-populate batchId, truckId, subcontractorId from the trip so expenses
     // can be aggregated by subcontractor and batch without extra joins.
     const [trip] = await db
-      .select({ batchId: tripsTable.batchId, truckId: tripsTable.truckId, driverId: tripsTable.driverId })
+      .select({ batchId: tripsTable.batchId, truckId: tripsTable.truckId, driverId: tripsTable.driverId, subcontractorId: tripsTable.subcontractorId })
       .from(tripsTable)
       .where(eq(tripsTable.id, tripId));
 
     if (!trip) return res.status(404).json({ error: "Trip not found" });
-
-    const [truck] = await db
-      .select({ subcontractorId: trucksTable.subcontractorId })
-      .from(trucksTable)
-      .where(eq(trucksTable.id, trip.truckId));
 
     const { costType, description, amount, currency, expenseDate } = req.body;
 
@@ -607,7 +602,7 @@ router.post("/:id/expenses", async (req, res, next) => {
         tripId,
         batchId: trip.batchId,
         truckId: trip.truckId,
-        subcontractorId: truck?.subcontractorId ?? null,
+        subcontractorId: trip.subcontractorId ?? null,
         tier: "trip",
         costType,
         description: description ?? null,
