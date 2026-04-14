@@ -174,7 +174,7 @@ router.get("/:id/detail", async (req, res, next) => {
           const fin = await calculateTripFinancials(t.id);
           return {
             ...t,
-            grossRevenue: fin.grossRevenue ?? 0,
+            grossRevenue: (fin.grossRevenue ?? 0) - (fin.agentFeeTotal ?? 0),
             commission: fin.commission ?? 0,
             tripExpenses: fin.tripExpensesTotal ?? 0,
             netContribution: fin.netPayable ?? 0,
