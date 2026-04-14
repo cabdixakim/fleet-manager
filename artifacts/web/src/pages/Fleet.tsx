@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,8 @@ export default function Fleet() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [editTruck, setEditTruck] = useState<any | null>(null);
+  const [originalSubId, setOriginalSubId] = useState<number | null>(null);
+  const [confirmSubSwap, setConfirmSubSwap] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
   const [showDriverDialog, setShowDriverDialog] = useState<{ truck: any } | null>(null);
 
@@ -100,7 +103,7 @@ export default function Fleet() {
     setForm(emptyForm);
   };
 
-  const handleUpdate = async () => {
+  const doUpdate = async () => {
     if (!editTruck) return;
     await updateTruck({
       id: editTruck.id,
@@ -113,7 +116,17 @@ export default function Fleet() {
       },
     });
     qc.invalidateQueries({ queryKey: ["/api/trucks"] });
+    setConfirmSubSwap(false);
     setEditTruck(null);
+  };
+
+  const handleUpdate = () => {
+    if (!editTruck) return;
+    if (editTruck.subcontractorId !== originalSubId) {
+      setConfirmSubSwap(true);
+    } else {
+      doUpdate();
+    }
   };
 
   const handleAssignDriver = async (driverId: number) => {
@@ -272,7 +285,7 @@ export default function Fleet() {
                         <History className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setEditTruck(t); }}
+                        onClick={(e) => { e.stopPropagation(); setEditTruck(t); setOriginalSubId(t.subcontractorId); }}
                         className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -507,6 +520,30 @@ export default function Fleet() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Subcontractor reassignment confirm */}
+      <AlertDialog open={confirmSubSwap} onOpenChange={(o) => !o && setConfirmSubSwap(false)}>
+        <AlertDialogContent className="sm:max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reassign truck?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-medium text-foreground">{editTruck?.plateNumber}</span> will be moved from{" "}
+              <span className="font-medium text-foreground">
+                {(subs as any[]).find((s: any) => s.id === originalSubId)?.name ?? "—"}
+              </span>{" "}
+              to{" "}
+              <span className="font-medium text-foreground">
+                {(subs as any[]).find((s: any) => s.id === editTruck?.subcontractorId)?.name ?? "—"}
+              </span>
+              . Past trips remain under the original subcontractor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmSubSwap(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={doUpdate} disabled={updating}>Reassign</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }
