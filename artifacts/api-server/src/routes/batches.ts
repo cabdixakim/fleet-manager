@@ -78,7 +78,7 @@ router.get("/:id", async (req, res, next) => {
         driverName: driversTable.name,
         driverPassport: driversTable.passportNumber,
         driverLicense: driversTable.licenseNumber,
-        subcontractorId: trucksTable.subcontractorId,
+        subcontractorId: tripsTable.subcontractorId,
         subcontractorName: subcontractorsTable.name,
         product: tripsTable.product,
         capacity: tripsTable.capacity,
@@ -97,7 +97,7 @@ router.get("/:id", async (req, res, next) => {
       .from(tripsTable)
       .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
       .leftJoin(driversTable, eq(tripsTable.driverId, driversTable.id))
-      .leftJoin(subcontractorsTable, eq(trucksTable.subcontractorId, subcontractorsTable.id))
+      .leftJoin(subcontractorsTable, eq(tripsTable.subcontractorId, subcontractorsTable.id))
       .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
       .where(eq(tripsTable.batchId, id));
 
@@ -324,12 +324,13 @@ router.post("/:id/nominate", async (req, res, next) => {
       nominations.map(async (n) => {
         // Snap rates before inserting so they're baked in from day one
         const rateSnap = await snapTripRates(n.truckId, n.product, batchId);
+        // Also snapshot the truck's current subcontractor so history stays correct if truck is later reassigned
+        const [truck] = await db.select({ plateNumber: trucksTable.plateNumber, trailerPlate: trucksTable.trailerPlate, subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, n.truckId));
         const [trip] = await db
           .insert(tripsTable)
-          .values({ batchId, truckId: n.truckId, driverId: n.driverId ?? null, product: n.product, capacity: n.capacity.toString(), status: "nominated", ...rateSnap })
+          .values({ batchId, truckId: n.truckId, driverId: n.driverId ?? null, product: n.product, capacity: n.capacity.toString(), status: "nominated", subcontractorId: truck?.subcontractorId ?? null, ...rateSnap })
           .returning();
         await db.update(trucksTable).set({ status: "on_trip" }).where(eq(trucksTable.id, n.truckId));
-        const [truck] = await db.select({ plateNumber: trucksTable.plateNumber, trailerPlate: trucksTable.trailerPlate, subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, n.truckId));
         const [driver] = n.driverId ? await db.select({ name: driversTable.name }).from(driversTable).where(eq(driversTable.id, n.driverId)) : [null];
         const [sub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
         return {

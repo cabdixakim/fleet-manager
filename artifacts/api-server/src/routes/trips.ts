@@ -42,7 +42,7 @@ router.get("/", async (req, res, next) => {
         driverId: tripsTable.driverId,
         driverName: driversTable.name,
         subcontractorName: subcontractorsTable.name,
-        subcontractorId: trucksTable.subcontractorId,
+        subcontractorId: tripsTable.subcontractorId,
         product: tripsTable.product,
         capacity: tripsTable.capacity,
         status: tripsTable.status,
@@ -54,7 +54,7 @@ router.get("/", async (req, res, next) => {
       .from(tripsTable)
       .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
       .leftJoin(driversTable, eq(tripsTable.driverId, driversTable.id))
-      .leftJoin(subcontractorsTable, eq(trucksTable.subcontractorId, subcontractorsTable.id))
+      .leftJoin(subcontractorsTable, eq(tripsTable.subcontractorId, subcontractorsTable.id))
       .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
       .leftJoin(clientsTable, eq(batchesTable.clientId, clientsTable.id))
       .orderBy(desc(tripsTable.createdAt));
@@ -94,7 +94,7 @@ async function buildTripDetail(tripId: number) {
       trailerPlate: trucksTable.trailerPlate,
       driverId: tripsTable.driverId,
       driverName: driversTable.name,
-      subcontractorId: trucksTable.subcontractorId,
+      subcontractorId: tripsTable.subcontractorId,
       subcontractorName: subcontractorsTable.name,
       product: tripsTable.product,
       capacity: tripsTable.capacity,
@@ -121,7 +121,7 @@ async function buildTripDetail(tripId: number) {
     .from(tripsTable)
     .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
     .leftJoin(driversTable, eq(tripsTable.driverId, driversTable.id))
-    .leftJoin(subcontractorsTable, eq(trucksTable.subcontractorId, subcontractorsTable.id))
+    .leftJoin(subcontractorsTable, eq(tripsTable.subcontractorId, subcontractorsTable.id))
     .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
     .where(eq(tripsTable.id, tripId));
 

@@ -79,6 +79,7 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
       product: tripsTable.product,
       batchId: tripsTable.batchId,
       truckId: tripsTable.truckId,
+      subcontractorId: tripsTable.subcontractorId,
       incidentReplacementTruckId: tripsTable.incidentReplacementTruckId,
       incidentRevenueOwner: tripsTable.incidentRevenueOwner,
       subRatePerMt: tripsTable.subRatePerMt,
@@ -107,13 +108,9 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
   const tripExpensesTotal = parseFloat(expensesResult[0]?.total ?? "0");
   const driverSalaryAllocation = parseFloat(allocationsResult[0]?.total ?? "0");
 
-  // Determine which truck's subcontractor owns the revenue
-  // If incidentRevenueOwner = 'replacement' and there's a replacement truck, use that truck
+  // Determine which subcontractor owns the revenue for this trip.
+  // For incidents where revenue is attributed to the replacement truck, look up that truck's subcontractor.
   const revenueOwner = trip.incidentRevenueOwner;
-  const revenueTruckId =
-    revenueOwner === "replacement" && trip.incidentReplacementTruckId
-      ? trip.incidentReplacementTruckId
-      : trip.truckId;
 
   const [batch] = await db
     .select({ ratePerMt: batchesTable.ratePerMt, clientId: batchesTable.clientId, agentFeePerMt: batchesTable.agentFeePerMt })
@@ -135,17 +132,23 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
     return { ...NONE, tripExpensesTotal, driverSalaryAllocation, netPayable: isRevenueHeld ? -(tripExpensesTotal + driverSalaryAllocation) : null, isRevenueHeld, projectedGross: null, tripStatus };
   }
 
-  const [truck] = await db
-    .select({ subcontractorId: trucksTable.subcontractorId })
-    .from(trucksTable)
-    .where(eq(trucksTable.id, revenueTruckId));
+  // For normal trips, use the snapshotted subcontractorId stamped at nomination time.
+  // For incidents where revenue goes to the replacement truck, look up that truck's current subcontractor.
+  let resolvedSubcontractorId: number | null | undefined = trip.subcontractorId;
+  if (revenueOwner === "replacement" && trip.incidentReplacementTruckId) {
+    const [replacementTruck] = await db
+      .select({ subcontractorId: trucksTable.subcontractorId })
+      .from(trucksTable)
+      .where(eq(trucksTable.id, trip.incidentReplacementTruckId));
+    resolvedSubcontractorId = replacementTruck?.subcontractorId;
+  }
 
   const ratePerMt = overrides?.overrideRate ?? parseFloat(batch.ratePerMt ?? "0");
 
   // Trip-level sub rate override
   const tripSubRatePerMt = trip.subRatePerMt != null ? parseFloat(trip.subRatePerMt) : null;
 
-  if (!truck?.subcontractorId) {
+  if (!resolvedSubcontractorId) {
     const billingModel: "commission" | "rate_differential" = tripSubRatePerMt != null ? "rate_differential" : "commission";
     if (trip.loadedQty == null) {
       return { ...NONE, billingModel, subRatePerMt: tripSubRatePerMt, tripExpensesTotal, driverSalaryAllocation, netPayable: isRevenueHeld ? -(tripExpensesTotal + driverSalaryAllocation) : null, isRevenueHeld, projectedGross: null, tripStatus };
@@ -167,7 +170,7 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
       pmsShortChargeRate: subcontractorsTable.pmsShortChargeRate,
     })
     .from(subcontractorsTable)
-    .where(eq(subcontractorsTable.id, truck.subcontractorId));
+    .where(eq(subcontractorsTable.id, resolvedSubcontractorId!));
 
   // Commission rate: prefer snapshot (stamped at nomination) → live from sub (legacy trips)
   const commissionRate = trip.commissionRateSnapshot != null

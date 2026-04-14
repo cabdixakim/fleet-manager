@@ -193,7 +193,7 @@ router.get("/commission", async (req, res, next) => {
     const { start, end } = getPeriodRange(period as string, currentYear, currentMonth);
 
     const deliveredTrips = await db
-      .select({ id: tripsTable.id, deliveredAt: tripsTable.deliveredAt, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId })
+      .select({ id: tripsTable.id, deliveredAt: tripsTable.deliveredAt, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId, subcontractorId: tripsTable.subcontractorId })
       .from(tripsTable)
       .where(and(
         inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
@@ -220,9 +220,8 @@ router.get("/commission", async (req, res, next) => {
         const key = monthKey(new Date(t.deliveredAt ?? t.createdAt));
         monthlyData[key] = (monthlyData[key] ?? 0) + c;
 
-        const [truck] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, t.truckId));
-        if (truck) {
-          const [sub] = await db.select({ name: subcontractorsTable.name, commissionRate: subcontractorsTable.commissionRate }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
+        if (t.subcontractorId) {
+          const [sub] = await db.select({ name: subcontractorsTable.name, commissionRate: subcontractorsTable.commissionRate }).from(subcontractorsTable).where(eq(subcontractorsTable.id, t.subcontractorId));
           if (sub) {
             if (!subData[sub.name]) subData[sub.name] = { name: sub.name, rate: parseFloat(sub.commissionRate), gross: 0, commission: 0, trips: 0, netPayable: 0 };
             subData[sub.name].gross += g;
@@ -295,6 +294,7 @@ router.get("/commission-breakdown", async (req, res, next) => {
         id: tripsTable.id,
         batchId: tripsTable.batchId,
         truckId: tripsTable.truckId,
+        subcontractorId: tripsTable.subcontractorId,
         product: tripsTable.product,
         loadedQty: tripsTable.loadedQty,
         deliveredQty: tripsTable.deliveredQty,
@@ -322,16 +322,16 @@ router.get("/commission-breakdown", async (req, res, next) => {
           .where(eq(batchesTable.id, t.batchId));
 
         const [truck] = await db
-          .select({ plateNumber: trucksTable.plateNumber, subcontractorId: trucksTable.subcontractorId })
+          .select({ plateNumber: trucksTable.plateNumber })
           .from(trucksTable)
           .where(eq(trucksTable.id, t.truckId));
 
         let subName = "";
-        if (truck?.subcontractorId) {
+        if (t.subcontractorId) {
           const [sub] = await db
             .select({ name: subcontractorsTable.name })
             .from(subcontractorsTable)
-            .where(eq(subcontractorsTable.id, truck.subcontractorId));
+            .where(eq(subcontractorsTable.id, t.subcontractorId));
           subName = sub?.name ?? "";
         }
 
@@ -409,7 +409,7 @@ router.get("/entity-analytics", async (req, res, next) => {
         deliveredQty: tripsTable.deliveredQty,
         createdAt: tripsTable.createdAt,
         ratePerMt: batchesTable.ratePerMt,
-        subId: trucksTable.subcontractorId,
+        subId: tripsTable.subcontractorId,
       })
       .from(tripsTable)
       .innerJoin(batchesTable, eq(batchesTable.id, tripsTable.batchId))

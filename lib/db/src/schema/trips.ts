@@ -4,12 +4,16 @@ import { z } from "zod/v4";
 import { batchesTable } from "./batches";
 import { trucksTable } from "./trucks";
 import { driversTable } from "./drivers";
+import { subcontractorsTable } from "./subcontractors";
 
 export const tripsTable = pgTable("trips", {
   id: serial("id").primaryKey(),
   batchId: integer("batch_id").notNull().references(() => batchesTable.id),
   truckId: integer("truck_id").notNull().references(() => trucksTable.id),
   driverId: integer("driver_id").references(() => driversTable.id),
+  // Snapshotted at nomination time — which subcontractor owned the truck when the trip was created.
+  // This ensures historical records remain correct even if the truck is later reassigned.
+  subcontractorId: integer("subcontractor_id").references(() => subcontractorsTable.id),
   product: text("product").notNull(), // AGO, PMS
   capacity: numeric("capacity", { precision: 10, scale: 3 }).notNull(),
   status: text("status").notNull().default("nominated"),
