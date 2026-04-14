@@ -60,6 +60,12 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { mutateAsync: updateSub, isPending: updating } = useUpdateSubcontractor();
   const { mutateAsync: deleteSub, isPending: deleting } = useDeleteSubcontractor();
 
+  const { data: otherExpenses = [] } = useQuery<any[]>({
+    queryKey: [`/api/expenses`, id, "truck"],
+    queryFn: () => fetch(`/api/expenses?subcontractorId=${id}&tier=truck`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!id,
+  });
+
   const apiTotals = txData as any;
   const statement = {
     totalNetPayable: apiTotals?.totalNetPayable ?? transactions.filter((t: any) => t.type === "net_payable").reduce((s: number, t: any) => s + t.amount, 0),
@@ -67,13 +73,8 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
     totalPayments: apiTotals?.totalPaymentsMade ?? transactions.filter((t: any) => t.type === "payment_made").reduce((s: number, t: any) => s + t.amount, 0),
     totalDriverSalary: apiTotals?.totalDriverSalaries ?? transactions.filter((t: any) => t.type === "driver_salary").reduce((s: number, t: any) => s + t.amount, 0),
     totalExpenses: (expenses as any[]).reduce((s: number, e: any) => s + (e.amount ?? 0), 0),
+    totalTruckExpenses: (otherExpenses as any[]).reduce((s: number, e: any) => s + (e.amount ?? 0), 0),
   };
-
-  const { data: otherExpenses = [] } = useQuery<any[]>({
-    queryKey: [`/api/expenses`, id, "truck"],
-    queryFn: () => fetch(`/api/expenses?subcontractorId=${id}&tier=truck`, { credentials: "include" }).then((r) => r.json()),
-    enabled: !!id,
-  });
 
   const { data: allTrucks = [] } = useQuery<{ id: number; plateNumber: string; subcontractorId: number | null }[]>({
     queryKey: ["/api/trucks"],
@@ -314,13 +315,14 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 mb-5">
         {[
           { label: "Net Payable (Delivered)", value: formatCurrency(statement.totalNetPayable), color: "text-blue-400" },
           { label: "Advances Given", value: formatCurrency(statement.totalAdvances), color: "text-amber-400" },
           { label: "Payments Made", value: formatCurrency(statement.totalPayments), color: "text-green-400" },
           { label: "Driver Salaries", value: formatCurrency(statement.totalDriverSalary), color: "text-purple-400" },
           { label: "Trip Expenses (All)", value: formatCurrency(statement.totalExpenses), color: "text-orange-400" },
+          { label: "Truck Expenses (Maint/Tyres)", value: formatCurrency(statement.totalTruckExpenses), color: "text-red-400" },
         ].map((item) => (
           <div key={item.label} className="bg-card border border-border rounded-xl p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider leading-tight">{item.label}</p>
