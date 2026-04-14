@@ -354,20 +354,16 @@ router.get("/:id/transactions", async (req, res, next) => {
       .from(subcontractorTransactionsTable)
       .where(eq(subcontractorTransactionsTable.subcontractorId, id));
 
-    const trucks = await db.select({ id: trucksTable.id }).from(trucksTable).where(eq(trucksTable.subcontractorId, id));
     let totalNetPayable = 0;
-    if (trucks.length > 0) {
-      const truckIds = trucks.map((t) => t.id);
-      const revenueTrips = await db
-        .select({ id: tripsTable.id })
-        .from(tripsTable)
-        .where(and(inArray(tripsTable.truckId, truckIds), inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES)));
-      for (const trip of revenueTrips) {
-        try {
-          const fin = await calculateTripFinancials(trip.id);
-          totalNetPayable += fin.netPayable ?? 0;
-        } catch {}
-      }
+    const revenueTrips = await db
+      .select({ id: tripsTable.id })
+      .from(tripsTable)
+      .where(and(eq(tripsTable.subcontractorId, id), inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES)));
+    for (const trip of revenueTrips) {
+      try {
+        const fin = await calculateTripFinancials(trip.id);
+        totalNetPayable += fin.netPayable ?? 0;
+      } catch {}
     }
 
     const balance = totalNetPayable - parseFloat(txBal.totalAdvancesGiven ?? "0") - parseFloat(txBal.totalPaymentsMade ?? "0");
@@ -407,17 +403,14 @@ router.post("/:id/transactions", async (req, res, next) => {
 router.get("/:id/expenses", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const trips = await db
+      .select({ id: tripsTable.id, truckId: tripsTable.truckId })
+      .from(tripsTable)
+      .where(eq(tripsTable.subcontractorId, id));
     const trucks = await db
       .select({ id: trucksTable.id, plateNumber: trucksTable.plateNumber })
       .from(trucksTable)
       .where(eq(trucksTable.subcontractorId, id));
-    if (trucks.length === 0) return res.json([]);
-
-    const truckIds = trucks.map((t) => t.id);
-    const trips = await db
-      .select({ id: tripsTable.id, truckId: tripsTable.truckId })
-      .from(tripsTable)
-      .where(inArray(tripsTable.truckId, truckIds));
     if (trips.length === 0) return res.json([]);
 
     const tripIds = trips.map((t) => t.id);
@@ -461,27 +454,11 @@ router.get("/:id/period-statement", async (req, res, next) => {
       periodName = period.name;
     }
 
-    const trucks = await db
-      .select({ id: trucksTable.id, plateNumber: trucksTable.plateNumber })
-      .from(trucksTable)
-      .where(eq(trucksTable.subcontractorId, subId));
-
-    if (trucks.length === 0) {
-      return res.json({
-        subcontractor: sub,
-        periodName,
-        trips: [],
-        summary: { gross: 0, commission: 0, shortCharges: 0, tripExpenses: 0, driverSalaries: 0, netPayable: 0, openingBalance: parseFloat(sub.openingBalance ?? "0"), totalPaid: 0, closingBalance: 0 },
-      });
-    }
-
-    const truckIds = trucks.map((t) => t.id);
-    const truckMap = Object.fromEntries(trucks.map((t) => [t.id, t.plateNumber]));
-
     const tripQuery = db
       .select({
         id: tripsTable.id,
         truckId: tripsTable.truckId,
+        truckPlate: trucksTable.plateNumber,
         batchId: tripsTable.batchId,
         batchName: batchesTable.name,
         route: batchesTable.route,
@@ -490,10 +467,11 @@ router.get("/:id/period-statement", async (req, res, next) => {
       })
       .from(tripsTable)
       .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
       .where(
         start && end
-          ? and(inArray(tripsTable.truckId, truckIds), gte(tripsTable.createdAt, start), lte(tripsTable.createdAt, end))
-          : inArray(tripsTable.truckId, truckIds)
+          ? and(eq(tripsTable.subcontractorId, subId), gte(tripsTable.createdAt, start), lte(tripsTable.createdAt, end))
+          : eq(tripsTable.subcontractorId, subId)
       )
       .orderBy(desc(tripsTable.createdAt));
 
@@ -530,7 +508,7 @@ router.get("/:id/period-statement", async (req, res, next) => {
         tripDetails.push({
           tripId: trip.id,
           tripNumber: `#${trip.id}`,
-          truckPlate: truckMap[trip.truckId] ?? "",
+          truckPlate: trip.truckPlate ?? "",
           batchName: trip.batchName ?? "",
           route: trip.route ?? "",
           status: trip.status,
