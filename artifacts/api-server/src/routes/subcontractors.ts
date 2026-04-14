@@ -362,10 +362,16 @@ router.get("/:id/transactions", async (req, res, next) => {
       .select({ id: tripsTable.id })
       .from(tripsTable)
       .where(and(eq(tripsTable.subcontractorId, id), inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES)));
+    let totalGross = 0;
+    let totalCommission = 0;
+    let totalTripExpenses = 0;
     for (const trip of revenueTrips) {
       try {
         const fin = await calculateTripFinancials(trip.id);
         totalNetPayable += fin.netPayable ?? 0;
+        totalGross += (fin.grossRevenue ?? 0) - (fin.agentFeeTotal ?? 0);
+        totalCommission += fin.commission ?? 0;
+        totalTripExpenses += fin.tripExpensesTotal ?? 0;
       } catch {}
     }
 
@@ -381,6 +387,10 @@ router.get("/:id/transactions", async (req, res, next) => {
     res.json({
       subcontractor: { ...sub, balance, truckCount: tc.count },
       transactions: transactions.map((t) => ({ ...t, amount: parseFloat(t.amount) })),
+      totalGross,
+      totalCommission,
+      totalTripExpenses,
+      totalTruckExpenses,
       totalNetPayable,
       totalAdvancesGiven: parseFloat(txBal.totalAdvancesGiven ?? "0"),
       totalDriverSalaries: parseFloat(txBal.totalDriverSalaries ?? "0"),

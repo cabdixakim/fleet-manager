@@ -68,12 +68,15 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
 
   const apiTotals = txData as any;
   const statement = {
-    totalNetPayable: apiTotals?.totalNetPayable ?? transactions.filter((t: any) => t.type === "net_payable").reduce((s: number, t: any) => s + t.amount, 0),
+    totalGross: apiTotals?.totalGross ?? 0,
+    totalCommission: apiTotals?.totalCommission ?? 0,
+    totalTripExpenses: apiTotals?.totalTripExpenses ?? (expenses as any[]).reduce((s: number, e: any) => s + (e.amount ?? 0), 0),
+    totalTruckExpenses: apiTotals?.totalTruckExpenses ?? (otherExpenses as any[]).reduce((s: number, e: any) => s + (e.amount ?? 0), 0),
+    totalNetPayable: apiTotals?.totalNetPayable ?? 0,
     totalAdvances: apiTotals?.totalAdvancesGiven ?? transactions.filter((t: any) => t.type === "advance_given").reduce((s: number, t: any) => s + t.amount, 0),
     totalPayments: apiTotals?.totalPaymentsMade ?? transactions.filter((t: any) => t.type === "payment_made").reduce((s: number, t: any) => s + t.amount, 0),
     totalDriverSalary: apiTotals?.totalDriverSalaries ?? transactions.filter((t: any) => t.type === "driver_salary").reduce((s: number, t: any) => s + t.amount, 0),
-    totalExpenses: (expenses as any[]).reduce((s: number, e: any) => s + (e.amount ?? 0), 0),
-    totalTruckExpenses: (otherExpenses as any[]).reduce((s: number, e: any) => s + (e.amount ?? 0), 0),
+    balance: apiTotals?.balance ?? (sub as any)?.balance ?? 0,
   };
 
   const { data: allTrucks = [] } = useQuery<{ id: number; plateNumber: string; subcontractorId: number | null }[]>({
@@ -314,21 +317,64 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 mb-5">
-        {[
-          { label: "Net Payable (Delivered)", value: formatCurrency(statement.totalNetPayable), color: "text-blue-400" },
-          { label: "Advances Given", value: formatCurrency(statement.totalAdvances), color: "text-amber-400" },
-          { label: "Payments Made", value: formatCurrency(statement.totalPayments), color: "text-green-400" },
-          { label: "Driver Salaries", value: formatCurrency(statement.totalDriverSalary), color: "text-purple-400" },
-          { label: "Trip Expenses (All)", value: formatCurrency(statement.totalExpenses), color: "text-orange-400" },
-          { label: "Truck Expenses (Maint/Tyres)", value: formatCurrency(statement.totalTruckExpenses), color: "text-red-400" },
-        ].map((item) => (
-          <div key={item.label} className="bg-card border border-border rounded-xl p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider leading-tight">{item.label}</p>
-            <p className={`text-base font-bold mt-1.5 ${item.color}`}>{item.value}</p>
+      {/* Financial Summary Panel */}
+      <div className="bg-card border border-border rounded-xl mb-5 overflow-hidden">
+        {/* Earnings breakdown */}
+        <div className="px-4 pt-4 pb-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Gross Revenue</span>
+            <span className="text-sm font-semibold text-foreground">{formatCurrency(statement.totalGross)}</span>
           </div>
-        ))}
+          {statement.totalCommission > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Commission Deducted</span>
+              <span className="text-sm text-destructive">−{formatCurrency(statement.totalCommission)}</span>
+            </div>
+          )}
+          {statement.totalTripExpenses > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Trip Expenses</span>
+              <span className="text-sm text-destructive">−{formatCurrency(statement.totalTripExpenses)}</span>
+            </div>
+          )}
+          {statement.totalTruckExpenses > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Truck Expenses</span>
+              <span className="text-sm text-destructive">−{formatCurrency(statement.totalTruckExpenses)}</span>
+            </div>
+          )}
+        </div>
+        {/* Net payable */}
+        <div className="border-t border-border px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-muted-foreground">Net Payable (Delivered)</span>
+          <span className="text-sm font-bold text-blue-400">{formatCurrency(statement.totalNetPayable)}</span>
+        </div>
+        {/* Paid out */}
+        <div className="border-t border-border px-4 pt-3 pb-3 space-y-2.5">
+          {statement.totalAdvances > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Advances Given</span>
+              <span className="text-sm text-amber-400">−{formatCurrency(statement.totalAdvances)}</span>
+            </div>
+          )}
+          {statement.totalPayments > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Payments Made</span>
+              <span className="text-sm text-green-400">−{formatCurrency(statement.totalPayments)}</span>
+            </div>
+          )}
+          {statement.totalDriverSalary > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Driver Salaries</span>
+              <span className="text-sm text-purple-400">−{formatCurrency(statement.totalDriverSalary)}</span>
+            </div>
+          )}
+        </div>
+        {/* Balance */}
+        <div className="border-t border-border bg-muted/30 px-4 py-3 flex items-center justify-between">
+          <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Balance Due</span>
+          <span className={`text-base font-bold ${statement.balance >= 0 ? "text-foreground" : "text-destructive"}`}>{formatCurrency(statement.balance)}</span>
+        </div>
       </div>
 
       {/* Tabs */}
