@@ -26,94 +26,92 @@ async function getSessionUserRole(req: any): Promise<string | null> {
 }
 
 async function getSubBalance(subId: number) {
+  let totalNetPayable = 0;
+  let inProgressExpenses = 0;
+
+  // Revenue-recognised trips snapshotted to this sub (excluding amended_out, handled separately below)
+  const revenueStatuses = REVENUE_RECOGNISED_STATUSES.filter((s) => s !== "amended_out");
+  const deliveredTrips = await db
+    .select({
+      id: tripsTable.id,
+      incidentFlag: tripsTable.incidentFlag,
+      incidentRevenueOwner: tripsTable.incidentRevenueOwner,
+    })
+    .from(tripsTable)
+    .where(and(eq(tripsTable.subcontractorId, subId), inArray(tripsTable.status, revenueStatuses)));
+
+  for (const trip of deliveredTrips) {
+    try {
+      if (trip.incidentFlag) {
+        const revenueOwner = trip.incidentRevenueOwner ?? "original";
+        if (revenueOwner === "replacement") {
+          // Original sub gets no revenue — only expense deductions
+          const [expRow] = await db
+            .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+            .from(tripExpensesTable)
+            .where(eq(tripExpensesTable.tripId, trip.id));
+          inProgressExpenses += parseFloat(expRow?.total ?? "0");
+        } else if (revenueOwner === "split") {
+          // 50/50 split — original sub gets half
+          const fin = await calculateTripFinancials(trip.id);
+          totalNetPayable += (fin.netPayable ?? 0) * 0.5;
+        } else {
+          // 'original' (default) — full net to original sub
+          const fin = await calculateTripFinancials(trip.id);
+          totalNetPayable += fin.netPayable ?? 0;
+        }
+      } else {
+        const fin = await calculateTripFinancials(trip.id);
+        totalNetPayable += fin.netPayable ?? 0;
+      }
+    } catch {}
+  }
+
+  // In-progress trips: expenses already incurred reduce payable before delivery.
+  const activeTrips = await db
+    .select({ id: tripsTable.id })
+    .from(tripsTable)
+    .where(and(
+      eq(tripsTable.subcontractorId, subId),
+      notInArray(tripsTable.status, ["delivered", "completed", "invoiced", "amended_out", "cancelled"])
+    ));
+  if (activeTrips.length > 0) {
+    const activeTripIds = activeTrips.map((t) => t.id);
+    const [expRow] = await db
+      .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+      .from(tripExpensesTable)
+      .where(inArray(tripExpensesTable.tripId, activeTripIds));
+    inProgressExpenses += parseFloat(expRow?.total ?? "0");
+  }
+
+  // Amended-out trips snapshotted to this sub
+  const amendedOutTrips = await db
+    .select({ id: tripsTable.id, incidentFlag: tripsTable.incidentFlag, incidentRevenueOwner: tripsTable.incidentRevenueOwner })
+    .from(tripsTable)
+    .where(and(
+      eq(tripsTable.subcontractorId, subId),
+      eq(tripsTable.status, "amended_out")
+    ));
+
+  for (const trip of amendedOutTrips) {
+    // Only credit revenue if not flagged as incident with replacement attribution
+    if (trip.incidentFlag && trip.incidentRevenueOwner === "replacement") continue;
+    try {
+      const fin = await calculateTripFinancials(trip.id);
+      const pct = trip.incidentFlag && trip.incidentRevenueOwner === "split" ? 0.5 : 1;
+      totalNetPayable += (fin.netPayable ?? 0) * pct;
+    } catch {}
+  }
+
+  // Replacement truck trips: where this sub's trucks were the incident replacement
+  // (still uses truck lookup — the replacement truck is a physical reference, not snapshotted)
   const trucks = await db
     .select({ id: trucksTable.id })
     .from(trucksTable)
     .where(eq(trucksTable.subcontractorId, subId));
 
-  let totalNetPayable = 0;
-  let inProgressExpenses = 0;
-
   if (trucks.length > 0) {
     const truckIds = trucks.map((t) => t.id);
-
-    // Revenue-recognised trips owned by this sub's trucks (excluding amended_out, which is handled separately below)
-    const revenueStatuses = REVENUE_RECOGNISED_STATUSES.filter((s) => s !== "amended_out");
-    const deliveredTrips = await db
-      .select({
-        id: tripsTable.id,
-        incidentFlag: tripsTable.incidentFlag,
-        incidentRevenueOwner: tripsTable.incidentRevenueOwner,
-      })
-      .from(tripsTable)
-      .where(and(inArray(tripsTable.truckId, truckIds), inArray(tripsTable.status, revenueStatuses)));
-
-    for (const trip of deliveredTrips) {
-      try {
-        if (trip.incidentFlag) {
-          const revenueOwner = trip.incidentRevenueOwner ?? "original";
-          if (revenueOwner === "replacement") {
-            // Original sub gets no revenue — only expense deductions
-            const [expRow] = await db
-              .select({ total: sql<string>`coalesce(sum(amount), 0)` })
-              .from(tripExpensesTable)
-              .where(eq(tripExpensesTable.tripId, trip.id));
-            inProgressExpenses += parseFloat(expRow?.total ?? "0");
-          } else if (revenueOwner === "split") {
-            // 50/50 split — original sub gets half
-            const fin = await calculateTripFinancials(trip.id);
-            totalNetPayable += (fin.netPayable ?? 0) * 0.5;
-          } else {
-            // 'original' (default) — full net to original sub
-            const fin = await calculateTripFinancials(trip.id);
-            totalNetPayable += fin.netPayable ?? 0;
-          }
-        } else {
-          const fin = await calculateTripFinancials(trip.id);
-          totalNetPayable += fin.netPayable ?? 0;
-        }
-      } catch {}
-    }
-
-    // In-progress trips: expenses already incurred reduce payable before delivery.
-    // Use a negative filter so any future active status (e.g. "nominated", "pending_clearance")
-    // is automatically included rather than having to maintain an allowlist.
-    const activeTrips = await db
-      .select({ id: tripsTable.id })
-      .from(tripsTable)
-      .where(and(
-        inArray(tripsTable.truckId, truckIds),
-        notInArray(tripsTable.status, ["delivered", "completed", "invoiced", "amended_out", "cancelled"])
-      ));
-    if (activeTrips.length > 0) {
-      const activeTripIds = activeTrips.map((t) => t.id);
-      const [expRow] = await db
-        .select({ total: sql<string>`coalesce(sum(amount), 0)` })
-        .from(tripExpensesTable)
-        .where(inArray(tripExpensesTable.tripId, activeTripIds));
-      inProgressExpenses += parseFloat(expRow?.total ?? "0");
-    }
-
-    // Legacy: amended-out (non-incident) trips still count for original sub
-    const amendedOutTrips = await db
-      .select({ id: tripsTable.id, incidentFlag: tripsTable.incidentFlag, incidentRevenueOwner: tripsTable.incidentRevenueOwner })
-      .from(tripsTable)
-      .where(and(
-        inArray(tripsTable.truckId, truckIds),
-        eq(tripsTable.status, "amended_out")
-      ));
-
-    for (const trip of amendedOutTrips) {
-      // Only credit revenue if not flagged as incident with replacement attribution
-      if (trip.incidentFlag && trip.incidentRevenueOwner === "replacement") continue;
-      try {
-        const fin = await calculateTripFinancials(trip.id);
-        const pct = trip.incidentFlag && trip.incidentRevenueOwner === "split" ? 0.5 : 1;
-        totalNetPayable += (fin.netPayable ?? 0) * pct;
-      } catch {}
-    }
-
-    // Replacement truck trips: where this sub's truck is the incident replacement
     const replacementDeliveredTrips = await db
       .select({
         id: tripsTable.id,
@@ -130,15 +128,12 @@ async function getSubBalance(subId: number) {
       try {
         const revenueOwner = trip.incidentRevenueOwner ?? "original";
         if (revenueOwner === "replacement") {
-          // Replacement sub gets full net (calculateTripFinancials uses replacement's commission)
           const fin = await calculateTripFinancials(trip.id);
           totalNetPayable += fin.netPayable ?? 0;
         } else if (revenueOwner === "split") {
-          // Replacement sub gets 50%
           const fin = await calculateTripFinancials(trip.id);
           totalNetPayable += (fin.netPayable ?? 0) * 0.5;
         }
-        // 'original': replacement sub gets nothing
       } catch {}
     }
   }
