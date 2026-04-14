@@ -535,22 +535,18 @@ router.get("/:id/period-statement", async (req, res, next) => {
       .filter((t) => t.type === "payment_made")
       .reduce((s, t) => s + parseFloat(t.amount as any), 0);
 
-    // Non-trip truck expenses for all trucks currently under this subcontractor
-    const currentTrucks = await db
-      .select({ id: trucksTable.id })
-      .from(trucksTable)
-      .where(eq(trucksTable.subcontractorId, subId));
-    const currentTruckIds = currentTrucks.map((t) => t.id);
-
-    const otherExpenses = currentTruckIds.length > 0 ? await db
-      .select()
+    // Non-trip truck expenses snapshotted to this subcontractor at time of recording
+    const otherExpensesRaw = await db
+      .select({ expense: tripExpensesTable, truckPlate: trucksTable.plateNumber })
       .from(tripExpensesTable)
+      .leftJoin(trucksTable, eq(tripExpensesTable.truckId, trucksTable.id))
       .where(
         start && end
-          ? and(inArray(tripExpensesTable.truckId, currentTruckIds), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"), gte(tripExpensesTable.expenseDate, start), lte(tripExpensesTable.expenseDate, end))
-          : and(inArray(tripExpensesTable.truckId, currentTruckIds), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"))
+          ? and(eq(tripExpensesTable.subcontractorId, subId), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"), gte(tripExpensesTable.expenseDate, start), lte(tripExpensesTable.expenseDate, end))
+          : and(eq(tripExpensesTable.subcontractorId, subId), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"))
       )
-      .orderBy(desc(tripExpensesTable.expenseDate)) : [];
+      .orderBy(desc(tripExpensesTable.expenseDate));
+    const otherExpenses = otherExpensesRaw.map((r) => ({ ...r.expense, truckPlate: r.truckPlate ?? "" }));
 
     const totalOtherExpenses = otherExpenses.reduce((s, e) => s + parseFloat(e.amount), 0);
 
@@ -564,7 +560,7 @@ router.get("/:id/period-statement", async (req, res, next) => {
       periodId,
       trips: tripDetails,
       transactions: periodTransactions.map((t) => ({ ...t, amount: parseFloat(t.amount as any) })),
-      otherExpenses: otherExpenses.map((e) => ({ ...e, truckPlate: truckMap[e.truckId!] ?? "", amount: parseFloat(e.amount) })),
+      otherExpenses: otherExpenses.map((e) => ({ ...e, amount: parseFloat(e.amount) })),
       summary: {
         gross: totalGross,
         commission: totalCommission,
