@@ -369,6 +369,20 @@ export default function Fleet() {
                 </div>
               </div>
               <div>
+                <Label>Subcontractor</Label>
+                <Select value={String(editTruck.subcontractorId ?? "")} onValueChange={(v) => setEditTruck({ ...editTruck, subcontractorId: parseInt(v) })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
+                  <SelectContent>
+                    {(subs as any[]).map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editTruck.status === "on_trip" && (
+                  <p className="text-xs text-amber-500 mt-1">This truck is currently on a trip. The reassignment takes effect from the next nomination.</p>
+                )}
+              </div>
+              <div>
                 <Label>Status</Label>
                 <Select value={editTruck.status} onValueChange={(v) => setEditTruck({ ...editTruck, status: v })}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>

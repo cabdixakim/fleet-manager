@@ -64,17 +64,25 @@ router.get("/:id", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const [before] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, id));
     const [truck] = await db.update(trucksTable).set(req.body).where(eq(trucksTable.id, id)).returning();
     if (!truck) return res.status(404).json({ error: "Not found" });
     const isRetire = req.body.status === "retired";
+    const isSubSwap = req.body.subcontractorId != null && before?.subcontractorId !== req.body.subcontractorId;
+    let description = isRetire
+      ? `Truck ${truck.plateNumber} retired — removed from active fleet`
+      : `Updated truck ${truck.plateNumber}`;
+    if (isSubSwap) {
+      const [oldSub] = before?.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, before.subcontractorId)) : [null];
+      const [newSub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
+      description = `Truck ${truck.plateNumber} reassigned from ${oldSub?.name ?? "unknown"} to ${newSub?.name ?? "unknown"}`;
+    }
     await logAudit(req, {
-      action: isRetire ? "status_change" : "update",
+      action: isRetire ? "status_change" : isSubSwap ? "reassign" : "update",
       entity: "truck",
       entityId: id,
-      description: isRetire
-        ? `Truck ${truck.plateNumber} retired — removed from active fleet`
-        : `Updated truck ${truck.plateNumber}`,
-      metadata: req.body.status ? { status: req.body.status } : undefined,
+      description,
+      metadata: { ...(req.body.status ? { status: req.body.status } : {}), ...(isSubSwap ? { fromSubcontractorId: before?.subcontractorId, toSubcontractorId: truck.subcontractorId } : {}) },
     });
     const [sub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
     res.json({ ...truck, subcontractorName: sub?.name ?? "" });
