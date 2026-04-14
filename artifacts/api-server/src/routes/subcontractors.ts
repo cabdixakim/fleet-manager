@@ -138,6 +138,13 @@ async function getSubBalance(subId: number) {
     }
   }
 
+  // Non-trip truck expenses snapshotted to this sub
+  const [truckExpRow] = await db
+    .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+    .from(tripExpensesTable)
+    .where(and(eq(tripExpensesTable.subcontractorId, subId), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck")));
+  const totalTruckExpenses = parseFloat(truckExpRow?.total ?? "0");
+
   const [txBal] = await db
     .select({
       advances: sql<string>`coalesce(sum(case when type='advance_given' then amount else 0 end),0)`,
@@ -150,6 +157,7 @@ async function getSubBalance(subId: number) {
   return (
     totalNetPayable
     - inProgressExpenses
+    - totalTruckExpenses
     - parseFloat(txBal.advances ?? "0")
     - parseFloat(txBal.payments ?? "0")
     + parseFloat(txBal.adjustments ?? "0")
@@ -361,7 +369,13 @@ router.get("/:id/transactions", async (req, res, next) => {
       } catch {}
     }
 
-    const balance = totalNetPayable - parseFloat(txBal.totalAdvancesGiven ?? "0") - parseFloat(txBal.totalPaymentsMade ?? "0");
+    const [truckExpRow] = await db
+      .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+      .from(tripExpensesTable)
+      .where(and(eq(tripExpensesTable.subcontractorId, id), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck")));
+    const totalTruckExpenses = parseFloat(truckExpRow?.total ?? "0");
+
+    const balance = totalNetPayable - totalTruckExpenses - parseFloat(txBal.totalAdvancesGiven ?? "0") - parseFloat(txBal.totalPaymentsMade ?? "0");
     const [tc] = await db.select({ count: count() }).from(trucksTable).where(eq(trucksTable.subcontractorId, id));
 
     res.json({
