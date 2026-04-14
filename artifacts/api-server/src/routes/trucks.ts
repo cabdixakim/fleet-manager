@@ -176,7 +176,7 @@ router.get("/:id/detail", async (req, res, next) => {
             ...t,
             grossRevenue: fin.grossRevenue ?? 0,
             commission: fin.commission ?? 0,
-            tripExpenses: fin.tripExpensesTotal,
+            tripExpenses: fin.tripExpensesTotal ?? 0,
             netContribution: fin.netPayable ?? 0,
           };
         } catch {

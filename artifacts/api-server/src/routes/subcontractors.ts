@@ -535,16 +535,22 @@ router.get("/:id/period-statement", async (req, res, next) => {
       .filter((t) => t.type === "payment_made")
       .reduce((s, t) => s + parseFloat(t.amount as any), 0);
 
-    // Non-trip truck expenses for all trucks under this subcontractor
-    const otherExpenseQuery = start && end
-      ? and(inArray(tripExpensesTable.truckId, truckIds), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"), gte(tripExpensesTable.expenseDate, start), lte(tripExpensesTable.expenseDate, end))
-      : and(inArray(tripExpensesTable.truckId, truckIds), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"));
+    // Non-trip truck expenses for all trucks currently under this subcontractor
+    const currentTrucks = await db
+      .select({ id: trucksTable.id })
+      .from(trucksTable)
+      .where(eq(trucksTable.subcontractorId, subId));
+    const currentTruckIds = currentTrucks.map((t) => t.id);
 
-    const otherExpenses = await db
+    const otherExpenses = currentTruckIds.length > 0 ? await db
       .select()
       .from(tripExpensesTable)
-      .where(otherExpenseQuery)
-      .orderBy(desc(tripExpensesTable.expenseDate));
+      .where(
+        start && end
+          ? and(inArray(tripExpensesTable.truckId, currentTruckIds), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"), gte(tripExpensesTable.expenseDate, start), lte(tripExpensesTable.expenseDate, end))
+          : and(inArray(tripExpensesTable.truckId, currentTruckIds), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"))
+      )
+      .orderBy(desc(tripExpensesTable.expenseDate)) : [];
 
     const totalOtherExpenses = otherExpenses.reduce((s, e) => s + parseFloat(e.amount), 0);
 
