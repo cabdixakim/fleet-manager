@@ -12,6 +12,7 @@ import {
   trucksTable,
   invoicesTable,
   tripExpensesTable,
+  companySettingsTable,
 } from "@workspace/db/schema";
 import { eq, sql, inArray, notInArray, and, isNull, isNotNull } from "drizzle-orm";
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
@@ -110,6 +111,52 @@ router.get("/metrics", async (_req, res, next) => {
       .from(subcontractorTransactionsTable);
     totalPayables -= parseFloat(paymentsMadeRes.total ?? "0");
 
+    // Fetch fleet mode from company settings
+    const [settings] = await db.select({ fleetMode: companySettingsTable.fleetMode }).from(companySettingsTable).limit(1);
+    const fleetMode = settings?.fleetMode ?? "subcontractor";
+
+    // Company fleet net this month (for company/mixed modes)
+    let companyFleetNetThisMonth = 0;
+    if (fleetMode !== "subcontractor") {
+      const companyTrucks = await db
+        .select({ id: trucksTable.id })
+        .from(trucksTable)
+        .where(eq(trucksTable.companyOwned, true));
+
+      if (companyTrucks.length > 0) {
+        const truckIds = companyTrucks.map((t) => t.id);
+        const companyTripsThisMonth = await db
+          .select({ id: tripsTable.id })
+          .from(tripsTable)
+          .where(and(
+            inArray(tripsTable.truckId, truckIds),
+            inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
+            sql`EXTRACT(MONTH FROM ${tripsTable.createdAt}) = ${month}`,
+            sql`EXTRACT(YEAR FROM ${tripsTable.createdAt}) = ${year}`,
+          ));
+
+        for (const { id } of companyTripsThisMonth) {
+          try {
+            const fin = await calculateTripFinancials(id);
+            companyFleetNetThisMonth += fin.netPayable ?? 0;
+          } catch {}
+        }
+
+        // Deduct non-trip truck expenses for company trucks this month
+        const [companyExpRow] = await db
+          .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+          .from(tripExpensesTable)
+          .where(and(
+            inArray(tripExpensesTable.truckId, truckIds),
+            isNull(tripExpensesTable.tripId),
+            eq(tripExpensesTable.tier, "truck"),
+            sql`date_part('month', ${tripExpensesTable.expenseDate}::date) = ${month}`,
+            sql`date_part('year', ${tripExpensesTable.expenseDate}::date) = ${year}`,
+          ));
+        companyFleetNetThisMonth -= parseFloat(companyExpRow?.total ?? "0");
+      }
+    }
+
     const recentBatches = await db
       .select({
         id: batchesTable.id,
@@ -140,10 +187,12 @@ router.get("/metrics", async (_req, res, next) => {
     );
 
     res.json({
+      fleetMode,
       activeBatches: Number(activeBatchesRes.count),
       trucksInTransit: Number(trucksInTransitRes.count),
       pendingClearances: Number(pendingClearancesRes.count),
       commissionThisMonth,
+      companyFleetNetThisMonth,
       totalReceivables: parseFloat(receivablesRes.total ?? "0"),
       totalPayables: Math.max(0, totalPayables),
       uninvoicedBatches: Number(uninvoicedRes.count),

@@ -1,4 +1,4 @@
-import { useGetDashboardMetrics, useGetDashboardAnalytics, useGetDashboardAlerts, useGetActiveOps } from "@workspace/api-client-react";
+import { useGetDashboardMetrics, useGetDashboardAnalytics, useGetDashboardAlerts, useGetActiveOps, useGetCompanyFleetSummary } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
@@ -112,6 +112,8 @@ export default function Dashboard() {
   const { data: analytics } = useGetDashboardAnalytics({ period: "month" });
   const { data: alerts } = useGetDashboardAlerts();
   const { data: activeOps = [] } = useGetActiveOps();
+  const fleetMode: string = (metrics as any)?.fleetMode ?? "subcontractor";
+  const { data: fleetSummary } = useGetCompanyFleetSummary();
 
   const totalAlerts = (alerts?.uninvoicedBatches?.length ?? 0) + (alerts?.pendingClearances?.filter((c) => c.daysWaiting >= 1)?.length ?? 0);
 
@@ -213,12 +215,24 @@ export default function Dashboard() {
         <div>
           <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Financials</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <KpiCard
-              title="Commission This Month"
-              value={isLoading ? "—" : formatCurrency(metrics?.commissionThisMonth)}
-              icon={DollarSign} iconColor="text-emerald-400"
-              onClick={() => navigate("/reports")}
-            />
+            {/* Card 1 — commission (sub/mixed) OR fleet net this month (company/mixed) */}
+            {fleetMode === "company" ? (
+              <KpiCard
+                title="Fleet Net · This Month"
+                value={isLoading ? "—" : formatCurrency((metrics as any)?.companyFleetNetThisMonth ?? 0)}
+                subtitle="After all expenses"
+                icon={DollarSign} iconColor="text-emerald-400"
+                onClick={() => navigate("/reports")}
+              />
+            ) : (
+              <KpiCard
+                title="Commission This Month"
+                value={isLoading ? "—" : formatCurrency(metrics?.commissionThisMonth)}
+                icon={DollarSign} iconColor="text-emerald-400"
+                onClick={() => navigate("/reports")}
+              />
+            )}
+
             <KpiCard
               title="Client Receivables"
               value={isLoading ? "—" : formatCurrency(metrics?.totalReceivables)}
@@ -226,13 +240,26 @@ export default function Dashboard() {
               icon={TrendingUp} iconColor="text-primary"
               onClick={() => navigate("/clients")}
             />
-            <KpiCard
-              title="Sub Payables"
-              value={isLoading ? "—" : formatCurrency(metrics?.totalPayables)}
-              subtitle="Owed to subs"
-              icon={TrendingDown} iconColor="text-orange-400"
-              onClick={() => navigate("/subcontractors")}
-            />
+
+            {/* Card 3 — sub payables (sub/mixed) OR fleet all-time net (company) */}
+            {fleetMode === "company" ? (
+              <KpiCard
+                title="Fleet Net · All Time"
+                value={fleetSummary ? formatCurrency(fleetSummary.totalNet) : "—"}
+                subtitle="Gross − all expenses"
+                icon={Activity} iconColor="text-emerald-400"
+                onClick={() => navigate("/reports")}
+              />
+            ) : (
+              <KpiCard
+                title="Sub Payables"
+                value={isLoading ? "—" : formatCurrency(metrics?.totalPayables)}
+                subtitle="Owed to subs"
+                icon={TrendingDown} iconColor="text-orange-400"
+                onClick={() => navigate("/subcontractors")}
+              />
+            )}
+
             <KpiCard
               title="Active Drivers"
               value={isLoading ? "—" : metrics?.activeDrivers ?? 0}
@@ -240,6 +267,38 @@ export default function Dashboard() {
               onClick={() => navigate("/drivers")}
             />
           </div>
+
+          {/* Mixed mode: show company fleet net as an extra inline row */}
+          {fleetMode === "mixed" && (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                onClick={() => navigate("/reports")}
+                className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/30 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Company Fleet · Net This Month</p>
+                  <p className="text-lg font-bold text-foreground">{isLoading ? "—" : formatCurrency((metrics as any)?.companyFleetNetThisMonth ?? 0)}</p>
+                  <p className="text-[10px] text-muted-foreground/70">After trip & truck expenses</p>
+                </div>
+              </div>
+              <div
+                onClick={() => navigate("/reports")}
+                className="bg-card border border-border rounded-2xl p-4 flex items-center gap-3 cursor-pointer hover:border-primary/30 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+                  <Truck className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Company Fleet · Net All Time</p>
+                  <p className="text-lg font-bold text-foreground">{fleetSummary ? formatCurrency(fleetSummary.totalNet) : "—"}</p>
+                  <p className="text-[10px] text-muted-foreground/70">{fleetSummary?.trucks.length ?? 0} trucks · view in Reports</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ACTIVE OPERATIONS */}
@@ -294,9 +353,11 @@ export default function Dashboard() {
           <div>
             <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Analytics</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Commission trend */}
+              {/* Commission / Revenue trend */}
               <div className="bg-card border border-border rounded-2xl p-4">
-                <h3 className="text-sm font-semibold text-foreground mb-1">Commission Trend</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-1">
+                  {fleetMode === "company" ? "Revenue Trend" : "Commission Trend"}
+                </h3>
                 <p className="text-xs text-muted-foreground mb-4">12-month rolling</p>
                 <ResponsiveContainer width="100%" height={180}>
                   <AreaChart data={analytics.commissionByPeriod}>
@@ -309,8 +370,18 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <YAxis tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [formatCurrency(v), "Commission"]} />
-                    <Area type="monotone" dataKey="commission" stroke="hsl(var(--primary))" fill="url(#cgrad)" strokeWidth={2} />
+                    {fleetMode === "company" ? (
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [formatCurrency(v), "Revenue"]} />
+                    ) : (
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [formatCurrency(v), "Commission"]} />
+                    )}
+                    <Area
+                      type="monotone"
+                      dataKey={fleetMode === "company" ? "revenue" : "commission"}
+                      stroke="hsl(var(--primary))"
+                      fill="url(#cgrad)"
+                      strokeWidth={2}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -326,7 +397,9 @@ export default function Dashboard() {
                     <YAxis dataKey="route" type="category" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => getRouteShort(v)} width={70} />
                     <Tooltip contentStyle={tooltipStyle} formatter={(v: number, n: string) => [formatCurrency(v), n]} />
                     <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} name="Revenue" />
-                    <Bar dataKey="commission" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} name="Commission" />
+                    {fleetMode !== "company" && (
+                      <Bar dataKey="commission" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} name="Commission" />
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
