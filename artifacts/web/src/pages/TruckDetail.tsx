@@ -34,7 +34,16 @@ const TRIP_STATUS_COLOR: Record<string, string> = {
   cancelled: "bg-red-500/10 text-red-400",
   amended_out: "bg-orange-500/10 text-orange-400",
 };
-const EXPENSE_CATEGORIES = ["maintenance", "tyres", "repairs", "fuel", "other"];
+const EXPENSE_CATEGORIES = ["maintenance", "tyres", "repairs", "fuel", "driver_salary", "other"];
+const EXPENSE_LABEL: Record<string, string> = {
+  maintenance: "Maintenance",
+  tyres: "Tyres",
+  repairs: "Repairs",
+  fuel: "Fuel",
+  driver_salary: "Driver Salary",
+  other: "Other",
+};
+const expenseLabel = (cat: string) => EXPENSE_LABEL[cat] ?? cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 type TruckDetailData = {
   truck: {
@@ -354,7 +363,7 @@ export default function TruckDetail() {
                     <tr key={e.id} className={cn("border-b border-gray-200", i % 2 === 1 && "bg-gray-50")}
                         style={{ pageBreakInside: "avoid" }}>
                       <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{formatDate(e.expenseDate)}</td>
-                      <td className="py-1.5 pr-3 capitalize">{e.costType}</td>
+                      <td className="py-1.5 pr-3">{expenseLabel(e.costType)}</td>
                       <td className="py-1.5 pr-3 text-gray-600">{e.description ?? "—"}</td>
                       <td className="py-1.5 pr-3 font-mono font-semibold">{formatCurrency(e.amount)}</td>
                       <td className="py-1.5 font-mono text-right">{e.currency}</td>
@@ -618,7 +627,7 @@ export default function TruckDetail() {
                 <div className="flex gap-1 bg-secondary/40 p-0.5 rounded-md">
                   <Chip label="All" active={expCategory === "all"} onClick={() => setExpCategory("all")} />
                   {EXPENSE_CATEGORIES.map((c) => (
-                    <Chip key={c} label={c.charAt(0).toUpperCase() + c.slice(1)} active={expCategory === c} onClick={() => setExpCategory(c)} />
+                    <Chip key={c} label={expenseLabel(c)} active={expCategory === c} onClick={() => setExpCategory(c)} />
                   ))}
                 </div>
                 <span className="text-xs text-muted-foreground">{filteredExpenses.length} record{filteredExpenses.length !== 1 ? "s" : ""}</span>
@@ -648,7 +657,7 @@ export default function TruckDetail() {
                           <tr key={e.id} className="hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(e.expenseDate)}</td>
                             <td className="px-4 py-3 text-xs">
-                              <span className="capitalize bg-muted px-2 py-0.5 rounded-full text-muted-foreground">{e.costType}</span>
+                              <span className="bg-muted px-2 py-0.5 rounded-full text-muted-foreground">{expenseLabel(e.costType)}</span>
                             </td>
                             <td className="px-4 py-3 text-xs text-muted-foreground">
                               {(() => {
@@ -722,7 +731,7 @@ export default function TruckDetail() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EXPENSE_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}><span className="capitalize">{c}</span></SelectItem>
+                      <SelectItem key={c} value={c}>{expenseLabel(c)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
