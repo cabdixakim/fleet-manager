@@ -39,11 +39,13 @@ export default function SettingsPage() {
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [removeLogoConfirm, setRemoveLogoConfirm] = useState(false);
+  const [truckTypes, setTruckTypes] = useState({ hasCompany: false, hasSub: false });
 
   useEffect(() => {
-    fetch("/api/company-settings", { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.all([
+      fetch("/api/company-settings", { credentials: "include" }).then((r) => r.json()),
+      fetch("/api/trucks", { credentials: "include" }).then((r) => r.json()),
+    ]).then(([data, trucks]) => {
         setForm({
           name: data.name ?? "",
           logoUrl: data.logoUrl ?? "",
@@ -58,6 +60,12 @@ export default function SettingsPage() {
           t1ClearanceFeeUsd: String(data.t1ClearanceFeeUsd ?? "80.00"),
           fleetMode: data.fleetMode ?? "subcontractor",
         });
+        if (Array.isArray(trucks)) {
+          setTruckTypes({
+            hasCompany: trucks.some((t: { companyOwned: boolean }) => t.companyOwned),
+            hasSub: trucks.some((t: { companyOwned: boolean }) => !t.companyOwned),
+          });
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -319,14 +327,14 @@ export default function SettingsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="subcontractor">Subcontractor — all trucks belong to subcontractors</SelectItem>
-                    <SelectItem value="company">Company Fleet — all trucks owned by the company</SelectItem>
-                    <SelectItem value="mixed">Mixed — mix of company-owned and subcontractor trucks</SelectItem>
+                    <SelectItem value="subcontractor" disabled={truckTypes.hasCompany}>Subcontractors</SelectItem>
+                    <SelectItem value="company" disabled={truckTypes.hasSub}>Company Fleet</SelectItem>
+                    <SelectItem value="mixed">Mixed</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Controls how the fleet is managed. In Company mode, the Subcontractors section is hidden and no commission is applied.
-                </p>
+                {truckTypes.hasCompany && truckTypes.hasSub && (
+                  <p className="text-xs text-muted-foreground mt-1.5">Both truck types on record — only Mixed is available.</p>
+                )}
               </div>
               <div>
                 <Label>Default Revenue Attribution for In-Transit Amendments</Label>
