@@ -21,7 +21,7 @@ router.put("/:id", async (req, res, next) => {
       entity: "subcontractor_transaction",
       entityId: id,
       description: `Updated subcontractor payment: ${tx.type} of $${parseFloat(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })} for ${sub?.name ?? `sub #${tx.subcontractorId}`}`,
-      metadata: { subcontractorId: tx.subcontractorId, type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference },
+      metadata: { subcontractorId: tx.subcontractorId, type: tx.type, amount: parseFloat(tx.amount) },
     });
     res.json({ ...tx, amount: parseFloat(tx.amount) });
   } catch (e) { next(e); }

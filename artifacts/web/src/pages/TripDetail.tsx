@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { formatCurrency, formatNumber, formatDate } from "@/lib/utils";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { exportToExcel } from "@/lib/export";
-import { ChevronLeft, ChevronRight, Plus, Download, Trash2, FileText, Camera, Upload, X, Loader2, AlertTriangle, RefreshCw, Clock, MoreVertical, Pencil, Printer, AlertCircle, CheckCircle2, ArrowRight, Paperclip, Unlink2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Download, Trash2, FileText, Camera, Upload, X, Loader2, AlertTriangle, RefreshCw, Clock, MoreVertical, Pencil, Printer, AlertCircle, CheckCircle2, ArrowRight, Paperclip, Unlink2, Receipt } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

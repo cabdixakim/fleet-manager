@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "../lib/db";
 import { truckDriverAssignmentsTable, driversTable, trucksTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 const router = Router();
@@ -48,8 +48,10 @@ router.post("/", async (req, res) => {
   // End previous engagement if exists
   await db.update(truckDriverAssignmentsTable)
     .set({ unassignedAt: new Date() })
-    .where(eq(truckDriverAssignmentsTable.truckId, truckId))
-    .where(sql`${truckDriverAssignmentsTable.unassignedAt} IS NULL`);
+    .where(and(
+      eq(truckDriverAssignmentsTable.truckId, truckId),
+      sql`${truckDriverAssignmentsTable.unassignedAt} IS NULL`,
+    ));
 
   // Create new engagement
   const [engagement] = await db.insert(truckDriverAssignmentsTable).values({ truckId, driverId, assignedAt: new Date() }).returning();

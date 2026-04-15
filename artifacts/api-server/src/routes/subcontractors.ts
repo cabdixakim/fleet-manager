@@ -412,8 +412,8 @@ router.post("/:id/transactions", async (req, res, next) => {
       action: "payment",
       entity: "subcontractor_transaction",
       entityId: tx.id,
-      description: `Subcontractor payment recorded: ${tx.type} of $${parseFloat(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })} for ${sub?.name ?? `sub #${subcontractorId}`}${tx.reference ? ` — Ref: ${tx.reference}` : ""}`,
-      metadata: { subcontractorId, type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference ?? null },
+      description: `Subcontractor payment recorded: ${tx.type} of $${parseFloat(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })} for ${sub?.name ?? `sub #${subcontractorId}`}`,
+      metadata: { subcontractorId, type: tx.type, amount: parseFloat(tx.amount) },
     });
     res.status(201).json({ ...tx, amount: parseFloat(tx.amount) });
   } catch (e) { next(e); }
