@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useGetCommissionReport, useGetDashboardAnalytics, useGetPnlReport, useGetEntityList, useGetEntityAnalytics, useGetCommissionBreakdown } from "@workspace/api-client-react";
+import { useGetCommissionReport, useGetDashboardAnalytics, useGetPnlReport, useGetEntityList, useGetEntityAnalytics, useGetCommissionBreakdown, useGetCompanyFleetSummary } from "@workspace/api-client-react";
+import { useFleetMode } from "@/lib/useFleetMode";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatNumber, formatDate } from "@/lib/utils";
 import { exportToExcel, exportMultiSheet } from "@/lib/export";
@@ -157,7 +158,8 @@ const CHART_AXIS_COLOR = "hsl(var(--muted-foreground))";
 export default function Reports() {
   const now = new Date();
   const [period, setPeriod] = useState("month");
-  const [activeReport, setActiveReport] = useState<"commission" | "analytics" | "pnl" | "entities">("pnl");
+  const [activeReport, setActiveReport] = useState<"commission" | "analytics" | "pnl" | "entities" | "fleet">("pnl");
+  const fleetMode = useFleetMode();
   const [entityType, setEntityType] = useState("truck");
   const [selectedEntityIds, setSelectedEntityIds] = useState<number[]>([]);
   const [entityPeriod, setEntityPeriod] = useState("all");
@@ -181,6 +183,7 @@ export default function Reports() {
   const { data: commissionData, isLoading: commLoading } = useGetCommissionReport({ period });
   const { data: pnl, isLoading: pnlLoading } = useGetPnlReport({ period: pnlPeriodType, year: pnlYear, month: pnlMonthParam });
   const { data: breakdown, isLoading: breakdownLoading } = useGetCommissionBreakdown({ period });
+  const { data: fleetSummary, isLoading: fleetLoading } = useGetCompanyFleetSummary();
   const { data: entityList } = useGetEntityList();
   const { data: entityAnalytics, isLoading: entityLoading } = useGetEntityAnalytics({
     entity: entityType,
@@ -311,6 +314,7 @@ export default function Reports() {
             {activeReport === "analytics" && "Revenue Analytics Report"}
             {activeReport === "commission" && "Commission Report"}
             {activeReport === "entities" && "Entity Analytics Report"}
+            {activeReport === "fleet" && "Company Fleet P&L Report"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Period: {activeReport === "pnl"
@@ -322,7 +326,13 @@ export default function Reports() {
 
         {/* Tab */}
         <div className="print:hidden flex flex-wrap gap-1 mb-6 bg-secondary/50 p-1 rounded-lg w-fit">
-          {[{ id: "pnl", label: "Profit & Loss" }, { id: "analytics", label: "Revenue Analytics" }, { id: "commission", label: "Commission" }, { id: "entities", label: "Entity Analytics" }].map((tab) => (
+          {[
+            { id: "pnl", label: "Profit & Loss" },
+            { id: "analytics", label: "Revenue Analytics" },
+            { id: "commission", label: "Commission" },
+            { id: "entities", label: "Entity Analytics" },
+            ...(fleetMode !== "subcontractor" ? [{ id: "fleet", label: "Company Fleet" }] : []),
+          ].map((tab) => (
             <button key={tab.id} onClick={() => setActiveReport(tab.id as any)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeReport === tab.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
               {tab.label}
@@ -528,28 +538,34 @@ export default function Reports() {
                       <h3 className="text-sm font-semibold text-foreground">Commission by Subcontractor</h3>
                       <span className="text-xs text-muted-foreground">{commissionData.commissionBySubcontractor.length} subcontractors</span>
                     </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="px-5 py-2 text-left text-xs text-muted-foreground">Subcontractor</th>
-                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Rate</th>
-                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Trips</th>
-                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Gross Revenue</th>
-                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Commission Earned</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {commissionData.commissionBySubcontractor.map((s: any) => (
-                          <tr key={s.subcontractorName} className="border-b border-border/40 last:border-0 hover:bg-secondary/20">
-                            <td className="px-5 py-3 font-medium text-foreground">{s.subcontractorName}</td>
-                            <td className="px-5 py-3 text-right text-muted-foreground">{s.commissionRate}%</td>
-                            <td className="px-5 py-3 text-right text-muted-foreground">{s.trips}</td>
-                            <td className="px-5 py-3 text-right text-foreground">{formatCurrency(s.grossRevenue)}</td>
-                            <td className="px-5 py-3 text-right text-primary font-medium">{formatCurrency(s.commission)}</td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="px-5 py-2 text-left text-xs text-muted-foreground">Subcontractor</th>
+                            <th className="px-5 py-2 text-right text-xs text-muted-foreground">Rate</th>
+                            <th className="px-5 py-2 text-right text-xs text-muted-foreground">Trips</th>
+                            <th className="px-5 py-2 text-right text-xs text-muted-foreground">Gross Revenue</th>
+                            <th className="px-5 py-2 text-right text-xs text-muted-foreground">Commission</th>
+                            <th className="px-5 py-2 text-right text-xs text-muted-foreground">Truck Expenses</th>
+                            <th className="px-5 py-2 text-right text-xs text-muted-foreground">Net Payable</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {commissionData.commissionBySubcontractor.map((s: any) => (
+                            <tr key={s.subcontractorName} className="border-b border-border/40 last:border-0 hover:bg-secondary/20">
+                              <td className="px-5 py-3 font-medium text-foreground">{s.subcontractorName}</td>
+                              <td className="px-5 py-3 text-right text-muted-foreground">{s.commissionRate}%</td>
+                              <td className="px-5 py-3 text-right text-muted-foreground">{s.trips}</td>
+                              <td className="px-5 py-3 text-right text-foreground">{formatCurrency(s.grossRevenue)}</td>
+                              <td className="px-5 py-3 text-right text-primary font-medium">{formatCurrency(s.commission)}</td>
+                              <td className="px-5 py-3 text-right text-destructive">{s.truckExpenses > 0 ? formatCurrency(s.truckExpenses) : <span className="text-muted-foreground">—</span>}</td>
+                              <td className="px-5 py-3 text-right font-semibold" style={{ color: s.netPayable >= 0 ? "hsl(var(--primary))" : "hsl(var(--destructive))" }}>{formatCurrency(s.netPayable)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
@@ -1062,6 +1078,128 @@ export default function Reports() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Company Fleet P&L */}
+        {activeReport === "fleet" && (
+          <div className="space-y-6">
+            {fleetLoading ? (
+              <div className="text-center py-12 text-muted-foreground">Loading fleet data...</div>
+            ) : !fleetSummary || fleetSummary.trucks.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Truck className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-medium">No company-owned trucks found</p>
+                <p className="text-sm mt-1">Add company trucks in the Fleet section to see P&L here.</p>
+              </div>
+            ) : (
+              <>
+                {/* Summary KPI cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: "Gross Revenue", value: fleetSummary.totalGross, color: "text-foreground" },
+                    { label: "Trip Expenses", value: -fleetSummary.totalTripExpenses, color: "text-destructive" },
+                    { label: "Truck Overheads", value: -fleetSummary.totalTruckExpenses, color: "text-destructive" },
+                    { label: "Net Earnings", value: fleetSummary.totalNet, color: fleetSummary.totalNet >= 0 ? "text-emerald-500" : "text-destructive" },
+                  ].map((kpi) => (
+                    <div key={kpi.label} className="bg-card border border-border rounded-xl px-5 py-4">
+                      <p className="text-xs text-muted-foreground mb-1">{kpi.label}</p>
+                      <p className={`text-xl font-bold ${kpi.color}`}>{formatCurrency(Math.abs(kpi.value))}</p>
+                      {kpi.value < 0 && <p className="text-xs text-destructive/70 mt-0.5">expense</p>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Margin summary */}
+                {fleetSummary.totalGross > 0 && (
+                  <div className="bg-card border border-border rounded-xl px-5 py-4 flex items-center gap-6">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Net Margin</p>
+                      <p className={`text-2xl font-bold ${fleetSummary.totalNet / fleetSummary.totalGross >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                        {((fleetSummary.totalNet / fleetSummary.totalGross) * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${fleetSummary.totalNet >= 0 ? "bg-emerald-500" : "bg-destructive"}`}
+                        style={{ width: `${Math.min(100, Math.max(0, (fleetSummary.totalNet / fleetSummary.totalGross) * 100))}%` }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground mb-1">Expense Ratio</p>
+                      <p className="text-lg font-semibold text-foreground">
+                        {(((fleetSummary.totalTripExpenses + fleetSummary.totalTruckExpenses) / fleetSummary.totalGross) * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-truck breakdown */}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-foreground">Per-Truck P&L Breakdown</h3>
+                    <span className="text-xs text-muted-foreground">{fleetSummary.trucks.length} trucks</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border">
+                          <th className="px-5 py-2 text-left text-xs text-muted-foreground">Truck</th>
+                          <th className="px-5 py-2 text-left text-xs text-muted-foreground">Status</th>
+                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Gross Revenue</th>
+                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Trip Expenses</th>
+                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Truck Overheads</th>
+                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Net Earnings</th>
+                          <th className="px-5 py-2 text-right text-xs text-muted-foreground">Margin</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...fleetSummary.trucks].sort((a, b) => b.net - a.net).map((truck) => {
+                          const margin = truck.gross > 0 ? (truck.net / truck.gross) * 100 : 0;
+                          return (
+                            <tr key={truck.id} className="border-b border-border/40 last:border-0 hover:bg-secondary/20">
+                              <td className="px-5 py-3 font-medium text-foreground">{truck.plateNumber}</td>
+                              <td className="px-5 py-3">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                  truck.status === "active" ? "bg-emerald-500/10 text-emerald-500" :
+                                  truck.status === "maintenance" ? "bg-amber-500/10 text-amber-500" :
+                                  "bg-secondary text-muted-foreground"
+                                }`}>{truck.status}</span>
+                              </td>
+                              <td className="px-5 py-3 text-right text-foreground">{formatCurrency(truck.gross)}</td>
+                              <td className="px-5 py-3 text-right text-destructive">{truck.tripExpenses > 0 ? formatCurrency(truck.tripExpenses) : <span className="text-muted-foreground">—</span>}</td>
+                              <td className="px-5 py-3 text-right text-destructive">{truck.truckExpenses > 0 ? formatCurrency(truck.truckExpenses) : <span className="text-muted-foreground">—</span>}</td>
+                              <td className="px-5 py-3 text-right font-semibold" style={{ color: truck.net >= 0 ? "hsl(var(--primary))" : "hsl(var(--destructive))" }}>{formatCurrency(truck.net)}</td>
+                              <td className="px-5 py-3 text-right">
+                                <span className={`text-xs font-medium ${margin >= 0 ? "text-emerald-500" : "text-destructive"}`}>
+                                  {truck.gross > 0 ? `${margin.toFixed(1)}%` : "—"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-border bg-secondary/30">
+                          <td className="px-5 py-3 font-semibold text-foreground" colSpan={2}>Total</td>
+                          <td className="px-5 py-3 text-right font-semibold text-foreground">{formatCurrency(fleetSummary.totalGross)}</td>
+                          <td className="px-5 py-3 text-right font-semibold text-destructive">{formatCurrency(fleetSummary.totalTripExpenses)}</td>
+                          <td className="px-5 py-3 text-right font-semibold text-destructive">{formatCurrency(fleetSummary.totalTruckExpenses)}</td>
+                          <td className="px-5 py-3 text-right font-bold" style={{ color: fleetSummary.totalNet >= 0 ? "hsl(var(--primary))" : "hsl(var(--destructive))" }}>{formatCurrency(fleetSummary.totalNet)}</td>
+                          <td className="px-5 py-3 text-right font-semibold">
+                            {fleetSummary.totalGross > 0 && (
+                              <span className={fleetSummary.totalNet >= 0 ? "text-emerald-500" : "text-destructive"}>
+                                {((fleetSummary.totalNet / fleetSummary.totalGross) * 100).toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </PageContent>

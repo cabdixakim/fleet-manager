@@ -12,7 +12,7 @@ import {
   clientTransactionsTable,
   invoicesTable,
 } from "@workspace/db/schema";
-import { eq, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, sql, inArray, isNull } from "drizzle-orm";
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 
 const router = Router();
@@ -203,7 +203,7 @@ router.get("/commission", async (req, res, next) => {
 
     let totalCommission = 0;
     let totalGrossRevenue = 0;
-    const subData: Record<string, { name: string; rate: number; gross: number; commission: number; trips: number; netPayable: number }> = {};
+    const subData: Record<string, { name: string; rate: number; gross: number; commission: number; trips: number; netPayable: number; truckExpenses: number; subId: number }> = {};
     const batchData: Record<string, { name: string; client: string; route: string; gross: number; commission: number }> = {};
     const clientData: Record<string, { name: string; gross: number; commission: number; trips: number }> = {};
     const monthlyData: Record<string, number> = {};
@@ -223,7 +223,7 @@ router.get("/commission", async (req, res, next) => {
         if (t.subcontractorId) {
           const [sub] = await db.select({ name: subcontractorsTable.name, commissionRate: subcontractorsTable.commissionRate }).from(subcontractorsTable).where(eq(subcontractorsTable.id, t.subcontractorId));
           if (sub) {
-            if (!subData[sub.name]) subData[sub.name] = { name: sub.name, rate: parseFloat(sub.commissionRate), gross: 0, commission: 0, trips: 0, netPayable: 0 };
+            if (!subData[sub.name]) subData[sub.name] = { name: sub.name, rate: parseFloat(sub.commissionRate), gross: 0, commission: 0, trips: 0, netPayable: 0, truckExpenses: 0, subId: t.subcontractorId };
             subData[sub.name].gross += g;
             subData[sub.name].commission += c;
             subData[sub.name].trips++;
@@ -249,6 +249,22 @@ router.get("/commission", async (req, res, next) => {
       } catch {}
     }
 
+    // Deduct non-trip truck expenses per sub (in the same period) from their net payable
+    for (const entry of Object.values(subData)) {
+      const [expRow] = await db
+        .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+        .from(tripExpensesTable)
+        .where(and(
+          eq(tripExpensesTable.subcontractorId, entry.subId),
+          isNull(tripExpensesTable.tripId),
+          eq(tripExpensesTable.tier, "truck"),
+          gte(tripExpensesTable.expenseDate, start),
+          lte(tripExpensesTable.expenseDate, end),
+        ));
+      entry.truckExpenses = parseFloat(expRow?.total ?? "0");
+      entry.netPayable -= entry.truckExpenses;
+    }
+
     res.json({
       period: period as string,
       totalCommission,
@@ -259,6 +275,7 @@ router.get("/commission", async (req, res, next) => {
         grossRevenue: s.gross,
         commission: s.commission,
         trips: s.trips,
+        truckExpenses: s.truckExpenses,
         netPayable: s.netPayable,
       })),
       commissionByBatch: Object.values(batchData).map((b) => ({

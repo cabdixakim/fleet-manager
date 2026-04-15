@@ -360,6 +360,32 @@ export function useDeleteAgentTransaction() {
   });
 }
 
+export function useGetCompanyFleetSummary() {
+  return useQuery({
+    queryKey: ["/api/trucks/company-fleet/summary"],
+    queryFn: async () => {
+      const res = await fetch("/api/trucks/company-fleet/summary", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch company fleet summary");
+      return res.json() as Promise<{
+        totalGross: number;
+        totalTripExpenses: number;
+        totalTruckExpenses: number;
+        totalNet: number;
+        trucks: Array<{
+          id: number;
+          plateNumber: string;
+          status: string;
+          gross: number;
+          tripExpenses: number;
+          truckExpenses: number;
+          net: number;
+        }>;
+      }>;
+    },
+    staleTime: 30_000,
+  });
+}
+
 export function useGetEntityAnalytics(params: { entity: string; ids: number[]; period?: string; year?: number; month?: number }) {
   const { entity, ids, period = "all", year, month } = params;
   const idsStr = ids.join(",");

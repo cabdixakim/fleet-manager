@@ -11,8 +11,9 @@ import {
   subcontractorsTable,
   trucksTable,
   invoicesTable,
+  tripExpensesTable,
 } from "@workspace/db/schema";
-import { eq, sql, inArray, notInArray, and } from "drizzle-orm";
+import { eq, sql, inArray, notInArray, and, isNull, isNotNull } from "drizzle-orm";
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 
 const router = Router();
@@ -93,6 +94,13 @@ router.get("/metrics", async (_req, res, next) => {
         totalPayables += fin.netPayable ?? 0;
       } catch {}
     }
+
+    // Deduct non-trip truck expenses attributed to subcontractors (maintenance, tyres, repairs etc.)
+    const [nonTripTruckExpRes] = await db
+      .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+      .from(tripExpensesTable)
+      .where(and(isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"), isNotNull(tripExpensesTable.subcontractorId)));
+    totalPayables -= parseFloat(nonTripTruckExpRes?.total ?? "0");
 
     // Subtract payments already made to subcontractors
     const [paymentsMadeRes] = await db
