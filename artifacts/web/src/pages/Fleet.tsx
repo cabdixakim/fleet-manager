@@ -85,13 +85,14 @@ export default function Fleet() {
 
   const handleCreate = async () => {
     if (!form.plateNumber) return;
-    if (!form.companyOwned && !form.subcontractorId) return;
+    const isCompanyTruck = fleetMode === "company" || (fleetMode === "mixed" && form.companyOwned);
+    if (!isCompanyTruck && !form.subcontractorId) return;
     const truck = await createTruck({
       data: {
         plateNumber: form.plateNumber,
         trailerPlate: form.trailerPlate || undefined,
-        subcontractorId: form.companyOwned ? null : parseInt(form.subcontractorId),
-        companyOwned: form.companyOwned,
+        subcontractorId: isCompanyTruck ? null : parseInt(form.subcontractorId),
+        companyOwned: isCompanyTruck,
         status: form.status as any,
         notes: form.notes || undefined,
       } as any
@@ -332,6 +333,12 @@ export default function Fleet() {
                 <Input value={form.trailerPlate} onChange={(e) => setForm({ ...form, trailerPlate: e.target.value })} className="mt-1" placeholder="Optional" />
               </div>
             </div>
+            {fleetMode === "company" && (
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-primary text-sm">
+                <Building2 className="w-4 h-4 shrink-0" />
+                <span className="font-medium">Company Fleet truck — no commission will be applied</span>
+              </div>
+            )}
             {fleetMode === "mixed" && (
               <div>
                 <Label>Truck Ownership</Label>
@@ -353,7 +360,7 @@ export default function Fleet() {
                 </div>
               </div>
             )}
-            {!form.companyOwned && (
+            {(fleetMode === "subcontractor" || (fleetMode === "mixed" && !form.companyOwned)) && (
               <div>
                 <Label>Subcontractor *</Label>
                 <Select value={form.subcontractorId} onValueChange={(v) => setForm({ ...form, subcontractorId: v })}>
