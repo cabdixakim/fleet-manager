@@ -39,7 +39,7 @@ const EXPENSE_CATEGORIES = ["maintenance", "tyres", "repairs", "fuel", "other"];
 type TruckDetailData = {
   truck: {
     id: number; plateNumber: string; trailerPlate: string | null; subcontractorId: number | null;
-    subcontractorName: string | null; commissionRate: string | null; status: string; notes: string | null; createdAt: string;
+    companyOwned?: boolean; subcontractorName: string | null; commissionRate: string | null; status: string; notes: string | null; createdAt: string;
   };
   driverAssignments: { id: number; driverId: number; driverName: string | null; assignedAt: string; unassignedAt: string | null }[];
   trips: {
@@ -249,8 +249,9 @@ export default function TruckDetail() {
               <h1 className="text-2xl font-bold tracking-tight">{truck.plateNumber}</h1>
               {truck.trailerPlate && <p className="text-sm text-gray-600">Trailer: {truck.trailerPlate}</p>}
               <p className="text-sm text-gray-600 mt-1">
-                {truck.subcontractorName ?? "No subcontractor"}
-                {truck.commissionRate ? ` · ${truck.commissionRate}% commission` : ""}
+                {truck.companyOwned ? "Company Fleet" : (truck.subcontractorName ?? "No subcontractor")}
+                {!truck.companyOwned && truck.commissionRate ? ` · ${truck.commissionRate}% commission` : ""}
+                {truck.companyOwned ? " · No commission" : ""}
                 {" · "}
                 <span className="font-semibold">{STATUS_LABEL[truck.status] ?? truck.status}</span>
               </p>
@@ -415,8 +416,9 @@ export default function TruckDetail() {
               <div className="min-w-0">
                 <p className="font-bold text-foreground font-mono">{truck.plateNumber}</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {truck.subcontractorName ?? "No subcontractor"}
-                  {truck.commissionRate ? ` · ${truck.commissionRate}% commission` : ""}
+                  {truck.companyOwned ? "Company Fleet" : (truck.subcontractorName ?? "No subcontractor")}
+                  {!truck.companyOwned && truck.commissionRate ? ` · ${truck.commissionRate}% commission` : ""}
+                  {truck.companyOwned ? " · No commission" : ""}
                 </p>
               </div>
             </div>

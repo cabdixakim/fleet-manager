@@ -28,6 +28,7 @@ export default function SettingsPage() {
     openingBalance: "0",
     revenueAttributionPolicy: "ORIGINAL",
     t1ClearanceFeeUsd: "80.00",
+    fleetMode: "subcontractor",
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,6 +56,7 @@ export default function SettingsPage() {
           openingBalance: String(data.openingBalance ?? "0"),
           revenueAttributionPolicy: data.revenueAttributionPolicy ?? "ORIGINAL",
           t1ClearanceFeeUsd: String(data.t1ClearanceFeeUsd ?? "80.00"),
+          fleetMode: data.fleetMode ?? "subcontractor",
         });
         setLoading(false);
       })
@@ -72,6 +74,7 @@ export default function SettingsPage() {
       });
       qc.invalidateQueries({ queryKey: ["company-settings-sidebar"] });
       qc.invalidateQueries({ queryKey: ["company-settings-header"] });
+      qc.invalidateQueries({ queryKey: ["company-settings-fleet-mode"] });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } finally {
@@ -306,6 +309,25 @@ export default function SettingsPage() {
               <Settings className="w-4 h-4 text-primary" />Operations Settings
             </h2>
             <div className="space-y-4">
+              <div>
+                <Label>Fleet Mode</Label>
+                <Select
+                  value={form.fleetMode}
+                  onValueChange={(v) => setForm({ ...form, fleetMode: v })}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="subcontractor">Subcontractor — all trucks belong to subcontractors</SelectItem>
+                    <SelectItem value="company">Company Fleet — all trucks owned by the company</SelectItem>
+                    <SelectItem value="mixed">Mixed — mix of company-owned and subcontractor trucks</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Controls how the fleet is managed. In Company mode, the Subcontractors section is hidden and no commission is applied.
+                </p>
+              </div>
               <div>
                 <Label>Default Revenue Attribution for In-Transit Amendments</Label>
                 <Select

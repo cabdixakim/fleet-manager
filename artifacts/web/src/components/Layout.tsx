@@ -61,7 +61,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   // Close mobile sidebar on route change
   useEffect(() => { setMobileOpen(false); }, [location]);
 
-  const { data: settings } = useQuery<{ name: string; logoUrl: string | null }>({
+  const { data: settings } = useQuery<{ name: string; logoUrl: string | null; fleetMode?: string }>({
     queryKey: ["company-settings-sidebar"],
     queryFn: () => fetch("/api/company-settings", { credentials: "include" }).then((r) => r.json()),
     staleTime: 5 * 60 * 1000,
@@ -69,6 +69,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarLogoErr, setSidebarLogoErr] = useState(false);
   useEffect(() => { setSidebarLogoErr(false); }, [settings?.logoUrl]);
 
+  const fleetMode = settings?.fleetMode ?? "subcontractor";
   const companyName = settings?.name || "Optima Transport LLC";
   const logoUrl = settings?.logoUrl || null;
   const initials = companyName
@@ -134,14 +135,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 space-y-5">
-          {sidebarConfig.map((group) => (
+          {sidebarConfig.map((group) => {
+            const visibleLinks = group.links.filter((item) => {
+              if (fleetMode === "company" && item.path === "/subcontractors") return false;
+              return true;
+            });
+            if (visibleLinks.length === 0) return null;
+            return (
             <div key={group.section}>
               {!collapsed && (
                 <div className="text-[10px] font-bold text-muted-foreground px-4 mb-1.5 uppercase tracking-widest">
                   {group.section}
                 </div>
               )}
-              {group.links.map((item) => {
+              {visibleLinks.map((item) => {
                 const Icon = getIcon(item.icon);
                 const active = location === item.path || (item.path !== "/" && location.startsWith(item.path));
                 return (
@@ -163,7 +170,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
-          ))}
+          );
+          })}
         </nav>
 
         {/* User + actions */}

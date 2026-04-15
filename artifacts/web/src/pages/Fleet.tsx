@@ -12,7 +12,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import {
   Plus, Download, Search, Truck, Pencil, Trash2, User,
   Clock, CheckCircle, X, ChevronDown, History,
-  Wifi, AlertCircle,
+  Wifi, AlertCircle, Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useFleetMode } from "@/lib/useFleetMode";
 
 const STATUS_FILTERS = ["all", "available", "idle", "on_trip", "maintenance", "retired"];
 const STATUS_LABEL: Record<string, string> = { all: "All", available: "Available", idle: "Idle", on_trip: "On Trip", maintenance: "Maintenance", retired: "Retired" };
@@ -51,7 +52,9 @@ export default function Fleet() {
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
   const [showDriverDialog, setShowDriverDialog] = useState<{ truck: any } | null>(null);
 
-  const emptyForm = { plateNumber: "", trailerPlate: "", subcontractorId: "", status: "available", driverId: "__none__", notes: "" };
+  const fleetMode = useFleetMode();
+  const defaultCompanyOwned = fleetMode === "company";
+  const emptyForm = { plateNumber: "", trailerPlate: "", subcontractorId: "", status: "available", driverId: "__none__", notes: "", companyOwned: defaultCompanyOwned };
   const [form, setForm] = useState(emptyForm);
 
   const { data: trucks = [], isLoading, dataUpdatedAt } = useGetTrucks({ query: { refetchInterval: 30_000 } });
@@ -81,15 +84,17 @@ export default function Fleet() {
   });
 
   const handleCreate = async () => {
-    if (!form.plateNumber || !form.subcontractorId) return;
+    if (!form.plateNumber) return;
+    if (!form.companyOwned && !form.subcontractorId) return;
     const truck = await createTruck({
       data: {
         plateNumber: form.plateNumber,
         trailerPlate: form.trailerPlate || undefined,
-        subcontractorId: parseInt(form.subcontractorId),
+        subcontractorId: form.companyOwned ? null : parseInt(form.subcontractorId),
+        companyOwned: form.companyOwned,
         status: form.status as any,
         notes: form.notes || undefined,
-      }
+      } as any
     });
     // If driver was selected, assign them
     if (form.driverId && form.driverId !== "__none__" && truck?.id) {
@@ -263,7 +268,11 @@ export default function Fleet() {
                         </span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                        <span>{t.subcontractorName ?? "—"}</span>
+                        {t.companyOwned ? (
+                          <span className="flex items-center gap-1 text-primary/70"><Building2 className="w-3 h-3" />Company Fleet</span>
+                        ) : (
+                          <span>{t.subcontractorName ?? "—"}</span>
+                        )}
                         <span>·</span>
                         <button
                           className={cn("flex items-center gap-1 underline underline-offset-2 hover:text-primary transition-colors", !driverName && "text-amber-400")}
@@ -323,13 +332,36 @@ export default function Fleet() {
                 <Input value={form.trailerPlate} onChange={(e) => setForm({ ...form, trailerPlate: e.target.value })} className="mt-1" placeholder="Optional" />
               </div>
             </div>
-            <div>
-              <Label>Subcontractor *</Label>
-              <Select value={form.subcontractorId} onValueChange={(v) => setForm({ ...form, subcontractorId: v })}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
-                <SelectContent>{(subs as any[]).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
+            {fleetMode === "mixed" && (
+              <div>
+                <Label>Truck Ownership</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, companyOwned: false, subcontractorId: "" })}
+                    className={cn("flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all", !form.companyOwned ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80")}
+                  >
+                    <User className="w-4 h-4" />Subcontractor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, companyOwned: true, subcontractorId: "" })}
+                    className={cn("flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all", form.companyOwned ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80")}
+                  >
+                    <Building2 className="w-4 h-4" />Company
+                  </button>
+                </div>
+              </div>
+            )}
+            {!form.companyOwned && (
+              <div>
+                <Label>Subcontractor *</Label>
+                <Select value={form.subcontractorId} onValueChange={(v) => setForm({ ...form, subcontractorId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
+                  <SelectContent>{(subs as any[]).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>Assign Driver (optional)</Label>
               <Select value={form.driverId} onValueChange={(v) => setForm({ ...form, driverId: v })}>
@@ -381,20 +413,27 @@ export default function Fleet() {
                   <Input value={editTruck.trailerPlate ?? ""} onChange={(e) => setEditTruck({ ...editTruck, trailerPlate: e.target.value })} className="mt-1" />
                 </div>
               </div>
-              <div>
-                <Label>Subcontractor</Label>
-                <Select value={String(editTruck.subcontractorId ?? "")} onValueChange={(v) => setEditTruck({ ...editTruck, subcontractorId: parseInt(v) })}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
-                  <SelectContent>
-                    {(subs as any[]).map((s: any) => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {editTruck.status === "on_trip" && (
-                  <p className="text-xs text-amber-500 mt-1">This truck is currently on a trip. The reassignment takes effect from the next nomination.</p>
-                )}
-              </div>
+              {editTruck.companyOwned ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-primary text-sm">
+                  <Building2 className="w-4 h-4 shrink-0" />
+                  <span className="font-medium">Company Fleet truck — no commission applied</span>
+                </div>
+              ) : (
+                <div>
+                  <Label>Subcontractor</Label>
+                  <Select value={String(editTruck.subcontractorId ?? "")} onValueChange={(v) => setEditTruck({ ...editTruck, subcontractorId: parseInt(v) })}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
+                    <SelectContent>
+                      {(subs as any[]).map((s: any) => (
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {editTruck.status === "on_trip" && (
+                    <p className="text-xs text-amber-500 mt-1">This truck is currently on a trip. The reassignment takes effect from the next nomination.</p>
+                  )}
+                </div>
+              )}
               <div>
                 <Label>Status</Label>
                 <Select value={editTruck.status} onValueChange={(v) => setEditTruck({ ...editTruck, status: v })}>

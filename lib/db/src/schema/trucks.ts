@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { subcontractorsTable } from "./subcontractors";
@@ -7,7 +7,8 @@ export const trucksTable = pgTable("trucks", {
   id: serial("id").primaryKey(),
   plateNumber: text("plate_number").notNull().unique(),
   trailerPlate: text("trailer_plate"),
-  subcontractorId: integer("subcontractor_id").notNull().references(() => subcontractorsTable.id),
+  companyOwned: boolean("company_owned").notNull().default(false),
+  subcontractorId: integer("subcontractor_id").references(() => subcontractorsTable.id),
   status: text("status").notNull().default("available"), // available, on_trip, maintenance, idle
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

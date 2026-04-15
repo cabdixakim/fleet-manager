@@ -17,6 +17,7 @@ export const companySettingsTable = pgTable("company_settings", {
   openingBalance: numeric("opening_balance", { precision: 14, scale: 2 }).notNull().default("0"),
   revenueAttributionPolicy: text("revenue_attribution_policy").notNull().default("ORIGINAL"), // Revenue & Cost Attribution for In-Transit Amendments
   t1ClearanceFeeUsd: numeric("t1_clearance_fee_usd", { precision: 10, scale: 2 }).notNull().default("80.00"), // Configurable T1 Zambia Entry Clearance Fee
+  fleetMode: text("fleet_mode").notNull().default("subcontractor"), // subcontractor | company | mixed
 });
 
 /**

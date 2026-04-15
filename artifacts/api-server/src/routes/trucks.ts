@@ -18,6 +18,7 @@ router.get("/", async (_req, res, next) => {
         id: trucksTable.id,
         plateNumber: trucksTable.plateNumber,
         trailerPlate: trucksTable.trailerPlate,
+        companyOwned: trucksTable.companyOwned,
         subcontractorId: trucksTable.subcontractorId,
         subcontractorName: subcontractorsTable.name,
         status: trucksTable.status,
@@ -34,9 +35,11 @@ router.get("/", async (_req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const [truck] = await db.insert(trucksTable).values(req.body).returning();
-    const [sub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
-    await logAudit(req, { action: "create", entity: "truck", entityId: truck.id, description: `Added truck ${truck.plateNumber} (${sub?.name ?? "subcontractor"})` });
-    res.status(201).json({ ...truck, subcontractorName: sub?.name ?? "", assignedDriverName: null });
+    const subId = truck.subcontractorId;
+    const ownerLabel = truck.companyOwned ? "Company Fleet" : (subId ? (await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, subId)).then((r) => r[0]?.name ?? "subcontractor")) : "unassigned");
+    await logAudit(req, { action: "create", entity: "truck", entityId: truck.id, description: `Added truck ${truck.plateNumber} (${ownerLabel})` });
+    const [sub] = subId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, subId)) : [null];
+    res.status(201).json({ ...truck, subcontractorName: sub?.name ?? null, assignedDriverName: null });
   } catch (e) { next(e); }
 });
 
@@ -47,6 +50,7 @@ router.get("/:id", async (req, res, next) => {
         id: trucksTable.id,
         plateNumber: trucksTable.plateNumber,
         trailerPlate: trucksTable.trailerPlate,
+        companyOwned: trucksTable.companyOwned,
         subcontractorId: trucksTable.subcontractorId,
         subcontractorName: subcontractorsTable.name,
         status: trucksTable.status,
@@ -74,7 +78,7 @@ router.put("/:id", async (req, res, next) => {
       : `Updated truck ${truck.plateNumber}`;
     if (isSubSwap) {
       const [oldSub] = before?.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, before.subcontractorId)) : [null];
-      const [newSub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
+      const [newSub] = truck.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId)) : [null];
       description = `Truck ${truck.plateNumber} reassigned from ${oldSub?.name ?? "unknown"} to ${newSub?.name ?? "unknown"}`;
     }
     await logAudit(req, {
@@ -84,8 +88,8 @@ router.put("/:id", async (req, res, next) => {
       description,
       metadata: { ...(req.body.status ? { status: req.body.status } : {}), ...(isSubSwap ? { fromSubcontractorId: before?.subcontractorId, toSubcontractorId: truck.subcontractorId } : {}) },
     });
-    const [sub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));
-    res.json({ ...truck, subcontractorName: sub?.name ?? "" });
+    const [sub] = truck.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId)) : [null];
+    res.json({ ...truck, subcontractorName: sub?.name ?? null });
   } catch (e) { next(e); }
 });
 
@@ -122,6 +126,7 @@ router.get("/:id/detail", async (req, res, next) => {
         id: trucksTable.id,
         plateNumber: trucksTable.plateNumber,
         trailerPlate: trucksTable.trailerPlate,
+        companyOwned: trucksTable.companyOwned,
         subcontractorId: trucksTable.subcontractorId,
         subcontractorName: subcontractorsTable.name,
         commissionRate: subcontractorsTable.commissionRate,
@@ -298,6 +303,49 @@ router.delete("/:id/expenses/:expenseId", async (req, res, next) => {
     await db.delete(tripExpensesTable).where(eq(tripExpensesTable.id, expenseId));
     await logAudit(req, { action: "delete", entity: "truck_expense", entityId: expenseId, description: `Deleted non-trip expense #${expenseId} from truck ${truckId}` });
     res.status(204).send();
+  } catch (e) { next(e); }
+});
+
+// GET /trucks/company-fleet/summary — aggregate P&L for all company-owned trucks
+router.get("/company-fleet/summary", async (_req, res, next) => {
+  try {
+    const companyTrucks = await db
+      .select({ id: trucksTable.id, plateNumber: trucksTable.plateNumber, status: trucksTable.status })
+      .from(trucksTable)
+      .where(eq(trucksTable.companyOwned, true));
+
+    let totalGross = 0, totalTripExpenses = 0, totalTruckExpenses = 0, totalNet = 0;
+    const perTruck: any[] = [];
+
+    for (const truck of companyTrucks) {
+      const trips = await db.select({ id: tripsTable.id, status: tripsTable.status })
+        .from(tripsTable).where(eq(tripsTable.truckId, truck.id));
+
+      let truckGross = 0, truckTripExp = 0, truckNet = 0;
+      for (const trip of trips) {
+        if (["cancelled", "amended_out"].includes(trip.status)) continue;
+        try {
+          const fin = await calculateTripFinancials(trip.id);
+          truckGross += (fin.grossRevenue ?? 0) - (fin.agentFeeTotal ?? 0);
+          truckTripExp += fin.tripExpensesTotal ?? 0;
+          truckNet += fin.netPayable ?? 0;
+        } catch {}
+      }
+
+      const [expRow] = await db
+        .select({ total: sql<string>`coalesce(sum(amount), 0)` })
+        .from(tripExpensesTable)
+        .where(and(eq(tripExpensesTable.truckId, truck.id), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck")));
+      const truckExpenses = parseFloat(expRow?.total ?? "0");
+
+      totalGross += truckGross;
+      totalTripExpenses += truckTripExp;
+      totalTruckExpenses += truckExpenses;
+      totalNet += truckNet - truckExpenses;
+      perTruck.push({ id: truck.id, plateNumber: truck.plateNumber, status: truck.status, gross: truckGross, tripExpenses: truckTripExp, truckExpenses, net: truckNet - truckExpenses });
+    }
+
+    res.json({ totalGross, totalTripExpenses, totalTruckExpenses, totalNet, trucks: perTruck });
   } catch (e) { next(e); }
 });
 
