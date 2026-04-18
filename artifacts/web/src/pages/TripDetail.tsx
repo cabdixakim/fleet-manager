@@ -1682,6 +1682,7 @@ export default function TripDetail() {
             TRIP_FINANCIAL_STATUSES.includes(trip.status) &&
             !["owner", "admin", "manager"].includes(user?.role ?? "")
           }
+          blockedHint="This trip is tied to posted financials. Reopen the period first, or create a correcting entry in the current period."
           onClose={() => setRevertDialog(null)}
           onConfirm={(reason) => performStatusUpdate(reason)}
           loading={savingStatus}

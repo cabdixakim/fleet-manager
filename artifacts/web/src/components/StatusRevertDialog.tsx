@@ -15,12 +15,13 @@ interface Props {
   toStatus: string;
   entityType: "trip" | "batch";
   isBlocked: boolean;
+  blockedHint?: string;
   onClose: () => void;
   onConfirm: (reason: string) => void;
   loading?: boolean;
 }
 
-export function StatusRevertDialog({ open, fromStatus, toStatus, entityType, isBlocked, onClose, onConfirm, loading }: Props) {
+export function StatusRevertDialog({ open, fromStatus, toStatus, entityType, isBlocked, blockedHint, onClose, onConfirm, loading }: Props) {
   const [reason, setReason] = useState("");
 
   const handleConfirm = () => {
@@ -57,8 +58,7 @@ export function StatusRevertDialog({ open, fromStatus, toStatus, entityType, isB
               <div>
                 <p className="font-semibold text-destructive text-sm">Access Restricted</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Reversing a {entityType} from <strong>{fmtStatus(fromStatus)}</strong> has financial implications and
-                  requires <strong>manager or admin</strong> access. Contact your manager to make this change.
+                  {blockedHint ?? `Reversing a ${entityType} from ${fmtStatus(fromStatus)} has financial implications and requires manager or admin access. Contact your manager to make this change.`}
                 </p>
               </div>
             </div>
