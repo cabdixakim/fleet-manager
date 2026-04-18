@@ -120,7 +120,12 @@ export default function TruckDetail() {
   };
   const [expenseForm, setExpenseForm] = useState({
     costType: "maintenance", description: "", amount: "", currency: "USD",
-    expenseDate: format(new Date(), "yyyy-MM-dd"),
+    expenseDate: format(new Date(), "yyyy-MM-dd"), paymentMethod: "cash", supplierId: "",
+  });
+
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
   });
   const [addingExpense, setAddingExpense] = useState(false);
 
@@ -174,6 +179,8 @@ export default function TruckDetail() {
           truckId: id,
           subcontractorId: data?.truck?.subcontractorId ?? null,
           tier: "truck",
+          paymentMethod: expenseForm.paymentMethod,
+          supplierId: expenseForm.paymentMethod === "fuel_credit" && expenseForm.supplierId ? parseInt(expenseForm.supplierId) : null,
         }),
       });
       await throwOnApiError(r);
@@ -181,7 +188,7 @@ export default function TruckDetail() {
       await qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] });
       qc.invalidateQueries({ queryKey: ["/api/expenses"] });
       setShowAddExpense(false);
-      setExpenseForm({ costType: "maintenance", description: "", amount: "", currency: "USD", expenseDate: format(new Date(), "yyyy-MM-dd") });
+      setExpenseForm({ costType: "maintenance", description: "", amount: "", currency: "USD", expenseDate: format(new Date(), "yyyy-MM-dd"), paymentMethod: "cash", supplierId: "" });
       if (result?.posting?.bumped) {
         toast({
           title: `Posted to ${result.posting.date}`,
@@ -793,6 +800,31 @@ export default function TruckDetail() {
                 value={expenseForm.description}
                 onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })} />
             </div>
+            <div className="space-y-1.5">
+              <Label>Paid via</Label>
+              <Select value={expenseForm.paymentMethod} onValueChange={(v) => setExpenseForm({ ...expenseForm, paymentMethod: v, supplierId: "" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                  <SelectItem value="fuel_credit">Fuel Credit (Supplier)</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {expenseForm.paymentMethod === "fuel_credit" && (
+              <div className="space-y-1.5">
+                <Label>Supplier *</Label>
+                <Select value={expenseForm.supplierId} onValueChange={(v) => setExpenseForm({ ...expenseForm, supplierId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                  <SelectContent>
+                    {(suppliers as any[]).map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddExpense(false)}>Cancel</Button>

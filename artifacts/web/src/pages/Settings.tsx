@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,13 @@ export default function SettingsPage() {
     openingBalance: "0",
     revenueAttributionPolicy: "ORIGINAL",
     t1ClearanceFeeUsd: "80.00",
+    activeClearanceAgencyId: "",
     fleetMode: "subcontractor",
+  });
+
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,6 +64,7 @@ export default function SettingsPage() {
           openingBalance: String(data.openingBalance ?? "0"),
           revenueAttributionPolicy: data.revenueAttributionPolicy ?? "ORIGINAL",
           t1ClearanceFeeUsd: String(data.t1ClearanceFeeUsd ?? "80.00"),
+          activeClearanceAgencyId: data.activeClearanceAgencyId != null ? String(data.activeClearanceAgencyId) : "",
           fleetMode: data.fleetMode ?? "subcontractor",
         });
         if (Array.isArray(trucks)) {
@@ -78,7 +85,11 @@ export default function SettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...form, openingBalance: parseFloat(form.openingBalance) }),
+        body: JSON.stringify({
+          ...form,
+          openingBalance: parseFloat(form.openingBalance),
+          activeClearanceAgencyId: form.activeClearanceAgencyId ? parseInt(form.activeClearanceAgencyId) : null,
+        }),
       });
       qc.invalidateQueries({ queryKey: ["company-settings-sidebar"] });
       qc.invalidateQueries({ queryKey: ["company-settings-header"] });
@@ -307,6 +318,26 @@ export default function SettingsPage() {
                   placeholder="80.00"
                 />
                 <p className="text-xs text-muted-foreground mt-1">Automatically added as a recoverable clearance expense when a trip enters Zambia (T1 document). Charged once per trip.</p>
+              </div>
+              <div>
+                <Label className="flex items-center gap-1.5"><Building2 className="w-3 h-3" />Active Clearance Agency</Label>
+                <Select
+                  value={form.activeClearanceAgencyId || "__none__"}
+                  onValueChange={(v) => setForm({ ...form, activeClearanceAgencyId: v === "__none__" ? "" : v })}
+                >
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue placeholder="None — clearance fee posted to cash" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None (post as cash)</SelectItem>
+                    {(suppliers as any[]).map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  The clearing agency currently contracted. Each T1 clearance fee will be automatically charged to them as a supplier payable and settled monthly. Switching agencies does not affect past trip records.
+                </p>
               </div>
             </div>
           </div>

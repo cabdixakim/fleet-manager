@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, numeric, integer } from "drizzle-orm/pg-core";
 
 // --- Modernized and documented company settings schema ---
 export const companySettingsTable = pgTable("company_settings", {
@@ -17,6 +17,7 @@ export const companySettingsTable = pgTable("company_settings", {
   openingBalance: numeric("opening_balance", { precision: 14, scale: 2 }).notNull().default("0"),
   revenueAttributionPolicy: text("revenue_attribution_policy").notNull().default("ORIGINAL"), // Revenue & Cost Attribution for In-Transit Amendments
   t1ClearanceFeeUsd: numeric("t1_clearance_fee_usd", { precision: 10, scale: 2 }).notNull().default("80.00"), // Configurable T1 Zambia Entry Clearance Fee
+  activeClearanceAgencyId: integer("active_clearance_agency_id"), // FK → suppliers.id — which clearing agency is currently contracted
   fleetMode: text("fleet_mode").notNull().default("subcontractor"), // subcontractor | company | mixed
 });
 

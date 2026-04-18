@@ -13,11 +13,13 @@ import {
   clientsTable,
   companySettingsTable,
   agentTransactionsTable,
+  suppliersTable,
 } from "@workspace/db/schema";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { calculateTripFinancials, snapTripRates } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
+import { postJournalEntry } from "../lib/glPosting";
 
 // Status workflow order — higher index = further along
 const TRIP_STATUS_ORDER = ["nominated", "loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered", "completed"];
@@ -363,15 +365,43 @@ router.put("/:id", async (req, res, next) => {
             status: "requested", requestedAt: new Date(),
           });
         }
-        // Auto-add T1 fee exactly once — use configurable amount from company settings
+        // Auto-add T1 fee exactly once — use configurable amount + active clearance agency from company settings
         const existingFee = await db.select({ id: tripExpensesTable.id }).from(tripExpensesTable)
           .where(and(eq(tripExpensesTable.tripId, id), eq(tripExpensesTable.costType, "clearance_fee")));
         if (existingFee.length === 0) {
-          const [cs] = await db.select({ fee: companySettingsTable.t1ClearanceFeeUsd }).from(companySettingsTable).limit(1);
-          await db.insert(tripExpensesTable).values({
-            tripId: id, costType: "clearance_fee", amount: cs?.fee ?? "80.00",
+          const [cs] = await db.select({
+            fee: companySettingsTable.t1ClearanceFeeUsd,
+            agencyId: companySettingsTable.activeClearanceAgencyId,
+          }).from(companySettingsTable).limit(1);
+          const agencyId = cs?.agencyId ?? null;
+          const feeAmount = parseFloat(cs?.fee ?? "80.00");
+          const paymentMethod = agencyId ? "fuel_credit" : "cash";
+          const [newFee] = await db.insert(tripExpensesTable).values({
+            tripId: id,
+            costType: "clearance_fee",
+            amount: feeAmount.toFixed(2),
             description: "T1 Zambia Entry Clearance Fee",
+            paymentMethod,
+            supplierId: agencyId,
+          }).returning();
+          // Post GL: Dr Clearance Expense (5004) / Cr Supplier Payables (2050) or Cash (1002)
+          const creditCode = agencyId ? "2050" : "1002";
+          await postJournalEntry({
+            description: "T1 Zambia Entry Clearance Fee",
+            entryDate: new Date(),
+            referenceType: "trip_expense",
+            referenceId: newFee.id,
+            lines: [
+              { accountCode: "5004", debit: feeAmount, description: "T1 Clearance Fee" },
+              { accountCode: creditCode, credit: feeAmount, description: agencyId ? "Cr Supplier Payables" : "Cr Cash" },
+            ],
           });
+          // Increment supplier balance if linked to an agency
+          if (agencyId) {
+            await db.update(suppliersTable)
+              .set({ balance: sql`${suppliersTable.balance} + ${feeAmount.toFixed(2)}` })
+              .where(eq(suppliersTable.id, agencyId));
+          }
         }
       }
 

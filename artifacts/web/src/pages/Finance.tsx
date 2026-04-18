@@ -85,7 +85,7 @@ export default function Finance() {
   const pendingDeleteRef = useRef<CorrectionEntry | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<CorrectionEntry | null>(null);
 
-  const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0] };
+  const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "" };
   const defaultCostType: Record<string, string> = { trip: "toll", truck: "maintenance", overhead: "office_rent" };
   const [form, setForm] = useState(emptyForm);
 
@@ -93,6 +93,10 @@ export default function Finance() {
   const { data: batches = [] } = useGetBatches({});
   const { data: allTrucks = [] } = useGetTrucks();
   const { data: allSubs = [] } = useGetSubcontractors();
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
+  });
 
   const selectedTruck = (allTrucks as any[]).find((t: any) => String(t.id) === form.truckId);
 
@@ -149,6 +153,8 @@ export default function Finance() {
         amount: parseFloat(form.amount),
         currency: form.currency,
         expenseDate: form.expenseDate,
+        paymentMethod: form.paymentMethod,
+        supplierId: form.paymentMethod === "fuel_credit" && form.supplierId ? parseInt(form.supplierId) : null,
       });
       setShowCreate(false);
       setForm(emptyForm);
@@ -413,6 +419,33 @@ export default function Finance() {
                   </Select>
                 </div>
               </div>
+
+              <div>
+                <Label className="text-xs">Paid via</Label>
+                <Select value={form.paymentMethod} onValueChange={(v)=>setForm({...form,paymentMethod:v,supplierId:""})}>
+                  <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                    <SelectItem value="fuel_credit">Fuel Credit (Supplier)</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.paymentMethod === "fuel_credit" && (
+                <div>
+                  <Label className="text-xs">Supplier *</Label>
+                  <Select value={form.supplierId} onValueChange={(v)=>setForm({...form,supplierId:v})}>
+                    <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                    <SelectContent>
+                      {(suppliers as any[]).map((s:any)=>(
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {form.tier === "trip" && form.truckId && (

@@ -201,7 +201,7 @@ export default function TripDetail() {
     return { docType: "other", docNumber: "", url: content, notes: "" };
   };
   const [showAmend, setShowAmend] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0] });
+  const [expenseForm, setExpenseForm] = useState({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "" });
   const [clearanceForm, setClearanceForm] = useState({ checkpoint: "zambia_entry", documentType: "T1", documentNumber: "", status: "requested", notes: "" });
   const [noteForm, setNoteForm] = useState({ docType: "waybill", docNumber: "", url: "", notes: "" });
   const [uploading, setUploading] = useState(false);
@@ -264,6 +264,10 @@ export default function TripDetail() {
   const { data: allBatches = [] } = useQuery<any[]>({
     queryKey: ["/api/batches"],
     queryFn: () => fetch("/api/batches", { credentials: "include" }).then((r) => r.json()),
+  });
+  const { data: suppliers = [] } = useQuery<any[]>({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
   });
   const selectableBatches = (allBatches as any[]).filter(
     (b) => !["cancelled", "closed", "invoiced"].includes(b.status) && b.id !== trip?.batchId
@@ -367,11 +371,16 @@ export default function TripDetail() {
   };
 
   const handleExpenseSave = async () => {
-    await createExpense({ id, data: { ...expenseForm, amount: parseFloat(expenseForm.amount) } });
+    await createExpense({ id, data: {
+      ...expenseForm,
+      amount: parseFloat(expenseForm.amount),
+      paymentMethod: expenseForm.paymentMethod,
+      supplierId: expenseForm.paymentMethod === "fuel_credit" && expenseForm.supplierId ? parseInt(expenseForm.supplierId) : null,
+    }});
     invalidate();
     qc.invalidateQueries({ queryKey: ["/api/expenses"] });
     setShowExpense(false);
-    setExpenseForm({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0] });
+    setExpenseForm({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "" });
   };
 
   const handleClearanceSave = async () => {
@@ -1365,6 +1374,29 @@ export default function TripDetail() {
                 </Select>
               </div>
             </div>
+            <div><Label>Paid via</Label>
+              <Select value={expenseForm.paymentMethod} onValueChange={(v) => setExpenseForm({ ...expenseForm, paymentMethod: v, supplierId: "" })}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                  <SelectItem value="fuel_credit">Fuel Credit (Supplier)</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {expenseForm.paymentMethod === "fuel_credit" && (
+              <div><Label>Supplier *</Label>
+                <Select value={expenseForm.supplierId} onValueChange={(v) => setExpenseForm({ ...expenseForm, supplierId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                  <SelectContent>
+                    {(suppliers as any[]).map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowExpense(false)}>Cancel</Button>
