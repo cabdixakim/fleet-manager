@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "accounts" | "operations";
+export type UserRole = "owner" | "admin" | "manager" | "accounts" | "operations" | "system";
 
 export type SidebarLink = {
   label: string;

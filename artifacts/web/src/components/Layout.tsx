@@ -137,14 +137,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 overflow-y-auto py-3 space-y-5">
           {(() => {
             const role = (user?.role ?? "operations") as import("@/components/sidebarConfig").UserRole;
+            // owner and system see everything — no role filtering applied
+            const superUser = role === "owner" || role === "system";
             return sidebarConfig.map((group) => {
             // Group-level role gate
-            if (group.roles && !group.roles.includes(role)) return null;
+            if (!superUser && group.roles && !group.roles.includes(role)) return null;
 
             const visibleLinks = group.links.filter((item) => {
               // Link-level role gate
-              if (item.roles && !item.roles.includes(role)) return false;
-              // Fleet mode gates
+              if (!superUser && item.roles && !item.roles.includes(role)) return false;
+              // Fleet mode gates (apply to everyone)
               if (item.fleetHide === "company" && fleetMode === "company") return false;
               if (item.fleetOnly === "company" && fleetMode !== "company") return false;
               return true;
