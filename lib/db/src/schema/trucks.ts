@@ -11,6 +11,7 @@ export const trucksTable = pgTable("trucks", {
   subcontractorId: integer("subcontractor_id").references(() => subcontractorsTable.id),
   status: text("status").notNull().default("available"), // available, on_trip, maintenance, idle
   notes: text("notes"),
+  currentLocation: text("current_location"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -24,12 +24,73 @@ router.get("/", async (_req, res, next) => {
         subcontractorName: subcontractorsTable.name,
         status: trucksTable.status,
         notes: trucksTable.notes,
+        currentLocation: trucksTable.currentLocation,
         createdAt: trucksTable.createdAt,
       })
       .from(trucksTable)
       .leftJoin(subcontractorsTable, eq(trucksTable.subcontractorId, subcontractorsTable.id))
       .orderBy(trucksTable.plateNumber);
-    res.json(trucks);
+
+    if (trucks.length === 0) return res.json([]);
+
+    const truckIds = trucks.map((t) => t.id);
+
+    // Active trips (non-terminal) — one per truck (latest by id)
+    const activeTripsRaw = await db
+      .select({
+        truckId: tripsTable.truckId,
+        tripId: tripsTable.id,
+        tripStatus: tripsTable.status,
+        batchName: batchesTable.name,
+        batchId: tripsTable.batchId,
+        route: batchesTable.route,
+      })
+      .from(tripsTable)
+      .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+      .where(
+        and(
+          inArray(tripsTable.truckId, truckIds),
+          sql`${tripsTable.status} NOT IN ('delivered','completed','cancelled','amended_out')`
+        )
+      )
+      .orderBy(desc(tripsTable.id));
+
+    // Keep only the most recent active trip per truck
+    const activeByTruck = new Map<number, typeof activeTripsRaw[0]>();
+    for (const t of activeTripsRaw) {
+      if (t.truckId !== null && !activeByTruck.has(t.truckId)) {
+        activeByTruck.set(t.truckId, t);
+      }
+    }
+
+    // Last delivered timestamp per truck
+    const lastDeliveries = await db
+      .select({
+        truckId: tripsTable.truckId,
+        lastDeliveredAt: sql<string>`MAX(${tripsTable.deliveredAt})`,
+      })
+      .from(tripsTable)
+      .where(
+        and(
+          inArray(tripsTable.truckId, truckIds),
+          sql`${tripsTable.status} IN ('delivered','completed')`
+        )
+      )
+      .groupBy(tripsTable.truckId);
+
+    const lastDeliveryByTruck = new Map<number, string>(
+      lastDeliveries
+        .filter((d) => d.truckId !== null)
+        .map((d) => [d.truckId as number, d.lastDeliveredAt])
+    );
+
+    const result = trucks.map((truck) => ({
+      ...truck,
+      activeTrip: activeByTruck.get(truck.id) ?? null,
+      lastDeliveredAt: lastDeliveryByTruck.get(truck.id) ?? null,
+    }));
+
+    res.json(result);
   } catch (e) { next(e); }
 });
 
