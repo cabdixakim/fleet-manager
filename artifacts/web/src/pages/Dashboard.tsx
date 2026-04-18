@@ -12,7 +12,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, PieChart, Pie,
 } from "recharts";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 
 import { getRouteShort } from "@/lib/routes";
 
@@ -115,7 +115,19 @@ export default function Dashboard() {
   const fleetMode: string = (metrics as any)?.fleetMode ?? "subcontractor";
   const { data: fleetSummary } = useGetCompanyFleetSummary();
 
-  const totalAlerts = (alerts?.uninvoicedBatches?.length ?? 0) + (alerts?.pendingClearances?.filter((c) => c.daysWaiting >= 1)?.length ?? 0);
+  const { data: expiringDocs = [] } = useQuery<any[]>({
+    queryKey: ["/api/documents/expiring"],
+    queryFn: () => fetch("/api/documents/expiring?days=30", { credentials: "include" }).then((r) => r.json()),
+    retry: false,
+  });
+  const { data: expiredDocs = [] } = useQuery<any[]>({
+    queryKey: ["/api/documents/expired"],
+    queryFn: () => fetch("/api/documents/expired", { credentials: "include" }).then((r) => r.json()),
+    retry: false,
+  });
+
+  const docAlerts = [...(Array.isArray(expiredDocs) ? expiredDocs : []), ...(Array.isArray(expiringDocs) ? expiringDocs : [])];
+  const totalAlerts = (alerts?.uninvoicedBatches?.length ?? 0) + (alerts?.pendingClearances?.filter((c) => c.daysWaiting >= 1)?.length ?? 0) + docAlerts.length;
 
   const handleRefresh = () => {
     qc.invalidateQueries({ queryKey: ["/api/dashboard"] });
@@ -174,6 +186,33 @@ export default function Dashboard() {
                   <ArrowRight className="w-4 h-4 text-destructive/50 group-hover:text-destructive shrink-0 transition-colors" />
                 </button>
               ))}
+              {docAlerts.slice(0, 6).map((doc: any) => {
+                const isExpired = !doc.expiryDate || new Date(doc.expiryDate) < new Date();
+                const dest = doc.entityType === "truck" ? `/fleet/${doc.entityId}` : `/drivers/${doc.entityId}`;
+                return (
+                  <button key={`doc-${doc.id}`} onClick={() => navigate(dest)}
+                    className={cn(
+                      "flex items-center gap-3 p-3.5 rounded-xl text-left transition-all group active:scale-[0.98]",
+                      isExpired
+                        ? "bg-destructive/5 border border-destructive/20 hover:border-destructive/40 hover:bg-destructive/10"
+                        : "bg-amber-500/5 border border-amber-500/20 hover:border-amber-500/40 hover:bg-amber-500/10"
+                    )}>
+                    <div className={cn(
+                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+                      isExpired ? "bg-destructive/15" : "bg-amber-500/15"
+                    )}>
+                      <AlertTriangle className={cn("w-4 h-4", isExpired ? "text-destructive" : "text-amber-400")} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{doc.entityName ?? doc.entityId}</p>
+                      <p className={cn("text-xs font-medium truncate", isExpired ? "text-destructive" : "text-amber-400")}>
+                        {doc.docLabel ?? doc.docType} · {isExpired ? "Expired" : "Expiring soon"}
+                      </p>
+                    </div>
+                    <ArrowRight className={cn("w-4 h-4 shrink-0 transition-colors", isExpired ? "text-destructive/50 group-hover:text-destructive" : "text-amber-400/50 group-hover:text-amber-400")} />
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

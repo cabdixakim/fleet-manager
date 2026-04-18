@@ -26,3 +26,4 @@ export * from "./glJournalEntryLines";
 export * from "./suppliers";
 export * from "./supplierPayments";
 export * from "./pettyCash";
+export * from "./documents";

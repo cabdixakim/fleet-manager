@@ -7,7 +7,14 @@ import { topUpPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
-// GET /api/petty-cash — get balance + recent transactions
+const SOURCE_LABELS: Record<string, string> = {
+  bank_transfer: "Bank Withdrawal",
+  loan:          "Loan / Borrowed Cash",
+  owner_cash:    "Owner's Cash Injection",
+  client_cash:   "Client Cash Payment",
+};
+
+// GET /api/petty-cash
 router.get("/", async (req, res, next) => {
   try {
     const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
@@ -30,30 +37,33 @@ router.get("/", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/petty-cash/top-up — add money from bank to petty cash
+// POST /api/petty-cash/top-up
 router.post("/top-up", async (req, res, next) => {
   try {
-    const { amount, description, date } = req.body;
+    const { amount, description, date, source } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return res.status(400).json({ error: "amount must be > 0" });
 
-    const desc = description ?? `Petty cash top-up — $${amt.toFixed(2)}`;
+    const sourceLabel = SOURCE_LABELS[source] ?? "Bank Withdrawal";
+    const desc = description?.trim()
+      ? description.trim()
+      : `Petty cash top-up (${sourceLabel}) — $${amt.toFixed(2)}`;
     const entryDate = date ? new Date(date) : new Date();
 
-    await topUpPettyCash(amt, desc, entryDate);
+    await topUpPettyCash(amt, desc, entryDate, source ?? "bank_transfer");
 
     await logAudit(req, {
       action: "create",
       entity: "petty_cash_topup",
       entityId: 0,
-      description: `Petty cash topped up by $${amt.toFixed(2)}: ${desc}`,
-      metadata: { amount: amt },
+      description: `Petty cash topped up by $${amt.toFixed(2)} from ${sourceLabel}: ${desc}`,
+      metadata: { amount: amt, source: source ?? "bank_transfer" },
     });
 
     const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
     res.status(201).json({
       balance: parseFloat(account?.balance ?? "0"),
-      topUp: { amount: amt, description: desc, date: entryDate },
+      topUp: { amount: amt, description: desc, date: entryDate, source },
     });
   } catch (e) { next(e); }
 });

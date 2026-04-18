@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useGetDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Download, Search, User, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Download, Search, User, Pencil, Trash2, AlertTriangle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ const STATUS_DOT: Record<string, string> = {
 
 export default function Drivers() {
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -168,6 +170,13 @@ export default function Drivers() {
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_COLOR[d.status] ?? "bg-muted text-muted-foreground"}`}>
                   {STATUS_LABEL[d.status] ?? d.status}
                 </span>
+                <button
+                  onClick={() => navigate(`/drivers/${d.id}`)}
+                  className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
+                  title="View documents"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                </button>
                 <button onClick={() => setEditDriver({ ...d, monthlySalary: String(d.monthlySalary ?? "") })} className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded">
                   <Pencil className="w-3.5 h-3.5" />
                 </button>

@@ -27,6 +27,29 @@ router.get("/", async (_req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get("/:id", async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [driver] = await db
+      .select({
+        id: driversTable.id,
+        name: driversTable.name,
+        passportNumber: driversTable.passportNumber,
+        licenseNumber: driversTable.licenseNumber,
+        phone: driversTable.phone,
+        status: driversTable.status,
+        statusEffectiveDate: driversTable.statusEffectiveDate,
+        monthlySalary: driversTable.monthlySalary,
+        notes: driversTable.notes,
+        createdAt: driversTable.createdAt,
+      })
+      .from(driversTable)
+      .where(eq(driversTable.id, id));
+    if (!driver) return res.status(404).json({ error: "Driver not found" });
+    res.json({ ...driver, monthlySalary: parseFloat(driver.monthlySalary) });
+  } catch (e) { next(e); }
+});
+
 router.post("/", async (req, res, next) => {
   try {
     const { name, passportNumber, licenseNumber } = req.body;

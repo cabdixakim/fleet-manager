@@ -37,6 +37,7 @@ import FinancialStatements from "@/pages/FinancialStatements";
 import Suppliers from "@/pages/Suppliers";
 import SupplierStatement from "@/pages/SupplierStatement";
 import PettyCash from "@/pages/PettyCash";
+import DriverDetail from "@/pages/DriverDetail";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -119,6 +120,7 @@ function Router() {
               <Route path="/fleet/:id" component={TruckDetail} />
               <Route path="/trucks" component={Fleet} />
               <Route path="/drivers" component={Drivers} />
+              <Route path="/drivers/:id" component={DriverDetail} />
               <Route path="/clearances" component={Clearances} />
               <Route path="/invoices" component={Invoices} />
               <Route path="/invoices/:id" component={InvoiceDetail} />

@@ -30,6 +30,7 @@ import glRouter from "./gl";
 import payrollRouter from "./payroll";
 import suppliersRouter from "./suppliers";
 import pettyCashRouter from "./pettyCash";
+import documentsRouter from "./documents";
 
 const router: IRouter = Router();
 
@@ -65,5 +66,6 @@ router.use("/payroll", payrollRouter);
 router.use("/gl", glRouter);
 router.use("/suppliers", suppliersRouter);
 router.use("/petty-cash", pettyCashRouter);
+router.use("/documents", documentsRouter);
 
 export default router;

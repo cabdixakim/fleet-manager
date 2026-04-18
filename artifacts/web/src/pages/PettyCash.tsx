@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,7 +21,7 @@ export default function PettyCash() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showTopUp, setShowTopUp] = useState(false);
-  const [topUpForm, setTopUpForm] = useState({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd") });
+  const [topUpForm, setTopUpForm] = useState({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd"), source: "bank_transfer" });
 
   const { data, isLoading } = useQuery({ queryKey: ["/api/petty-cash"], queryFn: fetchPettyCash });
 
@@ -34,7 +35,7 @@ export default function PettyCash() {
       qc.invalidateQueries({ queryKey: ["/api/petty-cash"] });
       qc.invalidateQueries({ queryKey: ["/api/gl/entries"] });
       setShowTopUp(false);
-      setTopUpForm({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd") });
+      setTopUpForm({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd"), source: "bank_transfer" });
       toast({ title: "Petty cash topped up — GL updated" });
     },
     onError: () => toast({ title: "Failed to top up", variant: "destructive" }),
@@ -135,10 +136,25 @@ export default function PettyCash() {
       <Dialog open={showTopUp} onOpenChange={setShowTopUp}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Top Up Petty Cash</DialogTitle></DialogHeader>
-          <div className="text-sm text-muted-foreground mb-2">
-            This moves money from your bank account into the petty cash tin. Both accounts will update in the GL automatically.
-          </div>
           <div className="space-y-4">
+            <div>
+              <Label>Funding Source *</Label>
+              <Select value={topUpForm.source} onValueChange={(v) => setTopUpForm({ ...topUpForm, source: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank Withdrawal</SelectItem>
+                  <SelectItem value="loan">Loan / Borrowed Cash</SelectItem>
+                  <SelectItem value="owner_cash">Owner's Cash Injection</SelectItem>
+                  <SelectItem value="client_cash">Client Cash Payment</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {topUpForm.source === "bank_transfer" && "Dr Petty Cash / Cr Bank — standard bank withdrawal"}
+                {topUpForm.source === "loan" && "Dr Petty Cash / Cr Loans Payable — cash borrowed from a lender"}
+                {topUpForm.source === "owner_cash" && "Dr Petty Cash / Cr Owner's Capital — owner injecting personal cash"}
+                {topUpForm.source === "client_cash" && "Dr Petty Cash / Cr Accounts Receivable — client paid in cash on the road"}
+              </p>
+            </div>
             <div>
               <Label>Amount *</Label>
               <Input
@@ -164,7 +180,7 @@ export default function PettyCash() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTopUp(false)}>Cancel</Button>
             <Button
-              onClick={() => topUp.mutate({ amount: parseFloat(topUpForm.amount), description: topUpForm.description || undefined, date: topUpForm.date })}
+              onClick={() => topUp.mutate({ amount: parseFloat(topUpForm.amount), description: topUpForm.description || undefined, date: topUpForm.date, source: topUpForm.source })}
               disabled={!topUpForm.amount || parseFloat(topUpForm.amount) <= 0 || topUp.isPending}
             >
               {topUp.isPending ? "Saving..." : "Top Up"}

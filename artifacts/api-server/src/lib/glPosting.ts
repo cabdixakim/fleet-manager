@@ -219,19 +219,33 @@ export async function postOrUpdateOpeningBalance(
 }
 
 /**
- * Add money to petty cash (top-up from bank), post GL entry, record transaction.
+ * Maps a funding source label to the GL credit account code.
+ * bank_transfer → 1002 Bank
+ * loan          → 2500 Loans Payable
+ * owner_cash    → 3001 Owner's Capital
+ * client_cash   → 1100 Accounts Receivable
  */
-export async function topUpPettyCash(amount: number, description: string, entryDate: Date): Promise<void> {
+export function pettyCashSourceAccount(source?: string | null): string {
+  switch (source) {
+    case "loan":        return "2500";
+    case "owner_cash":  return "3001";
+    case "client_cash": return "1100";
+    default:            return "1002"; // bank_transfer (default)
+  }
+}
+
+export async function topUpPettyCash(amount: number, description: string, entryDate: Date, source?: string | null): Promise<void> {
   try {
     const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
     if (!account) return;
 
+    const creditCode = pettyCashSourceAccount(source);
     await postJournalEntry({
       description,
       entryDate,
       lines: [
-        { accountCode: "1003", debit: amount },  // Dr Petty Cash
-        { accountCode: "1002", credit: amount },  // Cr Bank
+        { accountCode: "1003", debit: amount },          // Dr Petty Cash
+        { accountCode: creditCode, credit: amount },     // Cr funding source
       ],
     });
 

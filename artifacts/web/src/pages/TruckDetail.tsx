@@ -13,7 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search, FileText } from "lucide-react";
+import { DocumentsPanel } from "@/components/DocumentsPanel";
 import { format } from "date-fns";
 import { CorrectClosedEntryDialog, type CorrectionEntry } from "@/components/CorrectClosedEntryDialog";
 
@@ -88,7 +89,7 @@ export default function TruckDetail() {
   const { user } = useAuth();
   const canCorrect = !!user && ["accounts", "manager", "admin", "owner", "system"].includes(user.role);
 
-  const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses">("trips");
+  const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses" | "documents">("trips");
   const [showAddExpense, setShowAddExpense] = useState(false);
 
   // Link to Trip
@@ -519,8 +520,8 @@ export default function TruckDetail() {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-border gap-1">
-            {(["trips", "drivers", "expenses"] as const).map((tab) => (
+          <div className="flex border-b border-border gap-1 flex-wrap">
+            {(["trips", "drivers", "expenses", "documents"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -533,7 +534,9 @@ export default function TruckDetail() {
                   ? `Trips (${filteredTrips.length}${filteredTrips.length !== trips.length ? `/${trips.length}` : ""})`
                   : tab === "drivers"
                   ? `Driver History (${driverAssignments.length})`
-                  : `Other Expenses (${filteredExpenses.length}${filteredExpenses.length !== otherExpenses.length ? `/${otherExpenses.length}` : ""})`}
+                  : tab === "expenses"
+                  ? `Other Expenses (${filteredExpenses.length}${filteredExpenses.length !== otherExpenses.length ? `/${otherExpenses.length}` : ""})`
+                  : <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />Documents</span>}
               </button>
             ))}
           </div>
@@ -747,6 +750,17 @@ export default function TruckDetail() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ── Documents Tab ── */}
+          {activeTab === "documents" && (
+            <div className="py-2">
+              <DocumentsPanel
+                entityType="truck"
+                entityId={truck.id}
+                entityName={truck.plateNumber}
+              />
             </div>
           )}
         </div>
