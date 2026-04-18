@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { companyExpensesTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { blockIfClosed } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.get("/", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
+    if (await blockIfClosed(res, req.body.expenseDate ?? new Date())) return;
     const [expense] = await db.insert(companyExpensesTable).values(req.body).returning();
     await logAudit(req, {
       action: "create",
@@ -33,6 +35,9 @@ router.post("/", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(companyExpensesTable).where(eq(companyExpensesTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (await blockIfClosed(res, existing.expenseDate, req.body.expenseDate)) return;
     const [expense] = await db.update(companyExpensesTable).set(req.body).where(eq(companyExpensesTable.id, id)).returning();
     if (!expense) return res.status(404).json({ error: "Not found" });
     await logAudit(req, {
@@ -50,6 +55,7 @@ router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const [expense] = await db.select().from(companyExpensesTable).where(eq(companyExpensesTable.id, id));
+    if (expense && (await blockIfClosed(res, expense.expenseDate))) return;
     await db.delete(companyExpensesTable).where(eq(companyExpensesTable.id, id));
     await logAudit(req, {
       action: "delete",

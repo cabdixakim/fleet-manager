@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { agentsTable, agentTransactionsTable, batchesTable } from "@workspace/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { blockIfClosed } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -77,6 +78,7 @@ router.get("/:id/transactions", async (req, res, next) => {
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const agentId = parseInt(req.params.id);
+    if (await blockIfClosed(res, req.body.transactionDate ?? new Date())) return;
     const [txn] = await db.insert(agentTransactionsTable).values({ ...req.body, agentId }).returning();
     await logAudit(req, { action: "create", entity: "agent_transaction", entityId: txn.id, description: `Recorded ${txn.type} of $${txn.amount} for agent #${agentId}`, metadata: { agentId, type: txn.type } });
     res.status(201).json(txn);
@@ -86,6 +88,8 @@ router.post("/:id/transactions", async (req, res, next) => {
 router.delete("/transactions/:txnId", async (req, res, next) => {
   try {
     const txnId = parseInt(req.params.txnId);
+    const [existing] = await db.select().from(agentTransactionsTable).where(eq(agentTransactionsTable.id, txnId));
+    if (existing && (await blockIfClosed(res, existing.transactionDate))) return;
     await db.delete(agentTransactionsTable).where(eq(agentTransactionsTable.id, txnId));
     res.json({ success: true });
   } catch (e) { next(e); }

@@ -3,12 +3,16 @@ import { db } from "@workspace/db";
 import { tripExpensesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { blockIfClosed } from "../lib/financialPeriod";
 
 const router = Router();
 
 router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (await blockIfClosed(res, existing.expenseDate, req.body.expenseDate)) return;
     const [expense] = await db
       .update(tripExpensesTable)
       .set(req.body)
@@ -30,6 +34,7 @@ router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const [expense] = await db.select().from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+    if (expense && (await blockIfClosed(res, expense.expenseDate))) return;
     await db.delete(tripExpensesTable).where(eq(tripExpensesTable.id, id));
     await logAudit(req, {
       action: "delete",

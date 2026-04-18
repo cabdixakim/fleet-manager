@@ -260,6 +260,7 @@ router.post("/:id/expenses", async (req, res, next) => {
     if (!expenseDate || isNaN(Date.parse(expenseDate))) {
       return res.status(400).json({ error: "expenseDate must be a valid date string" });
     }
+    if (await blockIfClosed(res, expenseDate)) return;
 
     const [truck] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, truckId));
     if (!truck) return res.status(404).json({ error: "Truck not found" });
@@ -290,7 +291,7 @@ router.delete("/:id/expenses/:expenseId", async (req, res, next) => {
     const expenseId = parseInt(req.params.expenseId);
     if (isNaN(truckId) || isNaN(expenseId)) return res.status(400).json({ error: "Invalid ID" });
 
-    const [existing] = await db.select({ id: tripExpensesTable.id }).from(tripExpensesTable).where(
+    const [existing] = await db.select({ id: tripExpensesTable.id, expenseDate: tripExpensesTable.expenseDate }).from(tripExpensesTable).where(
       and(
         eq(tripExpensesTable.id, expenseId),
         eq(tripExpensesTable.truckId, truckId),
@@ -299,6 +300,7 @@ router.delete("/:id/expenses/:expenseId", async (req, res, next) => {
       )
     );
     if (!existing) return res.status(404).json({ error: "Non-trip expense not found for this truck" });
+    if (await blockIfClosed(res, existing.expenseDate)) return;
 
     await db.delete(tripExpensesTable).where(eq(tripExpensesTable.id, expenseId));
     await logAudit(req, { action: "delete", entity: "truck_expense", entityId: expenseId, description: `Deleted non-trip expense #${expenseId} from truck ${truckId}` });

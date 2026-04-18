@@ -403,6 +403,7 @@ router.get("/:id/transactions", async (req, res, next) => {
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const subcontractorId = parseInt(req.params.id);
+    if (await blockIfClosed(res, req.body.transactionDate ?? new Date())) return;
     const [tx] = await db
       .insert(subcontractorTransactionsTable)
       .values({ ...req.body, subcontractorId })

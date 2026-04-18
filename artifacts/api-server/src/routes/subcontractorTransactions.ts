@@ -3,12 +3,16 @@ import { db } from "@workspace/db";
 import { subcontractorTransactionsTable, subcontractorsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { blockIfClosed } from "../lib/financialPeriod";
 
 const router = Router();
 
 router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const [existing] = await db.select().from(subcontractorTransactionsTable).where(eq(subcontractorTransactionsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (await blockIfClosed(res, existing.transactionDate, req.body.transactionDate)) return;
     const [tx] = await db
       .update(subcontractorTransactionsTable)
       .set(req.body)
@@ -31,6 +35,7 @@ router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const [tx] = await db.select().from(subcontractorTransactionsTable).where(eq(subcontractorTransactionsTable.id, id));
+    if (tx && (await blockIfClosed(res, tx.transactionDate))) return;
     const [sub] = tx ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, tx.subcontractorId)) : [null];
     await db.delete(subcontractorTransactionsTable).where(eq(subcontractorTransactionsTable.id, id));
     await logAudit(req, {

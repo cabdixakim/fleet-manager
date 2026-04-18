@@ -595,6 +595,7 @@ router.post("/:id/expenses", async (req, res, next) => {
     if (!trip) return res.status(404).json({ error: "Trip not found" });
 
     const { costType, description, amount, currency, expenseDate } = req.body;
+    if (await blockIfClosed(res, expenseDate ?? new Date())) return;
 
     const [expense] = await db
       .insert(tripExpensesTable)

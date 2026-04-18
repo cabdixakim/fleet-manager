@@ -321,6 +321,7 @@ router.get("/:id/transactions", async (req, res, next) => {
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const clientId = parseInt(req.params.id);
+    if (await blockIfClosed(res, req.body.transactionDate ?? new Date())) return;
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     const [tx] = await db.insert(clientTransactionsTable).values({ ...req.body, clientId }).returning();
     await logAudit(req, { action: "payment", entity: "client_transaction", entityId: tx.id, description: `${tx.type} of $${parseFloat(tx.amount).toLocaleString()} for client ${client?.name ?? clientId}`, metadata: { type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference } });

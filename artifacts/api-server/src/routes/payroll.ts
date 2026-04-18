@@ -11,6 +11,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
+import { blockIfClosed } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -52,6 +53,12 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const { month, year } = req.body as { month: number; year: number };
+
+    // Block if the target month falls in a closed period (check both first and last day of month)
+    const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    const monthEnd = new Date(year, month, 0);
+    const monthEndStr = `${year}-${String(month).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
+    if (await blockIfClosed(res, monthStart, monthEndStr)) return;
 
     const activeDrivers = await db
       .select()
