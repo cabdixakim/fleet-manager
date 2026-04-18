@@ -2,6 +2,7 @@ import 'dotenv/config';
 import app from "./app";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { seedGLAccounts, backfillGLEntries } from "./lib/glBackfill";
 
 const rawPort = process.env["PORT"];
 
@@ -34,4 +35,17 @@ async function backfillTripSubcontractors() {
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
   await backfillTripSubcontractors();
+
+  // Ensure GL chart of accounts is seeded, then backfill any un-posted historical entries
+  try {
+    const seeded = await seedGLAccounts();
+    if (seeded > 0) console.log(`[startup] Seeded ${seeded} GL account(s).`);
+    const backfill = await backfillGLEntries();
+    const total = backfill.invoices + backfill.payments + backfill.expenses + backfill.payroll;
+    if (total > 0) {
+      console.log(`[startup] GL backfill: ${backfill.invoices} invoices, ${backfill.payments} payments, ${backfill.expenses} expenses, ${backfill.payroll} payroll entries posted.`);
+    }
+  } catch (e) {
+    console.error("[startup] GL seed/backfill failed:", e);
+  }
 });

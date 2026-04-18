@@ -16,6 +16,7 @@ import { eq, desc, sql, count, inArray, notInArray, and, isNull, gte, lte } from
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
+import { postJournalEntry } from "../lib/glPosting";
 
 const router = Router();
 
@@ -422,6 +423,49 @@ router.post("/:id/transactions", async (req, res, next) => {
       description: `Subcontractor payment recorded: ${tx.type} of $${parseFloat(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })} for ${sub?.name ?? `sub #${subcontractorId}`}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`,
       metadata: { subcontractorId, type: tx.type, amount: parseFloat(tx.amount), bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName },
     });
+
+    // Auto-post to GL
+    const amount = parseFloat(tx.amount);
+    if (amount > 0) {
+      if (tx.type === "payment_made") {
+        // Paying the subcontractor: Dr Subcontractor Payables / Cr Bank
+        await postJournalEntry({
+          description: `Sub payment — ${sub?.name ?? `sub #${subcontractorId}`}${tx.description ? `: ${tx.description}` : ""}`,
+          entryDate: new Date(bump.effectiveDate),
+          referenceType: "sub_payment",
+          referenceId: tx.id,
+          lines: [
+            { accountCode: "2001", debit: amount, description: `Payment to ${sub?.name ?? `sub #${subcontractorId}`}` },
+            { accountCode: "1002", credit: amount, description: "Bank Account" },
+          ],
+        });
+      } else if (tx.type === "advance") {
+        // Advance to subcontractor: Dr Subcontractor Payables / Cr Bank
+        await postJournalEntry({
+          description: `Sub advance — ${sub?.name ?? `sub #${subcontractorId}`}${tx.description ? `: ${tx.description}` : ""}`,
+          entryDate: new Date(bump.effectiveDate),
+          referenceType: "sub_advance",
+          referenceId: tx.id,
+          lines: [
+            { accountCode: "2001", debit: amount, description: `Advance to ${sub?.name ?? `sub #${subcontractorId}`}` },
+            { accountCode: "1002", credit: amount, description: "Bank Account" },
+          ],
+        });
+      } else if (tx.type === "earnings") {
+        // Recording earnings owed to sub: Dr Subcontractor Costs / Cr Subcontractor Payables
+        await postJournalEntry({
+          description: `Sub earnings — ${sub?.name ?? `sub #${subcontractorId}`}${tx.description ? `: ${tx.description}` : ""}`,
+          entryDate: new Date(bump.effectiveDate),
+          referenceType: "sub_earnings",
+          referenceId: tx.id,
+          lines: [
+            { accountCode: "5003", debit: amount, description: `Subcontractor costs — ${sub?.name ?? `sub #${subcontractorId}`}` },
+            { accountCode: "2001", credit: amount, description: "Subcontractor Payables" },
+          ],
+        });
+      }
+    }
+
     res.status(201).json({
       ...tx,
       amount: parseFloat(tx.amount),
