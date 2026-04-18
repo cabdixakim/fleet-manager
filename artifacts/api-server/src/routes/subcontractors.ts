@@ -15,6 +15,7 @@ import {
 import { eq, desc, sql, count, inArray, notInArray, and, isNull, gte, lte } from "drizzle-orm";
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { logAudit } from "../lib/audit";
+import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -403,20 +404,29 @@ router.get("/:id/transactions", async (req, res, next) => {
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const subcontractorId = parseInt(req.params.id);
-    if (await blockIfClosed(res, req.body.transactionDate ?? new Date())) return;
+    const bump = await bumpDateIfClosed(req.body.transactionDate ?? new Date());
     const [tx] = await db
       .insert(subcontractorTransactionsTable)
-      .values({ ...req.body, subcontractorId })
+      .values({
+        ...req.body,
+        subcontractorId,
+        transactionDate: bump.effectiveDate,
+        description: appendNote(req.body.description, bump.noteSuffix),
+      })
       .returning();
     const [sub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, subcontractorId));
     await logAudit(req, {
       action: "payment",
       entity: "subcontractor_transaction",
       entityId: tx.id,
-      description: `Subcontractor payment recorded: ${tx.type} of $${parseFloat(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })} for ${sub?.name ?? `sub #${subcontractorId}`}`,
-      metadata: { subcontractorId, type: tx.type, amount: parseFloat(tx.amount) },
+      description: `Subcontractor payment recorded: ${tx.type} of $${parseFloat(tx.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })} for ${sub?.name ?? `sub #${subcontractorId}`}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`,
+      metadata: { subcontractorId, type: tx.type, amount: parseFloat(tx.amount), bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName },
     });
-    res.status(201).json({ ...tx, amount: parseFloat(tx.amount) });
+    res.status(201).json({
+      ...tx,
+      amount: parseFloat(tx.amount),
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriodName: bump.closedPeriodName },
+    });
   } catch (e) { next(e); }
 });
 

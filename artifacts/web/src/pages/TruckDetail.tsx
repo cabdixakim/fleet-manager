@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
+import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search } from "lucide-react";
 import { format } from "date-fns";
 
@@ -143,10 +144,12 @@ export default function TruckDetail() {
     onError: (e) => toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") }),
   });
 
+  const { confirm: confirmClosedPeriod, dialog: closedPeriodDialog } = useClosedPeriodConfirm();
   async function handleAddExpense() {
     if (!expenseForm.amount || parseFloat(expenseForm.amount) <= 0) {
       toast({ title: "Enter a valid amount", variant: "destructive" }); return;
     }
+    if (!(await confirmClosedPeriod(expenseForm.expenseDate))) return;
     setAddingExpense(true);
     try {
       const r = await fetch("/api/expenses", {
@@ -162,11 +165,19 @@ export default function TruckDetail() {
         }),
       });
       await throwOnApiError(r);
+      const result = await r.json();
       await qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] });
       qc.invalidateQueries({ queryKey: ["/api/expenses"] });
       setShowAddExpense(false);
       setExpenseForm({ costType: "maintenance", description: "", amount: "", currency: "USD", expenseDate: format(new Date(), "yyyy-MM-dd") });
-      toast({ title: "Expense recorded" });
+      if (result?.posting?.bumped) {
+        toast({
+          title: `Posted to ${result.posting.date}`,
+          description: `${result.posting.closedPeriodName} is closed — original date ${result.posting.originalDate} preserved in description.`,
+        });
+      } else {
+        toast({ title: "Expense recorded" });
+      }
     } catch (e) { toast({ title: "Couldn't save expense", description: getErrorMessage(e, "Failed to save expense"), variant: "destructive" }); }
     finally { setAddingExpense(false); }
   }
@@ -233,6 +244,7 @@ export default function TruckDetail() {
 
   return (
     <Layout>
+      {closedPeriodDialog}
       {/* ── Screen header ── */}
       <PageHeader
         title={truck.plateNumber}

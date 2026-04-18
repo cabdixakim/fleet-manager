@@ -17,6 +17,7 @@ import {
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { calculateTripFinancials, snapTripRates } from "../lib/financials";
 import { logAudit } from "../lib/audit";
+import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
 
 // Status workflow order — higher index = further along
 const TRIP_STATUS_ORDER = ["nominated", "loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered", "completed"];
@@ -595,7 +596,7 @@ router.post("/:id/expenses", async (req, res, next) => {
     if (!trip) return res.status(404).json({ error: "Trip not found" });
 
     const { costType, description, amount, currency, expenseDate } = req.body;
-    if (await blockIfClosed(res, expenseDate ?? new Date())) return;
+    const bump = await bumpDateIfClosed(expenseDate ?? new Date());
 
     const [expense] = await db
       .insert(tripExpensesTable)
@@ -606,10 +607,10 @@ router.post("/:id/expenses", async (req, res, next) => {
         subcontractorId: trip.subcontractorId ?? null,
         tier: "trip",
         costType,
-        description: description ?? null,
+        description: appendNote(description, bump.noteSuffix),
         amount: parseFloat(amount).toFixed(2),
         currency: currency ?? "USD",
-        expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
+        expenseDate: new Date(bump.effectiveDate),
         settled: false,
       })
       .returning();

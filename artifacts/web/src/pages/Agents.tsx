@@ -15,6 +15,7 @@ import { Plus, ChevronDown, ChevronUp, Pencil, Trash2, Loader2, UserCheck } from
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/apiError";
+import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 
 const TXN_TYPE_LABEL: Record<string, string> = {
   fee_earned: "Fee Earned",
@@ -42,14 +43,23 @@ function AgentLedger({ agentId }: { agentId: number }) {
   };
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: "payment", amount: "", description: "", transactionDate: new Date().toISOString().slice(0, 10) });
+  const { confirm: confirmClosedPeriod, dialog: closedPeriodDialog } = useClosedPeriodConfirm();
 
   const handleSubmit = async () => {
     if (!form.amount) return;
+    if (!(await confirmClosedPeriod(form.transactionDate))) return;
+    let result: any;
     try {
-      await createTxn({ ...form, amount: parseFloat(form.amount) });
+      result = await createTxn({ ...form, amount: parseFloat(form.amount) });
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't save transaction", description: getErrorMessage(e, "Failed to save transaction") });
       return;
+    }
+    if (result?.posting?.bumped) {
+      toast({
+        title: `Posted to ${result.posting.date}`,
+        description: `${result.posting.closedPeriodName} is closed — original date ${result.posting.originalDate} preserved in description.`,
+      });
     }
     setForm({ type: "payment", amount: "", description: "", transactionDate: new Date().toISOString().slice(0, 10) });
     setShowForm(false);
@@ -59,6 +69,7 @@ function AgentLedger({ agentId }: { agentId: number }) {
 
   return (
     <div className="border-t border-border mt-3 pt-3">
+      {closedPeriodDialog}
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ledger</span>
         <Button size="sm" variant="outline" className="h-6 text-xs px-2" onClick={() => setShowForm(!showForm)}>

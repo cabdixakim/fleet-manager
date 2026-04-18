@@ -11,6 +11,7 @@ import {
 import { eq, desc, sql, count, and, gte, lte, inArray, isNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { calculateTripFinancials } from "../lib/financials";
+import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -321,11 +322,20 @@ router.get("/:id/transactions", async (req, res, next) => {
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const clientId = parseInt(req.params.id);
-    if (await blockIfClosed(res, req.body.transactionDate ?? new Date())) return;
+    const bump = await bumpDateIfClosed(req.body.transactionDate ?? new Date());
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
-    const [tx] = await db.insert(clientTransactionsTable).values({ ...req.body, clientId }).returning();
-    await logAudit(req, { action: "payment", entity: "client_transaction", entityId: tx.id, description: `${tx.type} of $${parseFloat(tx.amount).toLocaleString()} for client ${client?.name ?? clientId}`, metadata: { type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference } });
-    res.status(201).json({ ...tx, amount: parseFloat(tx.amount) });
+    const [tx] = await db.insert(clientTransactionsTable).values({
+      ...req.body,
+      clientId,
+      transactionDate: bump.effectiveDate,
+      description: appendNote(req.body.description, bump.noteSuffix),
+    }).returning();
+    await logAudit(req, { action: "payment", entity: "client_transaction", entityId: tx.id, description: `${tx.type} of $${parseFloat(tx.amount).toLocaleString()} for client ${client?.name ?? clientId}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`, metadata: { type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName } });
+    res.status(201).json({
+      ...tx,
+      amount: parseFloat(tx.amount),
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriodName: bump.closedPeriodName },
+    });
   } catch (e) { next(e); }
 });
 

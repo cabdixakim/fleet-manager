@@ -8,6 +8,7 @@ import {
 import { eq, desc, and, isNull, inArray, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { calculateTripFinancials } from "../lib/financials";
+import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -260,7 +261,7 @@ router.post("/:id/expenses", async (req, res, next) => {
     if (!expenseDate || isNaN(Date.parse(expenseDate))) {
       return res.status(400).json({ error: "expenseDate must be a valid date string" });
     }
-    if (await blockIfClosed(res, expenseDate)) return;
+    const bump = await bumpDateIfClosed(expenseDate);
 
     const [truck] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, truckId));
     if (!truck) return res.status(404).json({ error: "Truck not found" });
@@ -272,15 +273,19 @@ router.post("/:id/expenses", async (req, res, next) => {
       batchId: null,
       tier: "truck",
       costType,
-      description: description ?? null,
+      description: appendNote(description, bump.noteSuffix),
       amount: parsedAmount.toFixed(2),
       currency: currency ?? "USD",
-      expenseDate: new Date(expenseDate),
+      expenseDate: new Date(bump.effectiveDate),
       settled: false,
     }).returning();
 
-    await logAudit(req, { action: "create", entity: "truck_expense", entityId: expense.id, description: `Added non-trip expense $${parsedAmount} (${costType}) to truck ${truckId}` });
-    res.status(201).json({ ...expense, amount: parseFloat(expense.amount) });
+    await logAudit(req, { action: "create", entity: "truck_expense", entityId: expense.id, description: `Added non-trip expense $${parsedAmount} (${costType}) to truck ${truckId}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`, metadata: { bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName } });
+    res.status(201).json({
+      ...expense,
+      amount: parseFloat(expense.amount),
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriodName: bump.closedPeriodName },
+    });
   } catch (e) { next(e); }
 });
 

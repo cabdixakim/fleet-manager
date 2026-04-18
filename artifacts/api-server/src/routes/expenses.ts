@@ -6,6 +6,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, desc, sql, isNull, isNotNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -85,6 +86,8 @@ router.post("/", async (req, res, next) => {
       if (truck) subcontractorId = truck.subcontractorId;
     }
 
+    const bump = await bumpDateIfClosed(expenseDate ?? new Date());
+
     const [expense] = await db
       .insert(tripExpensesTable)
       .values({
@@ -94,10 +97,10 @@ router.post("/", async (req, res, next) => {
         subcontractorId: subcontractorId ? parseInt(subcontractorId) : null,
         tier: tier ?? "trip",
         costType,
-        description: description ?? null,
+        description: appendNote(description, bump.noteSuffix),
         amount: amount.toString(),
         currency: currency ?? "USD",
-        expenseDate: expenseDate ? new Date(expenseDate) : new Date(),
+        expenseDate: new Date(bump.effectiveDate),
         settled: settled ?? false,
       })
       .returning();
@@ -114,16 +117,28 @@ router.post("/", async (req, res, next) => {
       action: "create",
       entity: "trip_expense",
       entityId: expense.id,
-      description: `Expense logged on ${contextLabel}: ${expense.costType} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      metadata: { costType: expense.costType, amount: parseFloat(expense.amount), tier: tierLabel, tripId: expense.tripId, batchId: expense.batchId, truckId: expense.truckId },
+      description: `Expense logged on ${contextLabel}: ${expense.costType} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`,
+      metadata: { costType: expense.costType, amount: parseFloat(expense.amount), tier: tierLabel, tripId: expense.tripId, batchId: expense.batchId, truckId: expense.truckId, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName },
     });
-    res.status(201).json({ ...expense, amount: parseFloat(expense.amount) });
+    res.status(201).json({
+      ...expense,
+      amount: parseFloat(expense.amount),
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriodName: bump.closedPeriodName },
+    });
   } catch (e) { next(e); }
 });
 
 router.put("/:id", async (req, res, next) => {
   try {
     const { settled, description, amount, costType, expenseDate } = req.body;
+    const id = parseInt(req.params.id);
+
+    // History is sacred: reject if either the existing row's date OR the proposed
+    // new date falls in a closed period.
+    const [existing] = await db.select({ expenseDate: tripExpensesTable.expenseDate }).from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    if (await blockIfClosed(res, existing.expenseDate, expenseDate)) return;
+
     const updateData: Record<string, unknown> = {};
     if (settled !== undefined) updateData.settled = settled;
     if (description !== undefined) updateData.description = description;
@@ -134,7 +149,7 @@ router.put("/:id", async (req, res, next) => {
     const [expense] = await db
       .update(tripExpensesTable)
       .set(updateData)
-      .where(eq(tripExpensesTable.id, parseInt(req.params.id)))
+      .where(eq(tripExpensesTable.id, id))
       .returning();
     if (!expense) return res.status(404).json({ error: "Not found" });
     await logAudit(req, {
@@ -233,6 +248,7 @@ router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const [expense] = await db.select().from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+    if (expense && (await blockIfClosed(res, expense.expenseDate))) return;
     await db.delete(tripExpensesTable).where(eq(tripExpensesTable.id, id));
     await logAudit(req, {
       action: "delete",

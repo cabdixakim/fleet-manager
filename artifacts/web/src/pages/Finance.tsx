@@ -5,6 +5,7 @@ import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
+import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Download, Trash2, Receipt, Building2, Truck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -97,9 +98,18 @@ export default function Finance() {
     enabled: !!(form.tier === "trip" && form.truckId),
   });
 
+  const { confirm: confirmClosedPeriod, dialog: closedPeriodDialog } = useClosedPeriodConfirm();
   const { mutateAsync: addExpense, isPending: adding } = useMutation({
     mutationFn: createExpenseApi,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/expenses"] }),
+    onSuccess: (result: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/expenses"] });
+      if (result?.posting?.bumped) {
+        toast({
+          title: `Posted to ${result.posting.date}`,
+          description: `${result.posting.closedPeriodName} is closed — original date ${result.posting.originalDate} preserved in description.`,
+        });
+      }
+    },
     onError: (e) => toast({ variant: "destructive", title: "Couldn't save expense", description: getErrorMessage(e, "Failed to create expense") }),
   });
   const { mutateAsync: removeExpense } = useMutation({
@@ -109,6 +119,7 @@ export default function Finance() {
   });
 
   const handleCreate = async () => {
+    if (!(await confirmClosedPeriod(form.expenseDate))) return;
     const truckObj = form.truckId ? (allTrucks as any[]).find((t: any) => String(t.id) === form.truckId) : null;
     // If trip tier but no batch selected and a truck is chosen → promote to truck tier
     // so it flows into the subcontractor statement rather than floating as an orphan
@@ -163,6 +174,7 @@ export default function Finance() {
 
   return (
     <Layout>
+      {closedPeriodDialog}
       <PageHeader
         title="Expenses"
         subtitle="Trip costs and company overhead — all in one place"

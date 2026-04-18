@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { agentsTable, agentTransactionsTable, batchesTable } from "@workspace/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
-import { blockIfClosed } from "../lib/financialPeriod";
+import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
 
 const router = Router();
 
@@ -78,10 +78,18 @@ router.get("/:id/transactions", async (req, res, next) => {
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const agentId = parseInt(req.params.id);
-    if (await blockIfClosed(res, req.body.transactionDate ?? new Date())) return;
-    const [txn] = await db.insert(agentTransactionsTable).values({ ...req.body, agentId }).returning();
-    await logAudit(req, { action: "create", entity: "agent_transaction", entityId: txn.id, description: `Recorded ${txn.type} of $${txn.amount} for agent #${agentId}`, metadata: { agentId, type: txn.type } });
-    res.status(201).json(txn);
+    const bump = await bumpDateIfClosed(req.body.transactionDate ?? new Date());
+    const [txn] = await db.insert(agentTransactionsTable).values({
+      ...req.body,
+      agentId,
+      transactionDate: bump.effectiveDate,
+      description: appendNote(req.body.description, bump.noteSuffix),
+    }).returning();
+    await logAudit(req, { action: "create", entity: "agent_transaction", entityId: txn.id, description: `Recorded ${txn.type} of $${txn.amount} for agent #${agentId}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`, metadata: { agentId, type: txn.type, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName } });
+    res.status(201).json({
+      ...txn,
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriodName: bump.closedPeriodName },
+    });
   } catch (e) { next(e); }
 });
 
