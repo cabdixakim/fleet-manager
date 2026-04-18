@@ -317,7 +317,10 @@ export default function TripDetail() {
         setEditingStatus(false);
         return;
       }
-      throw err;
+      // Period-closed or other error — surface as a toast so the user knows why it failed
+      const description =
+        err?.data?.error ?? err?.data?.message ?? err?.message ?? "The status could not be updated.";
+      toast({ variant: "destructive", title: "Update blocked", description });
     } finally {
       setSavingStatus(false);
     }

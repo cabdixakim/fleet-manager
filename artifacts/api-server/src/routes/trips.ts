@@ -179,6 +179,11 @@ router.put("/:id", async (req, res, next) => {
         if (!revertReason?.trim()) {
           return res.status(400).json({ error: "A reason is required when reversing a trip status." });
         }
+        // Closed-period guard: reverting from a financial status is blocked when the
+        // trip's delivery date is in a closed period — history is sacred.
+        if (TRIP_FINANCIAL_STATUSES.includes(before.status)) {
+          if (await blockIfClosed(res, before.deliveredAt)) return;
+        }
         const userRole = (req.session as any)?.userRole as string | undefined;
         if (TRIP_FINANCIAL_STATUSES.includes(before.status) && !["owner", "admin", "manager"].includes(userRole ?? "")) {
           return res.status(403).json({ error: `Reversing a trip from '${before.status}' status requires manager or admin access.` });
@@ -262,8 +267,18 @@ router.put("/:id", async (req, res, next) => {
     const { revertReason, ...dbBody } = req.body as Record<string, any>;
 
     // Stamp deliveredAt the first time a trip reaches 'delivered' — used for accurate P&L date bucketing
+    // Guard: block if today falls in a closed financial period (delivery creates P&L)
     if (dbBody.status === "delivered" && !before?.deliveredAt) {
+      if (await blockIfClosed(res, new Date())) return;
       dbBody.deliveredAt = new Date();
+    }
+
+    // Guard: block incident-attribution edits on a delivered trip whose delivery date is
+    // in a closed period — retroactively changing revenue ownership alters closed P&L.
+    const INCIDENT_MUTABLE_FIELDS = ["incidentFlag", "incidentDescription", "incidentRevenueOwner", "incidentReplacementTruckId"];
+    const touchesIncident = INCIDENT_MUTABLE_FIELDS.some(f => f in dbBody);
+    if (touchesIncident && before?.deliveredAt && TRIP_FINANCIAL_STATUSES.includes(before?.status ?? "")) {
+      if (await blockIfClosed(res, before.deliveredAt)) return;
     }
 
     const [trip] = await db.update(tripsTable).set(dbBody).where(eq(tripsTable.id, id)).returning();
