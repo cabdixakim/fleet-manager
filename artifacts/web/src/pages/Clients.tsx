@@ -8,7 +8,7 @@ import {
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Plus, Download, Search, ChevronLeft, Building2, ArrowRight, Package, Pencil, Trash2, Lock, Unlock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -454,32 +454,62 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
             </div>
 
             {txForm.type === "payment" && (
-              <div>
-                <Label>Invoice <span className="text-muted-foreground font-normal">(optional — leave blank for general payment)</span></Label>
+              <div className="space-y-2">
+                <Label>Invoice <span className="text-muted-foreground font-normal">(optional)</span></Label>
                 <Select value={txForm.invoiceId || "none"} onValueChange={(v) => {
                   const inv = (outstandingInvoices as any[]).find((i: any) => String(i.id) === v);
-                  setTxForm({ ...txForm, invoiceId: v === "none" ? "" : v, amount: inv ? String(inv.outstanding.toFixed(2)) : txForm.amount });
+                  setTxForm({ ...txForm, invoiceId: v === "none" ? "" : v, amount: inv ? String(inv.outstanding.toFixed(2)) : "" });
                 }}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select outstanding invoice..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No specific invoice</SelectItem>
+                    <SelectItem value="none">No specific invoice — general payment</SelectItem>
                     {(outstandingInvoices as any[]).map((inv: any) => (
                       <SelectItem key={inv.id} value={String(inv.id)}>
-                        {inv.invoiceNumber} — outstanding {formatCurrency(inv.outstanding)}
-                        {inv.totalPaid > 0 && ` (${formatCurrency(inv.totalPaid)} already paid)`}
+                        <div className="flex flex-col gap-0.5 py-0.5">
+                          <span className="font-semibold">{inv.invoiceNumber}{inv.batchName ? ` — ${inv.batchName}` : ""}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Total {formatCurrency(inv.netRevenue)}
+                            {inv.totalPaid > 0 ? ` · Paid ${formatCurrency(inv.totalPaid)} · Owing ${formatCurrency(inv.outstanding)}` : ` · Fully outstanding`}
+                            {inv.dueDate ? ` · Due ${formatDate(inv.dueDate)}` : ""}
+                          </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {selectedInvoice && (
-                  <div className="mt-1.5 text-xs text-muted-foreground bg-secondary/40 rounded-lg px-3 py-2 flex items-center justify-between">
-                    <span>Invoice total: <span className="font-semibold text-foreground">{formatCurrency(selectedInvoice.netRevenue)}</span></span>
-                    <span>Paid so far: <span className="font-semibold text-emerald-400">{formatCurrency(selectedInvoice.totalPaid)}</span></span>
-                    <span>Outstanding: <span className="font-semibold text-foreground">{formatCurrency(selectedInvoice.outstanding)}</span></span>
+                  <div className="bg-secondary/40 rounded-lg px-3 py-2.5 space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Batch</span>
+                      <span className="font-medium text-foreground">{selectedInvoice.batchName ?? "—"}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Invoice total</span>
+                      <span className="font-semibold text-foreground">{formatCurrency(selectedInvoice.netRevenue)}</span>
+                    </div>
+                    {selectedInvoice.totalPaid > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Already paid</span>
+                        <span className="font-semibold text-emerald-400">− {formatCurrency(selectedInvoice.totalPaid)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-xs border-t border-border pt-1.5 mt-1">
+                      <span className="font-medium text-foreground">Remaining to pay</span>
+                      <span className="font-bold text-foreground">{formatCurrency(selectedInvoice.outstanding)}</span>
+                    </div>
+                    {selectedInvoice.dueDate && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Due date</span>
+                        <span className={cn("font-medium", new Date(selectedInvoice.dueDate) < new Date() ? "text-red-400" : "text-muted-foreground")}>
+                          {formatDate(selectedInvoice.dueDate)}
+                          {new Date(selectedInvoice.dueDate) < new Date() ? " — overdue" : ""}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 {outstandingInvoices.length === 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">No outstanding invoices — this payment will be recorded as a general credit.</p>
+                  <p className="text-xs text-muted-foreground">No outstanding invoices — this will record as a general credit on the ledger.</p>
                 )}
               </div>
             )}
@@ -501,10 +531,21 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Amount (USD) *</Label>
-                <Input type="number" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} className="mt-1" placeholder="0.00" />
-                {selectedInvoice && parseFloat(txForm.amount) < selectedInvoice.outstanding - 0.01 && parseFloat(txForm.amount) > 0 && (
-                  <p className="text-xs text-amber-400 mt-1">Partial payment — invoice stays open until fully paid.</p>
+                <div className="flex items-center justify-between mb-1">
+                  <Label>Amount (USD) *</Label>
+                  {selectedInvoice && (
+                    <button
+                      type="button"
+                      onClick={() => setTxForm({ ...txForm, amount: selectedInvoice.outstanding.toFixed(2) })}
+                      className="text-xs font-semibold text-primary hover:underline"
+                    >
+                      Pay full ({formatCurrency(selectedInvoice.outstanding)})
+                    </button>
+                  )}
+                </div>
+                <Input type="number" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} className="mt-1" placeholder="0.00" step="0.01" />
+                {selectedInvoice && parseFloat(txForm.amount) > 0 && parseFloat(txForm.amount) < selectedInvoice.outstanding - 0.01 && (
+                  <p className="text-xs text-amber-400 mt-1">Partial — {formatCurrency(selectedInvoice.outstanding - parseFloat(txForm.amount))} still owed after this.</p>
                 )}
               </div>
               <div>

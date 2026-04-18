@@ -330,11 +330,14 @@ router.get("/:id/outstanding-invoices", async (req, res, next) => {
         id: invoicesTable.id,
         invoiceNumber: invoicesTable.invoiceNumber,
         netRevenue: invoicesTable.netRevenue,
+        grossRevenue: invoicesTable.grossRevenue,
         status: invoicesTable.status,
         issuedDate: invoicesTable.issuedDate,
         dueDate: invoicesTable.dueDate,
+        batchName: batchesTable.name,
       })
       .from(invoicesTable)
+      .leftJoin(batchesTable, eq(invoicesTable.batchId, batchesTable.id))
       .where(and(
         eq(invoicesTable.clientId, clientId),
         notInArray(invoicesTable.status, ["paid", "cancelled"]),
