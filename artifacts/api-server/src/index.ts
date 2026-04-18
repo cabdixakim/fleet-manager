@@ -41,9 +41,9 @@ app.listen(port, async () => {
     const seeded = await seedGLAccounts();
     if (seeded > 0) console.log(`[startup] Seeded ${seeded} GL account(s).`);
     const backfill = await backfillGLEntries();
-    const total = backfill.invoices + backfill.payments + backfill.expenses + backfill.payroll;
+    const total = backfill.invoices + backfill.payments + backfill.expenses + backfill.tripExpenses + backfill.payroll;
     if (total > 0) {
-      console.log(`[startup] GL backfill: ${backfill.invoices} invoices, ${backfill.payments} payments, ${backfill.expenses} expenses, ${backfill.payroll} payroll entries posted.`);
+      console.log(`[startup] GL backfill: ${backfill.invoices} invoices, ${backfill.payments} payments, ${backfill.expenses} company expenses, ${backfill.tripExpenses} trip expenses, ${backfill.payroll} payroll entries posted.`);
     }
   } catch (e) {
     console.error("[startup] GL seed/backfill failed:", e);

@@ -7,6 +7,7 @@ import {
 import { eq, and, desc, sql, isNull, isNotNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
+import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP } from "../lib/glPosting";
 
 const router = Router();
 
@@ -125,6 +126,23 @@ router.post("/", async (req, res, next) => {
       description: `Expense logged on ${contextLabel}: ${expense.costType} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`,
       metadata: { costType: expense.costType, amount: parseFloat(expense.amount), tier: tierLabel, tripId: expense.tripId, batchId: expense.batchId, truckId: expense.truckId, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName },
     });
+
+    // Auto-post to GL: Dr trip expense account / Cr Accounts Payable
+    const expAmt = parseFloat(expense.amount);
+    if (expAmt > 0) {
+      const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[expense.costType ?? "other"] ?? "6001";
+      await postJournalEntry({
+        description: `${expense.costType ?? "Expense"} — ${contextLabel}${expense.description ? `: ${expense.description}` : ""}`,
+        entryDate: new Date(bump.effectiveDate),
+        referenceType: "trip_expense",
+        referenceId: expense.id,
+        lines: [
+          { accountCode: glAccount, debit: expAmt, description: expense.description ?? expense.costType ?? undefined },
+          { accountCode: "2000", credit: expAmt, description: "Accounts Payable" },
+        ],
+      });
+    }
+
     res.status(201).json({
       ...expense,
       amount: parseFloat(expense.amount),

@@ -49,6 +49,29 @@ export const EXPENSE_ACCOUNT_MAP: Record<string, string> = {
   other: "6001",
 };
 
+// Maps trip expense costType values → GL account codes
+export const TRIP_EXPENSE_ACCOUNT_MAP: Record<string, string> = {
+  fuel: "5001",
+  fuel_advance: "5001",
+  driver_salary: "5002",
+  salary: "5002",
+  subcontractor: "5003",
+  clearance_fee: "5004",
+  border_fee: "5004",
+  weighbridge: "5004",
+  customs: "5004",
+  transit_fee: "5004",
+  t1_fee: "5004",
+  tr8_fee: "5004",
+  maintenance: "5005",
+  repair: "5005",
+  tyre: "5005",
+  toll: "6001",
+  accommodation: "6001",
+  communication: "6001",
+  other: "6001",
+};
+
 /**
  * Post a balanced journal entry. Skips if already posted for the same referenceType+referenceId.
  * Silently fails if GL accounts are not seeded yet (system not yet configured).

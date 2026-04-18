@@ -6,9 +6,10 @@ import {
   companyExpensesTable,
   driverPayrollTable,
   clientsTable,
+  tripExpensesTable,
 } from "@workspace/db/schema";
 import { and, eq, asc } from "drizzle-orm";
-import { postJournalEntry, EXPENSE_ACCOUNT_MAP } from "./glPosting";
+import { postJournalEntry, EXPENSE_ACCOUNT_MAP, TRIP_EXPENSE_ACCOUNT_MAP } from "./glPosting";
 
 const DEFAULT_COA = [
   { code: "1001", name: "Cash",                            type: "asset",     subtype: "current_asset",        isSystem: true  },
@@ -61,10 +62,11 @@ async function alreadyPosted(refType: string, refId: number): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function backfillGLEntries(): Promise<{ invoices: number; payments: number; expenses: number; payroll: number }> {
+export async function backfillGLEntries(): Promise<{ invoices: number; payments: number; expenses: number; tripExpenses: number; payroll: number }> {
   let invoiceCount = 0;
   let paymentCount = 0;
   let expenseCount = 0;
+  let tripExpenseCount = 0;
   let payrollCount = 0;
 
   // ── Invoices → Dr AR / Cr Revenue ────────────────────────────────────────
@@ -158,6 +160,40 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     expenseCount++;
   }
 
+  // ── Trip Expenses → Dr cost account / Cr AP ──────────────────────────────
+  const tripExpenses = await db
+    .select({
+      id: tripExpensesTable.id,
+      costType: tripExpensesTable.costType,
+      description: tripExpensesTable.description,
+      amount: tripExpensesTable.amount,
+      expenseDate: tripExpensesTable.expenseDate,
+      tripId: tripExpensesTable.tripId,
+      batchId: tripExpensesTable.batchId,
+      truckId: tripExpensesTable.truckId,
+    })
+    .from(tripExpensesTable)
+    .orderBy(asc(tripExpensesTable.id));
+
+  for (const exp of tripExpenses) {
+    if (await alreadyPosted("trip_expense", exp.id)) continue;
+    const amount = parseFloat(exp.amount as string);
+    if (amount <= 0) continue;
+    const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[exp.costType ?? "other"] ?? "6001";
+    const contextLabel = exp.tripId ? `trip #${exp.tripId}` : exp.batchId ? `batch #${exp.batchId}` : exp.truckId ? `truck #${exp.truckId}` : "general";
+    await postJournalEntry({
+      description: `${exp.costType ?? "Expense"} — ${contextLabel}${exp.description ? `: ${exp.description}` : ""}`,
+      entryDate: new Date(exp.expenseDate),
+      referenceType: "trip_expense",
+      referenceId: exp.id,
+      lines: [
+        { accountCode: glAccount, debit: amount, description: exp.description ?? exp.costType ?? undefined },
+        { accountCode: "2000", credit: amount, description: "Accounts Payable" },
+      ],
+    });
+    tripExpenseCount++;
+  }
+
   // ── Payroll → Dr Staff Expense / Cr AP ───────────────────────────────────
   const payrollRows = await db
     .select({
@@ -187,5 +223,5 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     payrollCount++;
   }
 
-  return { invoices: invoiceCount, payments: paymentCount, expenses: expenseCount, payroll: payrollCount };
+  return { invoices: invoiceCount, payments: paymentCount, expenses: expenseCount, tripExpenses: tripExpenseCount, payroll: payrollCount };
 }
