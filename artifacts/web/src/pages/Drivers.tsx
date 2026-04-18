@@ -11,15 +11,17 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const STATUS_FILTERS = ["all", "active", "suspended", "terminated"];
-const STATUS_LABEL: Record<string, string> = { all: "All", active: "Active", suspended: "Suspended", terminated: "Terminated" };
+const STATUS_FILTERS = ["all", "active", "standby", "suspended", "terminated"];
+const STATUS_LABEL: Record<string, string> = { all: "All", active: "Active", standby: "Standby", suspended: "Suspended", terminated: "Terminated" };
 const STATUS_COLOR: Record<string, string> = {
   active: "bg-green-500/15 text-green-400",
+  standby: "bg-blue-500/15 text-blue-400",
   suspended: "bg-yellow-500/15 text-yellow-400",
   terminated: "bg-red-500/15 text-red-400",
 };
 const STATUS_DOT: Record<string, string> = {
   active: "bg-green-400",
+  standby: "bg-blue-400",
   suspended: "bg-yellow-400",
   terminated: "bg-red-400",
 };
@@ -210,6 +212,7 @@ export default function Drivers() {
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="standby">Standby</SelectItem>
                   <SelectItem value="suspended">Suspended</SelectItem>
                   <SelectItem value="terminated">Terminated</SelectItem>
                 </SelectContent>
@@ -253,6 +256,7 @@ export default function Drivers() {
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="standby">Standby</SelectItem>
                     <SelectItem value="suspended">Suspended</SelectItem>
                     <SelectItem value="terminated">Terminated</SelectItem>
                   </SelectContent>
