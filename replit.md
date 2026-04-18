@@ -48,8 +48,11 @@ The platform adopts a mobile-first design philosophy, ensuring responsiveness an
 - **Clearance Tracking:** Detailed tracking of border clearances (Zambia T1, DRC TR8) with document types, numbers, and status updates.
 - **Financial Ledgers:** Running ledgers for Clients and Subcontractors, tracking transactions, payments, advances, and adjustments.
 - **Expense Management:** Unified expenses module allowing logging of both trip-specific and overhead expenses, with settlement tracking.
-- **Payroll System:** Monthly payroll runs, including driver salary allocation across trips.
-- **Reporting:** Various reports including P&L statements, commission reports, entity analytics, and client statements.
+- **Payroll System:** Monthly payroll runs (company mode only), driver salary allocation across trips, GL auto-posting (Dr Staff Expense / Cr AP).
+- **General Ledger (GL):** Full double-entry accounting system with auto-posting on invoice creation (Dr AR / Cr Revenue), invoice payment (Dr Bank / Cr AR), company expense creation (Dr Expense / Cr AP), and payroll runs. Schema: `gl_accounts`, `gl_journal_entries`, `gl_journal_entry_lines`. Default 27-account COA seed. Manual journal entries supported with balance validation.
+- **Financial Statements:** P&L Statement, Balance Sheet, and Trial Balance generated from the GL. Accessible at `/gl/statements`.
+- **Chart of Accounts:** Manage accounts by type (Asset, Liability, Equity, Revenue, Expense) at `/gl/accounts`.
+- **Reporting:** Various reports including operational analytics, commission reports, entity analytics, and client statements.
 - **Company Settings:** Centralized management of company profile, logo, financial settings, and currency.
 
 ## External Dependencies

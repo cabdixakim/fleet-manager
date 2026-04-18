@@ -20,3 +20,6 @@ export * from "./truckDriverAssignments";
 export * from "./periods";
 export * from "./periods.relations";
 export * from "./agents";
+export * from "./glAccounts";
+export * from "./glJournalEntries";
+export * from "./glJournalEntryLines";

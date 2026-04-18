@@ -11,6 +11,7 @@ import {
 import { eq, desc, and, inArray, isNotNull, isNull } from "drizzle-orm";
 import { calculateTripFinancials } from "../lib/financials";
 import { logAudit } from "../lib/audit";
+import { postJournalEntry } from "../lib/glPosting";
 
 const router = Router();
 
@@ -125,6 +126,20 @@ router.post("/", async (req, res, next) => {
 
     const [client] = await db.select({ name: clientsTable.name }).from(clientsTable).where(eq(clientsTable.id, batch.clientId));
     await logAudit(req, { action: "create", entity: "invoice", entityId: invoice.id, description: `Created invoice ${invoice.invoiceNumber} for ${client?.name ?? "client"} — $${netRevenue.toFixed(0)}`, metadata: { batchId, grossRevenue, netRevenue, totalShortCharge } });
+
+    // Auto-post to GL: Dr Accounts Receivable, Cr Freight Revenue
+    if (netRevenue > 0) {
+      await postJournalEntry({
+        description: `Invoice ${invoice.invoiceNumber} — ${client?.name ?? "client"}`,
+        entryDate: issuedDate ? new Date(issuedDate) : new Date(),
+        referenceType: "invoice",
+        referenceId: invoice.id,
+        lines: [
+          { accountCode: "1100", debit: netRevenue, description: `AR — ${invoice.invoiceNumber}` },
+          { accountCode: "4001", credit: netRevenue, description: "Freight Revenue" },
+        ],
+      });
+    }
 
     res.status(201).json({
       ...invoice,
@@ -408,6 +423,23 @@ router.patch("/:id/status", async (req, res, next) => {
             await db.update(batchesTable).set({ status: "delivered" }).where(eq(batchesTable.id, invoice.batchId));
           }
         }
+      }
+    }
+
+    // Auto-post to GL when paid: Dr Cash/Bank, Cr Accounts Receivable
+    if (status === "paid") {
+      const amount = parseFloat(invoice.netRevenue ?? invoice.grossRevenue ?? "0");
+      if (amount > 0) {
+        await postJournalEntry({
+          description: `Payment received — ${invoice.invoiceNumber}`,
+          entryDate: paidDate ? new Date(paidDate) : new Date(),
+          referenceType: "invoice_payment",
+          referenceId: invoice.id,
+          lines: [
+            { accountCode: "1002", debit: amount, description: `Payment — ${invoice.invoiceNumber}` },
+            { accountCode: "1100", credit: amount, description: "Clear AR" },
+          ],
+        });
       }
     }
 

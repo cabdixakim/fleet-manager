@@ -10,6 +10,7 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { blockIfClosed } from "../lib/financialPeriod";
+import { postJournalEntry } from "../lib/glPosting";
 
 const router = Router();
 
@@ -137,6 +138,18 @@ router.post("/", async (req, res, next) => {
           expenseDate: new Date(),
         });
       }
+
+      // Auto-post to GL: Dr Staff Expense, Cr Accounts Payable (one entry per driver per month)
+      await postJournalEntry({
+        description: `Payroll — ${driver.name} ${month}/${year}`,
+        entryDate: new Date(year, month - 1, 1),
+        referenceType: "payroll",
+        referenceId: payroll.id,
+        lines: [
+          { accountCode: "5002", debit: salary, description: `Driver salary ${driver.name}` },
+          { accountCode: "2000", credit: salary, description: "Accounts Payable" },
+        ],
+      });
 
       results.push({
         ...payroll,

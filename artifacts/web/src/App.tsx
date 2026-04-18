@@ -31,6 +31,9 @@ import SubcontractorStatement from "@/pages/SubcontractorStatement";
 import ClientStatement from "@/pages/ClientStatement";
 import Agents from "@/pages/Agents";
 import Payroll from "@/pages/Payroll";
+import ChartOfAccounts from "@/pages/ChartOfAccounts";
+import GeneralLedger from "@/pages/GeneralLedger";
+import FinancialStatements from "@/pages/FinancialStatements";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -127,6 +130,9 @@ function Router() {
               <Route path="/clients/:id/statement" component={ClientStatement} />
               <Route path="/agents" component={Agents} />
               <Route path="/payroll" component={Payroll} />
+              <Route path="/gl/accounts" component={ChartOfAccounts} />
+              <Route path="/gl/ledger" component={GeneralLedger} />
+              <Route path="/gl/statements" component={FinancialStatements} />
               <Route component={NotFound} />
             </Switch>
           </AuthGate>
