@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
+import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search } from "lucide-react";
 import { format } from "date-fns";
 import { CorrectClosedEntryDialog, type CorrectionEntry } from "@/components/CorrectClosedEntryDialog";
@@ -84,6 +85,8 @@ export default function TruckDetail() {
   const id = parseInt(params?.id ?? "0");
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canCorrect = !!user && ["accounts", "manager", "admin", "owner", "system"].includes(user.role);
 
   const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses">("trips");
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -145,7 +148,7 @@ export default function TruckDetail() {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] }); toast({ title: "Expense removed" }); },
     onError: (e: any) => {
-      if (e?.status === 409 && pendingDeleteExpenseRef.current) {
+      if (e?.status === 409 && pendingDeleteExpenseRef.current && canCorrect) {
         setExpenseCorrectionTarget(pendingDeleteExpenseRef.current);
         return;
       }

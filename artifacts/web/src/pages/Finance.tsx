@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetBatches, useGetTrucks, useGetSubcontractors } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
@@ -66,9 +67,13 @@ async function deleteExpenseApi(id: number) {
   await throwOnApiError(res);
 }
 
+const CORRECTION_ROLES = ["accounts", "manager", "admin", "owner", "system"];
+
 export default function Finance() {
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canCorrect = !!user && CORRECTION_ROLES.includes(user.role);
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState("all");
   const [subFilter, setSubFilter] = useState("all");
@@ -119,7 +124,7 @@ export default function Finance() {
     mutationFn: (id: number) => deleteExpenseApi(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/expenses"] }),
     onError: (e: any) => {
-      if (e?.status === 409 && pendingDeleteRef.current) {
+      if (e?.status === 409 && pendingDeleteRef.current && canCorrect) {
         setCorrectionTarget(pendingDeleteRef.current);
         return;
       }

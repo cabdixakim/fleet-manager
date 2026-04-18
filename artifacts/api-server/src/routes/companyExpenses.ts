@@ -7,6 +7,11 @@ import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPer
 
 const router = Router();
 
+function requireRole(req: any, ...roles: string[]): boolean {
+  const userRole = (req.session as any)?.userRole;
+  return !!userRole && roles.includes(userRole);
+}
+
 router.get("/", async (req, res, next) => {
   try {
     const { month, year } = req.query;
@@ -63,6 +68,9 @@ router.put("/:id", async (req, res, next) => {
 // Creates a reversal (negated amount, dated today) + optional correcting entry.
 router.post("/:id/correct", async (req, res, next) => {
   try {
+    if (!requireRole(req, "accounts", "manager", "admin", "owner", "system")) {
+      return res.status(403).json({ error: "Only accounts, manager, admin, or owner can post correcting entries." });
+    }
     const id = parseInt(req.params.id);
     const { newAmount, newCategory, newDescription, correctionNote } = req.body;
 
