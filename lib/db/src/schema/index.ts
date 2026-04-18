@@ -23,3 +23,6 @@ export * from "./agents";
 export * from "./glAccounts";
 export * from "./glJournalEntries";
 export * from "./glJournalEntryLines";
+export * from "./suppliers";
+export * from "./supplierPayments";
+export * from "./pettyCash";

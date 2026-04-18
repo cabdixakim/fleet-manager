@@ -5,6 +5,7 @@ import { tripsTable } from "./trips";
 import { batchesTable } from "./batches";
 import { trucksTable } from "./trucks";
 import { subcontractorsTable } from "./subcontractors";
+import { suppliersTable } from "./suppliers";
 
 export const tripExpensesTable = pgTable("trip_expenses", {
   id: serial("id").primaryKey(),
@@ -19,6 +20,9 @@ export const tripExpensesTable = pgTable("trip_expenses", {
   currency: text("currency").notNull().default("USD"),
   expenseDate: timestamp("expense_date").defaultNow().notNull(),
   settled: boolean("settled").notNull().default(false),
+  // Payment method: how the expense was/will be paid
+  paymentMethod: text("payment_method").notNull().default("cash"), // cash | petty_cash | fuel_credit | bank_transfer
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

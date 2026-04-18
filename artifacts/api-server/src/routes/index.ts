@@ -28,6 +28,8 @@ import nominationsRouter from "./nominations";
 import agentsRouter from "./agents";
 import glRouter from "./gl";
 import payrollRouter from "./payroll";
+import suppliersRouter from "./suppliers";
+import pettyCashRouter from "./pettyCash";
 
 const router: IRouter = Router();
 
@@ -61,5 +63,7 @@ router.use("/nominations", nominationsRouter);
 router.use("/agents", agentsRouter);
 router.use("/payroll", payrollRouter);
 router.use("/gl", glRouter);
+router.use("/suppliers", suppliersRouter);
+router.use("/petty-cash", pettyCashRouter);
 
 export default router;

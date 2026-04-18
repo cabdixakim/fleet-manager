@@ -47,7 +47,10 @@ The platform adopts a mobile-first design philosophy, ensuring responsiveness an
 - **Trip Workflow:** Comprehensive trip status flow (`nominated` to `delivered`), including amendments and cancellations.
 - **Clearance Tracking:** Detailed tracking of border clearances (Zambia T1, DRC TR8) with document types, numbers, and status updates.
 - **Financial Ledgers:** Running ledgers for Clients and Subcontractors, tracking transactions, payments, advances, and adjustments.
-- **Expense Management:** Unified expenses module allowing logging of both trip-specific and overhead expenses, with settlement tracking.
+- **Expense Management:** Unified expenses module allowing logging of both trip-specific and overhead expenses, with payment method tagging (Petty Cash / Fuel Credit / Bank Transfer / Cash). GL posts to the correct credit account automatically.
+- **Supplier / Vendor Ledger:** Full supplier management (fuel stations, clearing agents, etc.) with running credit balance per supplier, expense-to-supplier linking, and monthly payment recording. GL: Dr Supplier Payables (2050) / Cr Bank on payment.
+- **Petty Cash Cashbook:** Real petty cash account with live balance. Top-up from bank posts Dr Petty Cash (1003) / Cr Bank (1002). Expenses paid from petty cash deduct from balance and post Dr Expense / Cr Petty Cash automatically.
+- **GL Account additions:** 1003 Petty Cash (asset), 2050 Supplier Payables (liability) seeded on startup.
 - **Payroll System:** Monthly payroll runs (company mode only), driver salary allocation across trips, GL auto-posting (Dr Staff Expense / Cr AP).
 - **General Ledger (GL):** Full double-entry accounting system with auto-posting on invoice creation (Dr AR / Cr Revenue), invoice payment (Dr Bank / Cr AR), company expense creation (Dr Expense / Cr AP), and payroll runs. Schema: `gl_accounts`, `gl_journal_entries`, `gl_journal_entry_lines`. Default 27-account COA seed. Manual journal entries supported with balance validation.
 - **Financial Statements:** P&L Statement, Balance Sheet, and Trial Balance generated from the GL. Accessible at `/gl/statements`.

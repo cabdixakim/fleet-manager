@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Truck, Users, Package, Building2, CreditCard, FileText,
   BarChart3, ChevronRight, X, Layers, TruckIcon, UserCheck, DollarSign,
   ClipboardCheck, Receipt, Settings, LogOut, Shield, Calendar, Search,
-  Menu, ChevronLeft, MapPin, List, Calculator, BookOpen, BarChart2,
+  Menu, ChevronLeft, MapPin, List, Calculator, BookOpen, BarChart2, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { sidebarConfig } from "@/components/sidebarConfig";
@@ -23,6 +23,7 @@ function getIcon(icon: string) {
     barChart: BarChart3, clipboardList: ClipboardCheck, settings: Settings,
     userCog: UserCheck, calendar: Calendar, receipt: Receipt, package: Package,
     list: List, mapPin: MapPin, calculator: Calculator, bookOpen: BookOpen, barChart2: BarChart2,
+    building2: Building2, wallet: Wallet,
   };
   return icons[icon] || FileText;
 }

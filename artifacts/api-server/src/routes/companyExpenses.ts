@@ -4,7 +4,7 @@ import { companyExpensesTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, EXPENSE_ACCOUNT_MAP } from "../lib/glPosting";
+import { postJournalEntry, EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
@@ -25,11 +25,14 @@ router.get("/", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const bump = await bumpDateIfClosed(req.body.expenseDate ?? new Date());
+    const { paymentMethod, supplierId, ...rest } = req.body;
+    const bump = await bumpDateIfClosed(rest.expenseDate ?? new Date());
     const [expense] = await db.insert(companyExpensesTable).values({
-      ...req.body,
+      ...rest,
       expenseDate: bump.effectiveDate,
-      description: appendNote(req.body.description, bump.noteSuffix),
+      description: appendNote(rest.description, bump.noteSuffix),
+      paymentMethod: paymentMethod ?? "cash",
+      supplierId: supplierId ? parseInt(supplierId) : null,
     }).returning();
     await logAudit(req, {
       action: "create",
@@ -39,8 +42,9 @@ router.post("/", async (req, res, next) => {
       metadata: { category: expense.category, amount: parseFloat(expense.amount), description: expense.description, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName },
     });
 
-    // Auto-post to GL: Dr expense account, Cr Accounts Payable
+    // Auto-post to GL: Dr expense account, Cr correct account based on payment method
     const expenseAccountCode = EXPENSE_ACCOUNT_MAP[expense.category ?? "other"] ?? "6001";
+    const creditCode = creditAccountForPaymentMethod(expense.paymentMethod);
     const amount = parseFloat(expense.amount);
     if (amount > 0) {
       await postJournalEntry({
@@ -50,9 +54,12 @@ router.post("/", async (req, res, next) => {
         referenceId: expense.id,
         lines: [
           { accountCode: expenseAccountCode, debit: amount, description: expense.description ?? undefined },
-          { accountCode: "2000", credit: amount, description: "Accounts Payable" },
+          { accountCode: creditCode, credit: amount, description: "Payment" },
         ],
       });
+      if (expense.paymentMethod === "petty_cash") {
+        await deductPettyCash(amount, expense.description ?? expense.category, "company_expense", expense.id);
+      }
     }
 
     res.status(201).json({

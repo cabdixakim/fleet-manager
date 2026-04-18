@@ -56,6 +56,8 @@ export const sidebarConfig: SidebarGroup[] = [
       { label: "Statements",        path: "/gl/statements",  icon: "barChart2" },
       { label: "Reports",           path: "/reports",        icon: "barChart" },
       { label: "Periods",           path: "/periods",        icon: "calendar" },
+      { label: "Suppliers",         path: "/suppliers",      icon: "building2" },
+      { label: "Petty Cash",        path: "/petty-cash",     icon: "wallet" },
     ],
   },
   {

@@ -7,13 +7,15 @@ import {
   driverPayrollTable,
   clientsTable,
   tripExpensesTable,
+  pettyCashAccountsTable,
 } from "@workspace/db/schema";
 import { and, eq, asc } from "drizzle-orm";
-import { postJournalEntry, EXPENSE_ACCOUNT_MAP, TRIP_EXPENSE_ACCOUNT_MAP } from "./glPosting";
+import { postJournalEntry, EXPENSE_ACCOUNT_MAP, TRIP_EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod } from "./glPosting";
 
 const DEFAULT_COA = [
   { code: "1001", name: "Cash",                            type: "asset",     subtype: "current_asset",        isSystem: true  },
   { code: "1002", name: "Bank Account",                    type: "asset",     subtype: "current_asset",        isSystem: true  },
+  { code: "1003", name: "Petty Cash",                      type: "asset",     subtype: "current_asset",        isSystem: true  },
   { code: "1100", name: "Accounts Receivable",             type: "asset",     subtype: "current_asset",        isSystem: true  },
   { code: "1200", name: "Prepaid Expenses",                type: "asset",     subtype: "current_asset",        isSystem: false },
   { code: "1500", name: "Trucks & Vehicles",               type: "asset",     subtype: "fixed_asset",          isSystem: false },
@@ -21,6 +23,7 @@ const DEFAULT_COA = [
   { code: "1600", name: "Other Fixed Assets",              type: "asset",     subtype: "fixed_asset",          isSystem: false },
   { code: "2000", name: "Accounts Payable",                type: "liability", subtype: "current_liability",    isSystem: true  },
   { code: "2001", name: "Subcontractor Payables",          type: "liability", subtype: "current_liability",    isSystem: true  },
+  { code: "2050", name: "Supplier Payables",               type: "liability", subtype: "current_liability",    isSystem: true  },
   { code: "2100", name: "Accrued Salaries",                type: "liability", subtype: "current_liability",    isSystem: false },
   { code: "2200", name: "Tax Payable",                     type: "liability", subtype: "current_liability",    isSystem: false },
   { code: "2500", name: "Loans Payable",                   type: "liability", subtype: "long_term_liability",  isSystem: false },
@@ -48,6 +51,13 @@ export async function seedGLAccounts(): Promise<number> {
     await db.insert(glAccountsTable).values(toInsert as any[]);
   }
   return toInsert.length;
+}
+
+export async function seedPettyCashAccount(): Promise<void> {
+  const existing = await db.select({ id: pettyCashAccountsTable.id }).from(pettyCashAccountsTable).limit(1);
+  if (existing.length === 0) {
+    await db.insert(pettyCashAccountsTable).values({ name: "Petty Cash", balance: "0", currency: "USD" });
+  }
 }
 
 async function alreadyPosted(refType: string, refId: number): Promise<boolean> {
@@ -99,7 +109,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     invoiceCount++;
   }
 
-  // ── Paid invoices → Dr Bank / Cr AR (use createdAt as proxy for paid date) ──
+  // ── Paid invoices → Dr Bank / Cr AR ──────────────────────────────────────
   const paidInvoices = await db
     .select({
       id: invoicesTable.id,
@@ -130,7 +140,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     paymentCount++;
   }
 
-  // ── Company expenses → Dr Expense / Cr AP ────────────────────────────────
+  // ── Company expenses → Dr Expense / Cr correct account ───────────────────
   const expenses = await db
     .select({
       id: companyExpensesTable.id,
@@ -138,6 +148,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
       description: companyExpensesTable.description,
       amount: companyExpensesTable.amount,
       expenseDate: companyExpensesTable.expenseDate,
+      paymentMethod: companyExpensesTable.paymentMethod,
     })
     .from(companyExpensesTable)
     .orderBy(asc(companyExpensesTable.id));
@@ -147,6 +158,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     const amount = parseFloat(exp.amount as string);
     if (amount <= 0) continue;
     const expenseAccountCode = EXPENSE_ACCOUNT_MAP[exp.category ?? "other"] ?? "6001";
+    const creditCode = creditAccountForPaymentMethod(exp.paymentMethod);
     await postJournalEntry({
       description: exp.description ?? `${exp.category} expense`,
       entryDate: new Date(exp.expenseDate),
@@ -154,13 +166,13 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
       referenceId: exp.id,
       lines: [
         { accountCode: expenseAccountCode, debit: amount, description: exp.description },
-        { accountCode: "2000", credit: amount, description: "Accounts Payable" },
+        { accountCode: creditCode, credit: amount, description: "Payment" },
       ],
     });
     expenseCount++;
   }
 
-  // ── Trip Expenses → Dr cost account / Cr AP ──────────────────────────────
+  // ── Trip Expenses → Dr cost account / Cr correct account ─────────────────
   const tripExpenses = await db
     .select({
       id: tripExpensesTable.id,
@@ -171,6 +183,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
       tripId: tripExpensesTable.tripId,
       batchId: tripExpensesTable.batchId,
       truckId: tripExpensesTable.truckId,
+      paymentMethod: tripExpensesTable.paymentMethod,
     })
     .from(tripExpensesTable)
     .orderBy(asc(tripExpensesTable.id));
@@ -180,6 +193,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     const amount = parseFloat(exp.amount as string);
     if (amount <= 0) continue;
     const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[exp.costType ?? "other"] ?? "6001";
+    const creditCode = creditAccountForPaymentMethod(exp.paymentMethod);
     const contextLabel = exp.tripId ? `trip #${exp.tripId}` : exp.batchId ? `batch #${exp.batchId}` : exp.truckId ? `truck #${exp.truckId}` : "general";
     await postJournalEntry({
       description: `${exp.costType ?? "Expense"} — ${contextLabel}${exp.description ? `: ${exp.description}` : ""}`,
@@ -188,7 +202,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
       referenceId: exp.id,
       lines: [
         { accountCode: glAccount, debit: amount, description: exp.description ?? exp.costType ?? undefined },
-        { accountCode: "2000", credit: amount, description: "Accounts Payable" },
+        { accountCode: creditCode, credit: amount, description: "Payment" },
       ],
     });
     tripExpenseCount++;

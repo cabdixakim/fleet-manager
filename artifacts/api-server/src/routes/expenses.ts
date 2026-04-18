@@ -7,7 +7,7 @@ import {
 import { eq, and, desc, sql, isNull, isNotNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP } from "../lib/glPosting";
+import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
@@ -34,6 +34,8 @@ router.get("/", async (req, res, next) => {
         currency: tripExpensesTable.currency,
         expenseDate: tripExpensesTable.expenseDate,
         settled: tripExpensesTable.settled,
+        paymentMethod: tripExpensesTable.paymentMethod,
+        supplierId: tripExpensesTable.supplierId,
         createdAt: tripExpensesTable.createdAt,
         batchName: batchesTable.name,
         truckPlate: trucksTable.plateNumber,
@@ -73,7 +75,7 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const body = req.body;
-    let { tripId, batchId, truckId, subcontractorId, tier, costType, description, amount, currency, expenseDate, settled } = body;
+    let { tripId, batchId, truckId, subcontractorId, tier, costType, description, amount, currency, expenseDate, settled, paymentMethod, supplierId } = body;
 
     if (tier === "trip" && batchId && truckId && !tripId) {
       const [trip] = await db
@@ -108,6 +110,8 @@ router.post("/", async (req, res, next) => {
         currency: currency ?? "USD",
         expenseDate: new Date(bump.effectiveDate),
         settled: settled ?? false,
+        paymentMethod: paymentMethod ?? "cash",
+        supplierId: supplierId ? parseInt(supplierId) : null,
       })
       .returning();
 
@@ -127,10 +131,11 @@ router.post("/", async (req, res, next) => {
       metadata: { costType: expense.costType, amount: parseFloat(expense.amount), tier: tierLabel, tripId: expense.tripId, batchId: expense.batchId, truckId: expense.truckId, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName },
     });
 
-    // Auto-post to GL: Dr trip expense account / Cr Accounts Payable
+    // Auto-post to GL: Dr trip expense account / Cr correct account based on payment method
     const expAmt = parseFloat(expense.amount);
     if (expAmt > 0) {
       const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[expense.costType ?? "other"] ?? "6001";
+      const creditCode = creditAccountForPaymentMethod(expense.paymentMethod);
       await postJournalEntry({
         description: `${expense.costType ?? "Expense"} — ${contextLabel}${expense.description ? `: ${expense.description}` : ""}`,
         entryDate: new Date(bump.effectiveDate),
@@ -138,9 +143,13 @@ router.post("/", async (req, res, next) => {
         referenceId: expense.id,
         lines: [
           { accountCode: glAccount, debit: expAmt, description: expense.description ?? expense.costType ?? undefined },
-          { accountCode: "2000", credit: expAmt, description: "Accounts Payable" },
+          { accountCode: creditCode, credit: expAmt, description: "Payment" },
         ],
       });
+      // If paid from petty cash, deduct from petty cash balance
+      if (expense.paymentMethod === "petty_cash") {
+        await deductPettyCash(expAmt, `${expense.costType} — ${contextLabel}`, "trip_expense", expense.id);
+      }
     }
 
     res.status(201).json({

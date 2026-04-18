@@ -1,6 +1,7 @@
-import { pgTable, serial, text, numeric, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { suppliersTable } from "./suppliers";
 
 export const companyExpensesTable = pgTable("company_expenses", {
   id: serial("id").primaryKey(),
@@ -9,6 +10,9 @@ export const companyExpensesTable = pgTable("company_expenses", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   currency: text("currency").notNull().default("USD"),
   expenseDate: timestamp("expense_date").defaultNow().notNull(),
+  // Payment method: how the expense was/will be paid
+  paymentMethod: text("payment_method").notNull().default("cash"), // cash | petty_cash | fuel_credit | bank_transfer
+  supplierId: integer("supplier_id").references(() => suppliersTable.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

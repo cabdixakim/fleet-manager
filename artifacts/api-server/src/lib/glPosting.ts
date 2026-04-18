@@ -3,6 +3,8 @@ import {
   glJournalEntriesTable,
   glJournalEntryLinesTable,
   glAccountsTable,
+  pettyCashAccountsTable,
+  pettyCashTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -72,6 +74,21 @@ export const TRIP_EXPENSE_ACCOUNT_MAP: Record<string, string> = {
   other: "6001",
 };
 
+// Resolve the credit account code based on payment method
+// petty_cash → 1003 (Petty Cash)
+// fuel_credit → 2100 (Supplier Payables)
+// bank_transfer → 1002 (Bank)
+// cash / default → 2000 (AP — legacy; for unclassified cash expenses)
+export function creditAccountForPaymentMethod(paymentMethod?: string | null): string {
+  switch (paymentMethod) {
+    case "petty_cash":    return "1003";
+    case "fuel_credit":   return "2050";
+    case "bank_transfer": return "1002";
+    case "cash":          return "1002";
+    default:              return "2000"; // legacy / unset → AP
+  }
+}
+
 /**
  * Post a balanced journal entry. Skips if already posted for the same referenceType+referenceId.
  * Silently fails if GL accounts are not seeded yet (system not yet configured).
@@ -123,5 +140,65 @@ export async function postJournalEntry(params: PostParams): Promise<void> {
     );
   } catch {
     // GL posting errors must never crash main transaction flow
+  }
+}
+
+/**
+ * Deduct from petty cash balance and record a transaction.
+ * Call this after posting the GL entry for a petty_cash expense.
+ */
+export async function deductPettyCash(amount: number, description: string, referenceType: string, referenceId: number): Promise<void> {
+  try {
+    const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
+    if (!account) return;
+    await db.update(pettyCashAccountsTable)
+      .set({ balance: sql`${pettyCashAccountsTable.balance} - ${amount.toFixed(2)}` })
+      .where(eq(pettyCashAccountsTable.id, account.id));
+    await db.insert(pettyCashTransactionsTable).values({
+      accountId: account.id,
+      type: "expense",
+      amount: (-amount).toFixed(2),
+      description,
+      referenceType,
+      referenceId,
+      transactionDate: new Date(),
+    });
+  } catch {
+    // Never crash
+  }
+}
+
+/**
+ * Add money to petty cash (top-up from bank), post GL entry, record transaction.
+ */
+export async function topUpPettyCash(amount: number, description: string, entryDate: Date): Promise<void> {
+  try {
+    const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
+    if (!account) return;
+
+    await postJournalEntry({
+      description,
+      entryDate,
+      lines: [
+        { accountCode: "1003", debit: amount },  // Dr Petty Cash
+        { accountCode: "1002", credit: amount },  // Cr Bank
+      ],
+    });
+
+    await db.update(pettyCashAccountsTable)
+      .set({ balance: sql`${pettyCashAccountsTable.balance} + ${amount.toFixed(2)}` })
+      .where(eq(pettyCashAccountsTable.id, account.id));
+
+    await db.insert(pettyCashTransactionsTable).values({
+      accountId: account.id,
+      type: "top_up",
+      amount: amount.toFixed(2),
+      description,
+      referenceType: "top_up",
+      referenceId: null,
+      transactionDate: entryDate,
+    });
+  } catch {
+    // Never crash
   }
 }
