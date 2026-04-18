@@ -57,7 +57,15 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
   const { mutateAsync: deleteClient, isPending: deleting } = useDeleteClient();
 
   const [showTx, setShowTx] = useState(false);
-  const [txForm, setTxForm] = useState({ type: "payment", amount: "", description: "", reference: "", batchId: "" });
+  const [txForm, setTxForm] = useState({ type: "payment", amount: "", description: "", reference: "", batchId: "", invoiceId: "", transactionDate: new Date().toISOString().slice(0, 10) });
+
+  const { data: outstandingInvoices = [] } = useQuery<any[]>({
+    queryKey: [`/api/clients/${id}/outstanding-invoices`],
+    queryFn: () => fetch(`/api/clients/${id}/outstanding-invoices`, { credentials: "include" }).then((r) => r.json()),
+    enabled: showTx && txForm.type === "payment",
+  });
+
+  const selectedInvoice = txForm.invoiceId ? (outstandingInvoices as any[]).find((i: any) => String(i.id) === txForm.invoiceId) : null;
   const [mainTab, setMainTab] = useState<"ledger" | "batches">("ledger");
   const [batchStatus, setBatchStatus] = useState("all");
   const [showEdit, setShowEdit] = useState(false);
@@ -108,21 +116,28 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
 
   const handleTx = async () => {
     try {
-      await createTx({ id, data: {
+      const result = await createTx({ id, data: {
         type: txForm.type as any,
         amount: parseFloat(txForm.amount),
-        description: txForm.description,
-        reference: txForm.reference,
+        description: txForm.description || undefined,
+        reference: txForm.reference || undefined,
+        transactionDate: txForm.transactionDate,
         ...(txForm.batchId ? { batchId: parseInt(txForm.batchId) } : {}),
+        ...(txForm.invoiceId && txForm.type === "payment" ? { invoiceId: parseInt(txForm.invoiceId) } : {}),
       } });
+      if ((result as any)?.invoiceAutoPaid) {
+        toast({ title: "Invoice fully paid", description: `Invoice has been automatically marked as paid.` });
+      }
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't save transaction", description: getErrorMessage(e, "Failed to save transaction") });
       return;
     }
     qc.invalidateQueries({ queryKey: [`/api/clients/${id}/transactions`] });
     qc.invalidateQueries({ queryKey: [`/api/clients/${id}`] });
+    qc.invalidateQueries({ queryKey: [`/api/clients/${id}/outstanding-invoices`] });
+    qc.invalidateQueries({ queryKey: ["/api/invoices"] });
     setShowTx(false);
-    setTxForm({ type: "payment", amount: "", description: "", reference: "", batchId: "" });
+    setTxForm({ type: "payment", amount: "", description: "", reference: "", batchId: "", invoiceId: "", transactionDate: new Date().toISOString().slice(0, 10) });
   };
 
   const handleAdjustOB = async () => {
@@ -420,24 +435,55 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
       )}
 
       {/* Record Transaction Dialog */}
-      <Dialog open={showTx} onOpenChange={setShowTx}>
+      <Dialog open={showTx} onOpenChange={(open) => { setShowTx(open); if (!open) setTxForm({ type: "payment", amount: "", description: "", reference: "", batchId: "", invoiceId: "", transactionDate: new Date().toISOString().slice(0, 10) }); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Record Client Transaction</DialogTitle>
-            <DialogDescription>Add a payment, advance, or adjustment to this client's ledger.</DialogDescription>
+            <DialogTitle>Record Payment / Transaction</DialogTitle>
+            <DialogDescription>Add a payment, advance, or adjustment to {client.name}'s ledger.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div><Label>Type *</Label>
-              <Select value={txForm.type} onValueChange={(v) => setTxForm({ ...txForm, type: v, batchId: "" })}>
+              <Select value={txForm.type} onValueChange={(v) => setTxForm({ ...txForm, type: v, batchId: "", invoiceId: "", amount: "" })}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="invoice">Invoice</SelectItem>
-                  <SelectItem value="payment">Payment Received</SelectItem>
-                  <SelectItem value="advance">Advance Received</SelectItem>
+                  <SelectItem value="payment">Payment Received (against invoice)</SelectItem>
+                  <SelectItem value="advance">Advance Received (no invoice yet)</SelectItem>
                   <SelectItem value="adjustment">Adjustment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {txForm.type === "payment" && (
+              <div>
+                <Label>Invoice <span className="text-muted-foreground font-normal">(optional — leave blank for general payment)</span></Label>
+                <Select value={txForm.invoiceId || "none"} onValueChange={(v) => {
+                  const inv = (outstandingInvoices as any[]).find((i: any) => String(i.id) === v);
+                  setTxForm({ ...txForm, invoiceId: v === "none" ? "" : v, amount: inv ? String(inv.outstanding.toFixed(2)) : txForm.amount });
+                }}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select outstanding invoice..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No specific invoice</SelectItem>
+                    {(outstandingInvoices as any[]).map((inv: any) => (
+                      <SelectItem key={inv.id} value={String(inv.id)}>
+                        {inv.invoiceNumber} — outstanding {formatCurrency(inv.outstanding)}
+                        {inv.totalPaid > 0 && ` (${formatCurrency(inv.totalPaid)} already paid)`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedInvoice && (
+                  <div className="mt-1.5 text-xs text-muted-foreground bg-secondary/40 rounded-lg px-3 py-2 flex items-center justify-between">
+                    <span>Invoice total: <span className="font-semibold text-foreground">{formatCurrency(selectedInvoice.netRevenue)}</span></span>
+                    <span>Paid so far: <span className="font-semibold text-emerald-400">{formatCurrency(selectedInvoice.totalPaid)}</span></span>
+                    <span>Outstanding: <span className="font-semibold text-foreground">{formatCurrency(selectedInvoice.outstanding)}</span></span>
+                  </div>
+                )}
+                {outstandingInvoices.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">No outstanding invoices — this payment will be recorded as a general credit.</p>
+                )}
+              </div>
+            )}
+
             {txForm.type === "advance" && (
               <div>
                 <Label>Link to Batch <span className="text-muted-foreground font-normal">(optional)</span></Label>
@@ -450,16 +496,30 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">Batch-linked advances appear on the batch invoice and client statement together.</p>
               </div>
             )}
-            <div><Label>Amount (USD) *</Label><Input type="number" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} className="mt-1" /></div>
-            <div><Label>Description</Label><Input value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} className="mt-1" /></div>
-            <div><Label>Reference</Label><Input value={txForm.reference} onChange={(e) => setTxForm({ ...txForm, reference: e.target.value })} className="mt-1" /></div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Amount (USD) *</Label>
+                <Input type="number" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} className="mt-1" placeholder="0.00" />
+                {selectedInvoice && parseFloat(txForm.amount) < selectedInvoice.outstanding - 0.01 && parseFloat(txForm.amount) > 0 && (
+                  <p className="text-xs text-amber-400 mt-1">Partial payment — invoice stays open until fully paid.</p>
+                )}
+              </div>
+              <div>
+                <Label>Date *</Label>
+                <Input type="date" value={txForm.transactionDate} onChange={(e) => setTxForm({ ...txForm, transactionDate: e.target.value })} className="mt-1" />
+              </div>
+            </div>
+            <div><Label>Description</Label><Input value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} className="mt-1" placeholder="Optional" /></div>
+            <div><Label>Reference / Receipt #</Label><Input value={txForm.reference} onChange={(e) => setTxForm({ ...txForm, reference: e.target.value })} className="mt-1" placeholder="e.g. bank ref, cheque number" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTx(false)}>Cancel</Button>
-            <Button onClick={handleTx} disabled={isPending || !txForm.amount}>Save</Button>
+            <Button onClick={handleTx} disabled={isPending || !txForm.amount || !txForm.transactionDate}>
+              {isPending ? "Saving..." : "Record"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

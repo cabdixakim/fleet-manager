@@ -7,11 +7,13 @@ import {
   tripsTable,
   usersTable,
   periodsTable,
+  invoicesTable,
 } from "@workspace/db/schema";
-import { eq, desc, sql, count, and, gte, lte, inArray, isNull } from "drizzle-orm";
+import { eq, desc, sql, count, and, gte, lte, inArray, isNull, notInArray } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { calculateTripFinancials } from "../lib/financials";
 import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
+import { postJournalEntry } from "../lib/glPosting";
 
 const router = Router();
 
@@ -319,9 +321,48 @@ router.get("/:id/transactions", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET outstanding invoices for a client (not fully paid, not cancelled)
+router.get("/:id/outstanding-invoices", async (req, res, next) => {
+  try {
+    const clientId = parseInt(req.params.id);
+    const invoices = await db
+      .select({
+        id: invoicesTable.id,
+        invoiceNumber: invoicesTable.invoiceNumber,
+        netRevenue: invoicesTable.netRevenue,
+        status: invoicesTable.status,
+        issuedDate: invoicesTable.issuedDate,
+        dueDate: invoicesTable.dueDate,
+      })
+      .from(invoicesTable)
+      .where(and(
+        eq(invoicesTable.clientId, clientId),
+        notInArray(invoicesTable.status, ["paid", "cancelled"]),
+      ))
+      .orderBy(desc(invoicesTable.issuedDate));
+
+    // For each invoice, compute how much has already been paid
+    const result = await Promise.all(invoices.map(async (inv) => {
+      const [paid] = await db
+        .select({ total: sql<string>`coalesce(sum(amount),0)` })
+        .from(clientTransactionsTable)
+        .where(and(
+          eq(clientTransactionsTable.invoiceId, inv.id),
+          eq(clientTransactionsTable.type, "payment"),
+        ));
+      const totalPaid = parseFloat(paid.total ?? "0");
+      const outstanding = parseFloat(inv.netRevenue) - totalPaid;
+      return { ...inv, netRevenue: parseFloat(inv.netRevenue), totalPaid, outstanding };
+    }));
+
+    res.json(result.filter((inv) => inv.outstanding > 0.01));
+  } catch (e) { next(e); }
+});
+
 router.post("/:id/transactions", async (req, res, next) => {
   try {
     const clientId = parseInt(req.params.id);
+    const { invoiceId, type, amount } = req.body;
     const bump = await bumpDateIfClosed(req.body.transactionDate ?? new Date());
     const [client] = await db.select().from(clientsTable).where(eq(clientsTable.id, clientId));
     const [tx] = await db.insert(clientTransactionsTable).values({
@@ -330,10 +371,51 @@ router.post("/:id/transactions", async (req, res, next) => {
       transactionDate: bump.effectiveDate,
       description: appendNote(req.body.description, bump.noteSuffix),
     }).returning();
-    await logAudit(req, { action: "payment", entity: "client_transaction", entityId: tx.id, description: `${tx.type} of $${parseFloat(tx.amount).toLocaleString()} for client ${client?.name ?? clientId}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`, metadata: { type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriod: bump.closedPeriodName } });
+
+    // Auto-mark invoice as paid if this payment covers the full remaining balance
+    let invoiceAutoPaid = false;
+    if (type === "payment" && invoiceId) {
+      const [inv] = await db
+        .select({ id: invoicesTable.id, invoiceNumber: invoicesTable.invoiceNumber, netRevenue: invoicesTable.netRevenue, status: invoicesTable.status })
+        .from(invoicesTable)
+        .where(eq(invoicesTable.id, invoiceId));
+
+      if (inv && inv.status !== "paid" && inv.status !== "cancelled") {
+        const [paid] = await db
+          .select({ total: sql<string>`coalesce(sum(amount),0)` })
+          .from(clientTransactionsTable)
+          .where(and(
+            eq(clientTransactionsTable.invoiceId, invoiceId),
+            eq(clientTransactionsTable.type, "payment"),
+          ));
+        const totalPaid = parseFloat(paid.total ?? "0");
+        const netRevenue = parseFloat(inv.netRevenue);
+
+        if (totalPaid >= netRevenue - 0.01) {
+          // Fully paid — mark invoice as paid
+          await db.update(invoicesTable).set({ status: "paid", paidDate: bump.effectiveDate } as any).where(eq(invoicesTable.id, invoiceId));
+          invoiceAutoPaid = true;
+
+          // Post to GL: Dr Bank, Cr AR (idempotent — won't double-post)
+          await postJournalEntry({
+            description: `Payment received — ${inv.invoiceNumber}`,
+            entryDate: new Date(bump.effectiveDate),
+            referenceType: "invoice_payment",
+            referenceId: inv.id,
+            lines: [
+              { accountCode: "1002", debit: netRevenue, description: `Payment — ${inv.invoiceNumber}` },
+              { accountCode: "1100", credit: netRevenue, description: "Clear AR" },
+            ],
+          });
+        }
+      }
+    }
+
+    await logAudit(req, { action: "payment", entity: "client_transaction", entityId: tx.id, description: `${tx.type} of $${parseFloat(tx.amount).toLocaleString()} for client ${client?.name ?? clientId}${invoiceAutoPaid ? ` — invoice auto-marked paid` : ""}${bump.bumped ? ` [back-dated from ${bump.originalDate}]` : ""}`, metadata: { type: tx.type, amount: parseFloat(tx.amount), reference: tx.reference, invoiceId, invoiceAutoPaid, bumped: bump.bumped } });
     res.status(201).json({
       ...tx,
       amount: parseFloat(tx.amount),
+      invoiceAutoPaid,
       posting: { date: bump.effectiveDate, bumped: bump.bumped, originalDate: bump.originalDate, closedPeriodName: bump.closedPeriodName },
     });
   } catch (e) { next(e); }
