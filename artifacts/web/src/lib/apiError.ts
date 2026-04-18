@@ -25,5 +25,6 @@ export function getErrorMessage(e: unknown, fallback = "Something went wrong"): 
   const anyE = e as any;
   if (anyE?.body?.error) return String(anyE.body.error);
   if (anyE?.error) return String(anyE.error);
+  if (anyE?.status === 409) return "That change is blocked because the period is closed. Reopen the period first, or post a correcting entry in the current period.";
   return fallback;
 }
