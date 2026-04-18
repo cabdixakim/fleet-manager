@@ -4,6 +4,8 @@ import { useGetBatches, useGetTrucks, useGetSubcontractors } from "@workspace/ap
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
+import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
+import { useToast } from "@/hooks/use-toast";
 import { Plus, Download, Trash2, Receipt, Building2, Truck, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,15 +56,17 @@ async function fetchExpenses() {
 }
 async function createExpenseApi(data: Record<string, unknown>) {
   const res = await fetch("/api/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-  if (!res.ok) throw new Error("Failed to create expense");
+  await throwOnApiError(res);
   return res.json();
 }
 async function deleteExpenseApi(id: number) {
-  await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+  const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+  await throwOnApiError(res);
 }
 
 export default function Finance() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState("all");
   const [subFilter, setSubFilter] = useState("all");
@@ -96,10 +100,12 @@ export default function Finance() {
   const { mutateAsync: addExpense, isPending: adding } = useMutation({
     mutationFn: createExpenseApi,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/expenses"] }),
+    onError: (e) => toast({ variant: "destructive", title: "Couldn't save expense", description: getErrorMessage(e, "Failed to create expense") }),
   });
   const { mutateAsync: removeExpense } = useMutation({
     mutationFn: (id: number) => deleteExpenseApi(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/expenses"] }),
+    onError: (e) => toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") }),
   });
 
   const handleCreate = async () => {
@@ -107,19 +113,21 @@ export default function Finance() {
     // If trip tier but no batch selected and a truck is chosen → promote to truck tier
     // so it flows into the subcontractor statement rather than floating as an orphan
     const effectiveTier = (form.tier === "trip" && !form.batchId && form.truckId) ? "truck" : form.tier;
-    await addExpense({
-      tier: effectiveTier,
-      batchId: effectiveTier === "trip" && form.batchId ? parseInt(form.batchId) : null,
-      truckId: form.truckId ? parseInt(form.truckId) : null,
-      subcontractorId: (effectiveTier === "truck") && truckObj?.subcontractorId ? truckObj.subcontractorId : null,
-      costType: form.costType,
-      description: form.description || null,
-      amount: parseFloat(form.amount),
-      currency: form.currency,
-      expenseDate: form.expenseDate,
-    });
-    setShowCreate(false);
-    setForm(emptyForm);
+    try {
+      await addExpense({
+        tier: effectiveTier,
+        batchId: effectiveTier === "trip" && form.batchId ? parseInt(form.batchId) : null,
+        truckId: form.truckId ? parseInt(form.truckId) : null,
+        subcontractorId: (effectiveTier === "truck") && truckObj?.subcontractorId ? truckObj.subcontractorId : null,
+        costType: form.costType,
+        description: form.description || null,
+        amount: parseFloat(form.amount),
+        currency: form.currency,
+        expenseDate: form.expenseDate,
+      });
+      setShowCreate(false);
+      setForm(emptyForm);
+    } catch { /* toast shown by mutation onError */ }
   };
 
   const expenseList = expenses as any[];

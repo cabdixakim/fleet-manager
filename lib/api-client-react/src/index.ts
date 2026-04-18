@@ -353,7 +353,12 @@ export function useDeleteAgentTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ txnId, agentId }: { txnId: number; agentId: number }) => {
-      await fetch(`/api/agents/transactions/${txnId}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/api/agents/transactions/${txnId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        let body: any = null;
+        try { body = await res.json(); } catch { /* not json */ }
+        throw new Error(body?.error || body?.message || `Failed to delete transaction (${res.status})`);
+      }
       return { txnId, agentId };
     },
     onSuccess: ({ agentId }) => { qc.invalidateQueries({ queryKey: ["/api/agents"] }); qc.invalidateQueries({ queryKey: ["/api/agents", agentId, "transactions"] }); },

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/apiError";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -106,13 +107,18 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
   };
 
   const handleTx = async () => {
-    await createTx({ id, data: {
-      type: txForm.type as any,
-      amount: parseFloat(txForm.amount),
-      description: txForm.description,
-      reference: txForm.reference,
-      ...(txForm.batchId ? { batchId: parseInt(txForm.batchId) } : {}),
-    } });
+    try {
+      await createTx({ id, data: {
+        type: txForm.type as any,
+        amount: parseFloat(txForm.amount),
+        description: txForm.description,
+        reference: txForm.reference,
+        ...(txForm.batchId ? { batchId: parseInt(txForm.batchId) } : {}),
+      } });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Couldn't save transaction", description: getErrorMessage(e, "Failed to save transaction") });
+      return;
+    }
     qc.invalidateQueries({ queryKey: [`/api/clients/${id}/transactions`] });
     qc.invalidateQueries({ queryKey: [`/api/clients/${id}`] });
     setShowTx(false);

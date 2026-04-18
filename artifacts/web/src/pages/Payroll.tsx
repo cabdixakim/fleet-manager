@@ -12,11 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function Payroll() {
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
   const [selectedRun, setSelectedRun] = useState<any>(null);
   const [confirmDelete, setConfirmDelete] = useState<any>(null);
@@ -27,17 +30,26 @@ export default function Payroll() {
   const { mutateAsync: createRun, isPending } = useCreatePayrollRun();
 
   const handleCreate = async () => {
-    await createRun({ data: { month: form.month, year: form.year, notes: form.notes || undefined } });
-    qc.invalidateQueries({ queryKey: ["/api/payroll"] });
-    setShowCreate(false);
+    try {
+      await createRun({ data: { month: form.month, year: form.year, notes: form.notes || undefined } });
+      qc.invalidateQueries({ queryKey: ["/api/payroll"] });
+      setShowCreate(false);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Couldn't run payroll", description: getErrorMessage(e, "Failed to run payroll") });
+    }
   };
 
   const handleDeleteRun = async () => {
     if (!confirmDelete) return;
-    await fetch(`/api/payroll/${confirmDelete.id}`, { method: "DELETE" });
-    qc.invalidateQueries({ queryKey: ["/api/payroll"] });
-    if (selectedRun?.id === confirmDelete.id) setSelectedRun(null);
-    setConfirmDelete(null);
+    try {
+      const res = await fetch(`/api/payroll/${confirmDelete.id}`, { method: "DELETE" });
+      await throwOnApiError(res);
+      qc.invalidateQueries({ queryKey: ["/api/payroll"] });
+      if (selectedRun?.id === confirmDelete.id) setSelectedRun(null);
+      setConfirmDelete(null);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Couldn't delete payroll", description: getErrorMessage(e, "Failed to delete payroll run") });
+    }
   };
 
   const handleExport = () => {

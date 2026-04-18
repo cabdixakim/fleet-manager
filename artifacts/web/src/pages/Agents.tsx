@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, ChevronDown, ChevronUp, Pencil, Trash2, Loader2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/apiError";
 
 const TXN_TYPE_LABEL: Record<string, string> = {
   fee_earned: "Fee Earned",
@@ -27,15 +29,28 @@ const TXN_TYPE_COLOR: Record<string, string> = {
 };
 
 function AgentLedger({ agentId }: { agentId: number }) {
+  const { toast } = useToast();
   const { data: txns = [], isLoading } = useGetAgentTransactions(agentId);
   const { mutateAsync: createTxn, isPending: creating } = useCreateAgentTransaction(agentId);
   const { mutateAsync: deleteTxn } = useDeleteAgentTransaction();
+  const handleDeleteTxn = async (txnId: number) => {
+    try {
+      await deleteTxn({ txnId, agentId });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Couldn't delete transaction", description: getErrorMessage(e, "Failed to delete transaction") });
+    }
+  };
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: "payment", amount: "", description: "", transactionDate: new Date().toISOString().slice(0, 10) });
 
   const handleSubmit = async () => {
     if (!form.amount) return;
-    await createTxn({ ...form, amount: parseFloat(form.amount) });
+    try {
+      await createTxn({ ...form, amount: parseFloat(form.amount) });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Couldn't save transaction", description: getErrorMessage(e, "Failed to save transaction") });
+      return;
+    }
     setForm({ type: "payment", amount: "", description: "", transactionDate: new Date().toISOString().slice(0, 10) });
     setShowForm(false);
   };
@@ -106,7 +121,7 @@ function AgentLedger({ agentId }: { agentId: number }) {
               <span className="text-xs text-muted-foreground/60 shrink-0">{formatCurrency(txn.runningBalance)}</span>
               <button
                 className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity shrink-0"
-                onClick={() => deleteTxn({ txnId: txn.id, agentId })}
+                onClick={() => handleDeleteTxn(txn.id)}
               >
                 <Trash2 className="w-3 h-3" />
               </button>

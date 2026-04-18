@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search } from "lucide-react";
 import { format } from "date-fns";
 
@@ -134,9 +135,12 @@ export default function TruckDetail() {
   });
 
   const deleteExpense = useMutation({
-    mutationFn: (expenseId: number) =>
-      fetch(`/api/trucks/${id}/expenses/${expenseId}`, { method: "DELETE", credentials: "include" }),
+    mutationFn: async (expenseId: number) => {
+      const res = await fetch(`/api/trucks/${id}/expenses/${expenseId}`, { method: "DELETE", credentials: "include" });
+      await throwOnApiError(res);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] }); toast({ title: "Expense removed" }); },
+    onError: (e) => toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") }),
   });
 
   async function handleAddExpense() {
@@ -157,13 +161,13 @@ export default function TruckDetail() {
           tier: "truck",
         }),
       });
-      if (!r.ok) throw new Error("Failed");
+      await throwOnApiError(r);
       await qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] });
       qc.invalidateQueries({ queryKey: ["/api/expenses"] });
       setShowAddExpense(false);
       setExpenseForm({ costType: "maintenance", description: "", amount: "", currency: "USD", expenseDate: format(new Date(), "yyyy-MM-dd") });
       toast({ title: "Expense recorded" });
-    } catch { toast({ title: "Failed to save expense", variant: "destructive" }); }
+    } catch (e) { toast({ title: "Couldn't save expense", description: getErrorMessage(e, "Failed to save expense"), variant: "destructive" }); }
     finally { setAddingExpense(false); }
   }
 
