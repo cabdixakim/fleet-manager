@@ -10,6 +10,9 @@ import {
   trucksTable,
   companyExpensesTable,
   tripExpensesTable,
+  clientTransactionsTable,
+  subcontractorTransactionsTable,
+  agentTransactionsTable,
 } from "@workspace/db/schema";
 import { eq, desc, and, gte, lte, inArray, notInArray, count, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
@@ -333,7 +336,26 @@ router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const [period] = await db.select().from(periodsTable).where(eq(periodsTable.id, id));
   if (!period) return res.status(404).json({ error: "Period not found" });
-  if (period.isClosed) return res.status(400).json({ error: "Cannot delete a closed period" });
+  if (period.isClosed) return res.status(400).json({ error: "Cannot delete a closed period. Reopen it first if you need to remove it, but note that periods with transactions cannot be deleted." });
+
+  const start = new Date(period.startDate);
+  const end = new Date(period.endDate);
+
+  const [ce, te, ct, st, at] = await Promise.all([
+    db.select({ n: count() }).from(companyExpensesTable).where(and(gte(companyExpensesTable.expenseDate, start), lte(companyExpensesTable.expenseDate, end))),
+    db.select({ n: count() }).from(tripExpensesTable).where(and(gte(tripExpensesTable.expenseDate, start), lte(tripExpensesTable.expenseDate, end))),
+    db.select({ n: count() }).from(clientTransactionsTable).where(and(gte(clientTransactionsTable.transactionDate, start), lte(clientTransactionsTable.transactionDate, end))),
+    db.select({ n: count() }).from(subcontractorTransactionsTable).where(and(gte(subcontractorTransactionsTable.transactionDate, start), lte(subcontractorTransactionsTable.transactionDate, end))),
+    db.select({ n: count() }).from(agentTransactionsTable).where(and(gte(agentTransactionsTable.transactionDate, start), lte(agentTransactionsTable.transactionDate, end))),
+  ]);
+
+  const total = Number(ce[0].n) + Number(te[0].n) + Number(ct[0].n) + Number(st[0].n) + Number(at[0].n);
+  if (total > 0) {
+    return res.status(400).json({
+      error: `Cannot delete period "${period.name}" — it has ${total} financial transaction${total === 1 ? "" : "s"} posted to it. Periods with financial activity are permanent.`,
+    });
+  }
+
   await db.delete(periodsTable).where(eq(periodsTable.id, id));
   await logAudit(req, { action: "delete", entity: "period", entityId: id, description: `Deleted period: ${period.name}` });
   return res.json({ success: true });
