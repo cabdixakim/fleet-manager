@@ -47,7 +47,7 @@ router.get("/pnl", async (req, res, next) => {
     const { start, end } = getPeriodRange(period as string, currentYear, currentMonth);
 
     const deliveredTrips = await db
-      .select({ id: tripsTable.id, deliveredAt: tripsTable.deliveredAt, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId })
+      .select({ id: tripsTable.id, deliveredAt: tripsTable.deliveredAt, createdAt: tripsTable.createdAt, batchId: tripsTable.batchId, truckId: tripsTable.truckId, loadedQty: tripsTable.loadedQty, deliveredQty: tripsTable.deliveredQty })
       .from(tripsTable)
       .where(and(
         inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
@@ -62,6 +62,8 @@ router.get("/pnl", async (req, res, next) => {
     let totalDriverSalaries = 0;
     let totalSubShortPenalties = 0;   // what we deduct from subs
     let totalClientShortCredits = 0;  // what clients deduct from us
+    let totalLoadedMt = 0;
+    let totalDeliveredMt = 0;
 
     const monthlyMap: Record<string, { commission: number; tripExpenses: number; driverSalaries: number; overheads: number }> = {};
     const clientData: Record<string, { name: string; gross: number; commission: number; trips: number }> = {};
@@ -84,6 +86,8 @@ router.get("/pnl", async (req, res, next) => {
         totalDriverSalaries += ds;
         totalSubShortPenalties += subSc;
         totalClientShortCredits += clientSc;
+        totalLoadedMt += parseFloat(t.loadedQty ?? "0");
+        totalDeliveredMt += parseFloat(t.deliveredQty ?? "0");
 
         const key = monthKey(new Date(t.deliveredAt ?? t.createdAt));
         if (!monthlyMap[key]) monthlyMap[key] = { commission: 0, tripExpenses: 0, driverSalaries: 0, overheads: 0 };
@@ -160,8 +164,14 @@ router.get("/pnl", async (req, res, next) => {
         netProfit: m.commission - m.overheads,
       }));
 
+    const grossMarginPct = totalGrossRevenue > 0 ? (totalCommission / totalGrossRevenue) * 100 : 0;
+    const netMarginPct = totalGrossRevenue > 0 ? (netProfit / totalGrossRevenue) * 100 : 0;
+
     res.json({
       period: period as string,
+      tripCount: deliveredTrips.length,
+      totalLoadedMt,
+      totalDeliveredMt,
       totalGrossRevenue,
       totalCommission,
       totalTripExpenses,
@@ -174,13 +184,15 @@ router.get("/pnl", async (req, res, next) => {
       netShortIncome,
       totalCompanyIncome,
       netProfit,
+      grossMarginPct,
+      netMarginPct,
       commissionByMonth,
       expensesByCategory: [
         ...Object.entries(companyExpByCategory).map(([category, total]) => ({ category, total, type: "overhead" })),
         ...Object.entries(tripExpenseByCategory).map(([category, total]) => ({ category, total, type: "trip" })),
       ],
       byClient: Object.values(clientData).sort((a, b) => b.gross - a.gross),
-      byRoute: Object.entries(routeData).map(([route, r]) => ({ route, ...r })),
+      byRoute: Object.entries(routeData).map(([route, r]) => ({ route, ...r })).sort((a, b) => b.gross - a.gross),
     });
   } catch (e) { next(e); }
 });

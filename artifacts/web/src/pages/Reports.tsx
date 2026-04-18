@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
-  LineChart, Line,
+  LineChart, Line, ComposedChart,
 } from "recharts";
 
 const PERIOD_TYPES = [
@@ -352,20 +352,25 @@ export default function Reports() {
                 {(() => {
                   const p = pnl as any;
                   const netProfit = p.netProfit ?? 0;
+                  const grossMargin = (p.grossMarginPct ?? 0).toFixed(1);
+                  const netMargin = (p.netMarginPct ?? 0).toFixed(1);
+                  const cards = [
+                    { label: "Gross Revenue", display: formatCurrency(p.totalGrossRevenue ?? 0), sub: "Total billed to clients", color: "text-foreground", Icon: TrendingUp },
+                    { label: "Commission Earned", display: formatCurrency(p.totalCommission ?? 0), sub: `${grossMargin}% gross margin`, color: "text-primary", Icon: TrendingUp },
+                    { label: "Company Overheads", display: formatCurrency(p.totalCompanyOverheads ?? 0), sub: "Office, admin & staff costs", color: "text-orange-400", Icon: TrendingDown },
+                    { label: "Net Profit / Loss", display: formatCurrency(Math.abs(netProfit)), sub: `${netMargin}% net margin`, color: netProfit >= 0 ? "text-green-400" : "text-destructive", Icon: netProfit >= 0 ? TrendingUp : TrendingDown },
+                    { label: "Trips Delivered", display: String(p.tripCount ?? 0), sub: "Revenue-recognised trips", color: "text-foreground", Icon: TrendingUp },
+                    { label: "MT Delivered", display: formatNumber(p.totalDeliveredMt ?? 0), sub: `of ${formatNumber(p.totalLoadedMt ?? 0)} MT loaded`, color: "text-foreground", Icon: TrendingUp },
+                  ];
                   return (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {[
-                        { label: "Gross Revenue", value: p.totalGrossRevenue ?? 0, sub: "Total billed to clients", color: "text-foreground", Icon: TrendingUp },
-                        { label: "Commission Earned", value: p.totalCommission ?? 0, sub: "Our income from trips", color: "text-primary", Icon: TrendingUp },
-                        { label: "Company Overheads", value: p.totalCompanyOverheads ?? 0, sub: "Office, admin & staff costs", color: "text-orange-400", Icon: TrendingDown },
-                        { label: "Net Profit / Loss", value: netProfit, sub: "Commission minus overheads", color: netProfit >= 0 ? "text-green-400" : "text-destructive", Icon: netProfit >= 0 ? TrendingUp : TrendingDown },
-                      ].map((item) => (
+                    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                      {cards.map((item) => (
                         <div key={item.label} className="bg-card border border-border rounded-xl p-5">
                           <div className="flex items-center gap-2 mb-1">
                             <item.Icon className={`w-3.5 h-3.5 ${item.color}`} />
                             <p className="text-xs text-muted-foreground">{item.label}</p>
                           </div>
-                          <p className={`text-xl font-bold ${item.color} mb-0.5`}>{formatCurrency(item.value)}</p>
+                          <p className={`text-xl font-bold ${item.color} mb-0.5`}>{item.display}</p>
                           <p className="text-[11px] text-muted-foreground/60">{item.sub}</p>
                         </div>
                       ))}
@@ -444,7 +449,34 @@ export default function Reports() {
                   );
                 })()}
 
-                {/* Monthly trend */}
+                {/* Monthly performance chart */}
+                {Array.isArray((pnl as any).commissionByMonth) && (pnl as any).commissionByMonth.length > 1 && (
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border">
+                      <h3 className="text-sm font-semibold text-foreground">Monthly Performance</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Commission vs overheads with net profit trend</p>
+                    </div>
+                    <div className="p-5">
+                      <ResponsiveContainer width="100%" height={240}>
+                        <ComposedChart data={(pnl as any).commissionByMonth} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                          <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} width={52} />
+                          <Tooltip
+                            formatter={(value: any, name: string) => [formatCurrency(value), name]}
+                            contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Bar dataKey="commission" name="Commission" fill="hsl(var(--primary))" opacity={0.85} radius={[3, 3, 0, 0]} />
+                          <Bar dataKey="overheads" name="Overheads" fill="#f97316" opacity={0.85} radius={[3, 3, 0, 0]} />
+                          <Line type="monotone" dataKey="netProfit" name="Net Profit" stroke="#22c55e" strokeWidth={2.5} dot={{ r: 4, fill: "#22c55e" }} activeDot={{ r: 6 }} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* Monthly trend table */}
                 {Array.isArray((pnl as any).commissionByMonth) && (pnl as any).commissionByMonth.length > 0 && (
                   <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <div className="px-5 py-4 border-b border-border">
@@ -504,32 +536,84 @@ export default function Reports() {
                   </div>
                 )}
 
-                {/* Expenses by category */}
-                {Array.isArray((pnl as any).expensesByCategory) && (pnl as any).expensesByCategory.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {["overhead", "trip"].map((type) => {
-                      const rows = (pnl as any).expensesByCategory.filter((r: any) => r.type === type);
-                      if (!rows.length) return null;
-                      return (
-                        <div key={type} className="bg-card border border-border rounded-xl overflow-hidden">
-                          <div className="px-5 py-4 border-b border-border">
-                            <h3 className="text-sm font-semibold text-foreground">{type === "overhead" ? "Company Overheads by Category" : "Trip Expenses by Category"}</h3>
-                          </div>
-                          <table className="w-full text-sm">
-                            <tbody>
-                              {rows.map((row: any) => (
-                                <tr key={row.category} className="border-b border-border/40 last:border-0 hover:bg-secondary/20">
-                                  <td className="px-5 py-3 text-muted-foreground capitalize">{String(row.category).replace(/_/g, " ")}</td>
-                                  <td className="px-5 py-3 text-right text-destructive font-medium">{formatCurrency(row.total)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })}
+                {/* Revenue by Route */}
+                {Array.isArray((pnl as any).byRoute) && (pnl as any).byRoute.length > 0 && (
+                  <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border">
+                      <h3 className="text-sm font-semibold text-foreground">Revenue by Route</h3>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-border">
+                        <th className="px-5 py-2 text-left text-xs text-muted-foreground">Route</th>
+                        <th className="px-5 py-2 text-right text-xs text-muted-foreground">Trips</th>
+                        <th className="px-5 py-2 text-right text-xs text-muted-foreground">Gross Revenue</th>
+                        <th className="px-5 py-2 text-right text-xs text-muted-foreground">Commission</th>
+                        <th className="px-5 py-2 text-right text-xs text-muted-foreground">Margin %</th>
+                      </tr></thead>
+                      <tbody>
+                        {(pnl as any).byRoute.map((r: any) => {
+                          const margin = r.gross > 0 ? ((r.commission / r.gross) * 100).toFixed(1) : "0";
+                          return (
+                            <tr key={r.route} className="border-b border-border/40 last:border-0 hover:bg-secondary/20">
+                              <td className="px-5 py-3 font-medium text-foreground">{r.route}</td>
+                              <td className="px-5 py-3 text-right text-muted-foreground">{r.trips}</td>
+                              <td className="px-5 py-3 text-right text-foreground">{formatCurrency(r.gross)}</td>
+                              <td className="px-5 py-3 text-right text-primary font-medium">{formatCurrency(r.commission)}</td>
+                              <td className="px-5 py-3 text-right text-muted-foreground">{margin}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
+
+                {/* Expenses by category */}
+                {Array.isArray((pnl as any).expensesByCategory) && (pnl as any).expensesByCategory.length > 0 && (() => {
+                  const PIE_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#a855f7", "#ef4444", "#06b6d4", "#84cc16", "#f97316"];
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {["overhead", "trip"].map((type) => {
+                        const rows = (pnl as any).expensesByCategory.filter((r: any) => r.type === type);
+                        if (!rows.length) return null;
+                        return (
+                          <div key={type} className="bg-card border border-border rounded-xl overflow-hidden">
+                            <div className="px-5 py-4 border-b border-border">
+                              <h3 className="text-sm font-semibold text-foreground">{type === "overhead" ? "Company Overheads by Category" : "Trip Expenses by Category"}</h3>
+                            </div>
+                            {rows.length >= 2 && (
+                              <div className="flex justify-center pt-4">
+                                <ResponsiveContainer width="100%" height={140}>
+                                  <PieChart>
+                                    <Pie data={rows} dataKey="total" nameKey="category" cx="50%" cy="50%" innerRadius={38} outerRadius={60}>
+                                      {rows.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                                    </Pie>
+                                    <Tooltip formatter={(v: any) => formatCurrency(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                                  </PieChart>
+                                </ResponsiveContainer>
+                              </div>
+                            )}
+                            <table className="w-full text-sm mt-1">
+                              <tbody>
+                                {rows.map((row: any, i: number) => (
+                                  <tr key={row.category} className="border-b border-border/40 last:border-0 hover:bg-secondary/20">
+                                    <td className="px-5 py-2.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                        <span className="text-muted-foreground capitalize">{String(row.category).replace(/_/g, " ")}</span>
+                                      </div>
+                                    </td>
+                                    <td className="px-5 py-2.5 text-right text-destructive font-medium">{formatCurrency(row.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {/* Commission by subcontractor */}
                 {Array.isArray(commissionData?.commissionBySubcontractor) && commissionData.commissionBySubcontractor.length > 0 && (
