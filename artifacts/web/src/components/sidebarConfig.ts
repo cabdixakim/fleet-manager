@@ -36,6 +36,7 @@ export const sidebarConfig: SidebarGroup[] = [
       { label: "Invoices", path: "/invoices", icon: "fileText" },
       { label: "Expenses", path: "/finance", icon: "dollarSign" },
       { label: "Reports", path: "/reports", icon: "barChart" },
+      { label: "Payroll", path: "/payroll", icon: "calculator" },
       { label: "Periods", path: "/periods", icon: "calendar" },
       { label: "Brokers", path: "/agents", icon: "mapPin" },
     ],

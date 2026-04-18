@@ -30,6 +30,7 @@ import Periods from "@/pages/Periods";
 import SubcontractorStatement from "@/pages/SubcontractorStatement";
 import ClientStatement from "@/pages/ClientStatement";
 import Agents from "@/pages/Agents";
+import Payroll from "@/pages/Payroll";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -125,6 +126,7 @@ function Router() {
               <Route path="/subcontractors/:id/statement" component={SubcontractorStatement} />
               <Route path="/clients/:id/statement" component={ClientStatement} />
               <Route path="/agents" component={Agents} />
+              <Route path="/payroll" component={Payroll} />
               <Route component={NotFound} />
             </Switch>
           </AuthGate>
