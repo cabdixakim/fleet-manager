@@ -330,9 +330,12 @@ export default function SettingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">None (post as cash)</SelectItem>
-                    {(suppliers as any[]).map((s: any) => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    {(suppliers as any[]).filter((s: any) => s.type === "clearing_agent").map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}{s.country ? ` — ${s.country}` : ""}</SelectItem>
                     ))}
+                    {(suppliers as any[]).filter((s: any) => s.type === "clearing_agent").length === 0 && (
+                      <SelectItem value="__hint__" disabled>Add a "Clearing Agent" supplier first</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
