@@ -144,7 +144,7 @@ function AgentLedger({ agentId }: { agentId: number }) {
   );
 }
 
-function AgentCard({ agent }: { agent: any }) {
+function BrokerCard({ agent }: { agent: any }) {
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ name: agent.name, contactEmail: agent.contactEmail ?? "", contactPhone: agent.contactPhone ?? "", notes: agent.notes ?? "" });
@@ -192,7 +192,7 @@ function AgentCard({ agent }: { agent: any }) {
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Edit Agent</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Broker</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Name</Label><Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} /></div>
             <div><Label>Email</Label><Input value={editForm.contactEmail} onChange={(e) => setEditForm((f) => ({ ...f, contactEmail: e.target.value }))} /></div>
@@ -227,18 +227,18 @@ export default function Agents() {
   return (
     <Layout>
       <PageHeader
-        title="Agents"
-        subtitle="Referral agents and fee tracking"
+        title="Brokers"
+        subtitle="Business introducers and commission tracking"
         actions={
           <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="w-4 h-4 mr-1" /> Add Agent
+            <Plus className="w-4 h-4 mr-1" /> Add Broker
           </Button>
         }
       />
       <PageContent>
         {agents.length > 0 && (
           <div className="mb-4 p-3 bg-secondary/30 rounded-lg flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">{agents.length} agent{agents.length !== 1 ? "s" : ""} · Total outstanding</span>
+            <span className="text-xs text-muted-foreground">{agents.length} broker{agents.length !== 1 ? "s" : ""} · Total outstanding</span>
             <span className={cn("text-sm font-semibold", totalBalance > 0 ? "text-amber-400" : "text-green-400")}>
               {formatCurrency(totalBalance)}
             </span>
@@ -252,16 +252,16 @@ export default function Agents() {
         ) : agents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <UserCheck className="w-10 h-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No agents yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Add referral agents to track fees and payouts</p>
+            <p className="text-sm text-muted-foreground">No brokers yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Add brokers to track commissions and payouts</p>
             <Button size="sm" variant="outline" className="mt-4" onClick={() => setAddOpen(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Add First Agent
+              <Plus className="w-4 h-4 mr-1" /> Add First Broker
             </Button>
           </div>
         ) : (
           <div className="space-y-2 max-w-2xl">
             {agents.map((agent: any) => (
-              <AgentCard key={agent.id} agent={agent} />
+              <BrokerCard key={agent.id} agent={agent} />
             ))}
           </div>
         )}
@@ -269,9 +269,9 @@ export default function Agents() {
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Add Agent</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Add Broker</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Name *</Label><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Agent name" /></div>
+            <div><Label>Name *</Label><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Broker name" /></div>
             <div><Label>Email</Label><Input value={form.contactEmail} onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))} placeholder="agent@example.com" /></div>
             <div><Label>Phone</Label><Input value={form.contactPhone} onChange={(e) => setForm((f) => ({ ...f, contactPhone: e.target.value }))} placeholder="+263…" /></div>
             <div><Label>Notes</Label><Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Optional" /></div>
@@ -279,7 +279,7 @@ export default function Agents() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={creating || !form.name.trim()}>
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Agent"}
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Broker"}
             </Button>
           </DialogFooter>
         </DialogContent>

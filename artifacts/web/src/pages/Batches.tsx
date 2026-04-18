@@ -201,17 +201,17 @@ export default function Batches() {
             {(agents as any[]).length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label>Agent <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <Label>Broker <span className="text-muted-foreground text-xs">(optional)</span></Label>
                   <Select value={form.agentId} onValueChange={(v) => setForm({ ...form, agentId: v === "none" ? "" : v })}>
-                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="No agent" /></SelectTrigger>
+                    <SelectTrigger className="mt-1.5"><SelectValue placeholder="No broker" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">No agent</SelectItem>
+                      <SelectItem value="none">No broker</SelectItem>
                       {(agents as any[]).map((a: any) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label>Agent fee/MT <span className="text-muted-foreground text-xs">(USD)</span></Label>
+                  <Label>Broker fee/MT <span className="text-muted-foreground text-xs">(USD)</span></Label>
                   <Input type="number" placeholder="0.00" value={form.agentFeePerMt} onChange={(e) => setForm({ ...form, agentFeePerMt: e.target.value })} className="mt-1.5" disabled={!form.agentId} />
                 </div>
               </div>
@@ -251,17 +251,17 @@ export default function Batches() {
               {(agents as any[]).length > 0 && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label>Agent <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                    <Label>Broker <span className="text-muted-foreground text-xs">(optional)</span></Label>
                     <Select value={editBatch.agentId ? String(editBatch.agentId) : "none"} onValueChange={(v) => setEditBatch({ ...editBatch, agentId: v === "none" ? null : v })}>
-                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="No agent" /></SelectTrigger>
+                      <SelectTrigger className="mt-1.5"><SelectValue placeholder="No broker" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No agent</SelectItem>
+                        <SelectItem value="none">No broker</SelectItem>
                         {(agents as any[]).map((a: any) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <Label>Agent fee/MT <span className="text-muted-foreground text-xs">(USD)</span></Label>
+                    <Label>Broker fee/MT <span className="text-muted-foreground text-xs">(USD)</span></Label>
                     <Input type="number" placeholder="0.00" value={editBatch.agentFeePerMt ?? ""} onChange={(e) => setEditBatch({ ...editBatch, agentFeePerMt: e.target.value })} className="mt-1.5" disabled={!editBatch.agentId} />
                   </div>
                 </div>
