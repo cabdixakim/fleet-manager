@@ -135,10 +135,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-3 space-y-5">
-          {sidebarConfig.map((group) => {
+          {(() => {
+            const role = (user?.role ?? "operations") as import("@/components/sidebarConfig").UserRole;
+            return sidebarConfig.map((group) => {
+            // Group-level role gate
+            if (group.roles && !group.roles.includes(role)) return null;
+
             const visibleLinks = group.links.filter((item) => {
-              if (fleetMode === "company" && item.path === "/subcontractors") return false;
-              if (fleetMode !== "company" && item.path === "/payroll") return false;
+              // Link-level role gate
+              if (item.roles && !item.roles.includes(role)) return false;
+              // Fleet mode gates
+              if (item.fleetHide === "company" && fleetMode === "company") return false;
+              if (item.fleetOnly === "company" && fleetMode !== "company") return false;
               return true;
             });
             if (visibleLinks.length === 0) return null;
@@ -172,7 +180,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
               })}
             </div>
           );
-          })}
+          });
+          })()}
         </nav>
 
         {/* User + actions */}
