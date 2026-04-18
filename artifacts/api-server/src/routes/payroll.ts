@@ -5,13 +5,9 @@ import {
   driverPayrollAllocationsTable,
   driversTable,
   tripsTable,
-  subcontractorTransactionsTable,
-  trucksTable,
-  subcontractorsTable,
   companyExpensesTable,
-  truckDriverAssignmentsTable,
 } from "@workspace/db/schema";
-import { eq, and, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { blockIfClosed } from "../lib/financialPeriod";
 
@@ -60,7 +56,7 @@ router.post("/", async (req, res, next) => {
     const monthEndStr = `${year}-${String(month).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
     if (await blockIfClosed(res, monthStart, monthEndStr)) return;
 
-    // Only process active drivers — standby/suspended/terminated are skipped
+    // Company mode only — process all active drivers (standby/suspended/terminated are skipped)
     const activeDrivers = await db
       .select()
       .from(driversTable)
@@ -83,7 +79,7 @@ router.post("/", async (req, res, next) => {
       const salary = parseFloat(driver.monthlySalary);
       if (salary <= 0) continue;
 
-      // Count trips for this driver in the month that are delivered
+      // Count this driver's delivered trips in the month
       const tripsResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(tripsTable)
@@ -103,9 +99,9 @@ router.post("/", async (req, res, next) => {
         .returning();
 
       if (tripsCount > 0) {
-        // Split salary across each trip and deduct from the trip's sub
+        // Fetch trips to create per-trip allocations and company expense entries
         const trips = await db
-          .select({ id: tripsTable.id, truckId: tripsTable.truckId, subcontractorId: tripsTable.subcontractorId })
+          .select({ id: tripsTable.id })
           .from(tripsTable)
           .where(and(
             eq(tripsTable.driverId, driver.id),
@@ -115,77 +111,31 @@ router.post("/", async (req, res, next) => {
           ));
 
         for (const trip of trips) {
+          // Cost allocation record (per-trip labour cost)
           await db.insert(driverPayrollAllocationsTable).values({
             payrollId: payroll.id,
             tripId: trip.id,
             amount: perTrip.toFixed(2),
           });
 
-          if (trip.subcontractorId) {
-            await db.insert(subcontractorTransactionsTable).values({
-              subcontractorId: trip.subcontractorId,
-              type: "driver_salary",
-              amount: perTrip.toFixed(2),
-              tripId: trip.id,
-              driverId: driver.id,
-              description: `Driver salary allocation: ${driver.name} — ${month}/${year}`,
-              transactionDate: new Date().toISOString(),
-            });
-          } else {
-            // Company-owned truck trip — book as company staff expense
-            await db.insert(companyExpensesTable).values({
-              category: "staff",
-              description: `Driver salary (trip #${trip.id}): ${driver.name} — ${month}/${year}`,
-              amount: perTrip.toFixed(2),
-              currency: "USD",
-              expenseDate: new Date(),
-            });
-          }
-        }
-      } else {
-        // Driver is active but had no trips this month — book full salary to their sub or company
-        const currentAssignment = await db
-          .select({ truckId: truckDriverAssignmentsTable.truckId })
-          .from(truckDriverAssignmentsTable)
-          .where(and(
-            eq(truckDriverAssignmentsTable.driverId, driver.id),
-            isNull(truckDriverAssignmentsTable.unassignedAt)
-          ))
-          .limit(1);
-
-        let bookedToSub = false;
-
-        if (currentAssignment.length > 0) {
-          const [truck] = await db
-            .select({ subcontractorId: trucksTable.subcontractorId, companyOwned: trucksTable.companyOwned })
-            .from(trucksTable)
-            .where(eq(trucksTable.id, currentAssignment[0].truckId));
-
-          if (truck && !truck.companyOwned && truck.subcontractorId) {
-            // Book full monthly salary to the subcontractor
-            await db.insert(subcontractorTransactionsTable).values({
-              subcontractorId: truck.subcontractorId,
-              type: "driver_salary",
-              amount: salary.toFixed(2),
-              tripId: null,
-              driverId: driver.id,
-              description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
-              transactionDate: new Date().toISOString(),
-            });
-            bookedToSub = true;
-          }
-        }
-
-        if (!bookedToSub) {
-          // Company-side driver or no truck assignment — book as company overhead
+          // Book as company staff expense so it appears in P&L
           await db.insert(companyExpensesTable).values({
             category: "staff",
-            description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
-            amount: salary.toFixed(2),
+            description: `Driver salary (trip #${trip.id}): ${driver.name} — ${month}/${year}`,
+            amount: perTrip.toFixed(2),
             currency: "USD",
             expenseDate: new Date(),
           });
         }
+      } else {
+        // Active driver, no trips this month — book full salary as overhead
+        await db.insert(companyExpensesTable).values({
+          category: "staff",
+          description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
+          amount: salary.toFixed(2),
+          currency: "USD",
+          expenseDate: new Date(),
+        });
       }
 
       results.push({

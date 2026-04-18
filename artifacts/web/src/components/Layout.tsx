@@ -138,6 +138,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {sidebarConfig.map((group) => {
             const visibleLinks = group.links.filter((item) => {
               if (fleetMode === "company" && item.path === "/subcontractors") return false;
+              if (fleetMode !== "company" && item.path === "/payroll") return false;
               return true;
             });
             if (visibleLinks.length === 0) return null;
