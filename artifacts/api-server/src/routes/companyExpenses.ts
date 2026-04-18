@@ -59,6 +59,78 @@ router.put("/:id", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/company-expenses/:id/correct
+// Creates a reversal (negated amount, dated today) + optional correcting entry.
+router.post("/:id/correct", async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { newAmount, newCategory, newDescription, correctionNote } = req.body;
+
+    const [original] = await db.select().from(companyExpensesTable).where(eq(companyExpensesTable.id, id));
+    if (!original) return res.status(404).json({ error: "Not found" });
+
+    const bump = await bumpDateIfClosed(new Date());
+    const today = new Date(bump.effectiveDate);
+
+    // 1. Reversal
+    const reversalDesc = appendNote(
+      `Reversal of expense #${id}: ${original.description ?? original.category}`,
+      bump.noteSuffix,
+    );
+    const [reversal] = await db.insert(companyExpensesTable).values({
+      category: original.category,
+      description: reversalDesc,
+      amount: (-parseFloat(original.amount)).toFixed(2),
+      currency: original.currency,
+      expenseDate: today,
+    }).returning();
+
+    await logAudit(req, {
+      action: "amendment",
+      entity: "company_expense",
+      entityId: reversal.id,
+      description: `Reversal posted for closed-period company expense #${id} ($${parseFloat(original.amount).toFixed(2)}) → entry #${reversal.id} dated ${bump.effectiveDate}`,
+      metadata: { originalId: id, type: "reversal", originalAmount: parseFloat(original.amount) },
+    });
+
+    // 2. Correcting entry
+    let correction = null;
+    if (newAmount !== undefined && newAmount !== null) {
+      const correctionDesc = appendNote(
+        [
+          newDescription ?? original.description,
+          `(corrects #${id})`,
+          correctionNote ? `— ${correctionNote}` : "",
+        ].filter(Boolean).join(" "),
+        bump.noteSuffix,
+      );
+      const [correctionRow] = await db.insert(companyExpensesTable).values({
+        category: newCategory ?? original.category,
+        description: correctionDesc,
+        amount: parseFloat(newAmount).toFixed(2),
+        currency: original.currency,
+        expenseDate: today,
+      }).returning();
+
+      await logAudit(req, {
+        action: "amendment",
+        entity: "company_expense",
+        entityId: correctionRow.id,
+        description: `Correcting entry for company expense #${id}: $${parseFloat(correctionRow.amount).toFixed(2)} dated ${bump.effectiveDate}`,
+        metadata: { originalId: id, type: "correction", newAmount: parseFloat(correctionRow.amount) },
+      });
+
+      correction = { ...correctionRow, amount: parseFloat(correctionRow.amount) };
+    }
+
+    res.status(201).json({
+      reversal: { ...reversal, amount: parseFloat(reversal.amount) },
+      correction,
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, closedPeriodName: bump.closedPeriodName },
+    });
+  } catch (e) { next(e); }
+});
+
 router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);

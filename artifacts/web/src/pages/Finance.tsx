@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGetBatches, useGetTrucks, useGetSubcontractors } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CorrectClosedEntryDialog, type CorrectionEntry } from "@/components/CorrectClosedEntryDialog";
 
 const TRIP_COST_TYPES = [
   { value: "fuel_advance",      label: "Fuel Advance (USD)" },
@@ -76,6 +77,8 @@ export default function Finance() {
   const [dateTo, setDateTo] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [deleteExpenseId, setDeleteExpenseId] = useState<number | null>(null);
+  const pendingDeleteRef = useRef<CorrectionEntry | null>(null);
+  const [correctionTarget, setCorrectionTarget] = useState<CorrectionEntry | null>(null);
 
   const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0] };
   const defaultCostType: Record<string, string> = { trip: "toll", truck: "maintenance", overhead: "office_rent" };
@@ -115,7 +118,13 @@ export default function Finance() {
   const { mutateAsync: removeExpense } = useMutation({
     mutationFn: (id: number) => deleteExpenseApi(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/expenses"] }),
-    onError: (e) => toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") }),
+    onError: (e: any) => {
+      if (e?.status === 409 && pendingDeleteRef.current) {
+        setCorrectionTarget(pendingDeleteRef.current);
+        return;
+      }
+      toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") });
+    },
   });
 
   const handleCreate = async () => {
@@ -290,7 +299,7 @@ export default function Finance() {
                     <td className="px-3 py-2 font-semibold text-foreground text-right whitespace-nowrap">{formatCurrency(e.amount)}</td>
                     <td className="px-3 py-2 text-muted-foreground">{e.currency}</td>
                     <td className="px-3 py-2 text-center">
-                      <button onClick={() => setDeleteExpenseId(e.id)} title="Delete" className="text-muted-foreground hover:text-destructive transition-colors">
+                      <button onClick={() => { pendingDeleteRef.current = e; setDeleteExpenseId(e.id); }} title="Delete" className="text-muted-foreground hover:text-destructive transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </td>
@@ -432,6 +441,19 @@ export default function Finance() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CorrectClosedEntryDialog
+        open={correctionTarget !== null}
+        entry={correctionTarget}
+        correctUrl={correctionTarget ? `/api/expenses/${correctionTarget.id}/correct` : ""}
+        costTypeOptions={
+          correctionTarget?.tier === "truck" ? TRUCK_EXPENSE_TYPES
+          : correctionTarget?.tier === "overhead" ? OVERHEAD_CATEGORIES
+          : TRIP_COST_TYPES
+        }
+        onClose={() => setCorrectionTarget(null)}
+        onSuccess={() => { qc.invalidateQueries({ queryKey: ["/api/expenses"] }); }}
+      />
 
       <Dialog open={deleteExpenseId !== null} onOpenChange={(o) => { if (!o) setDeleteExpenseId(null); }}>
         <DialogContent className="sm:max-w-xs">

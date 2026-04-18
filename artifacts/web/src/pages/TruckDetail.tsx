@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
@@ -14,6 +14,7 @@ import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search } from "lucide-react";
 import { format } from "date-fns";
+import { CorrectClosedEntryDialog, type CorrectionEntry } from "@/components/CorrectClosedEntryDialog";
 
 const STATUS_COLOR: Record<string, string> = {
   available: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -93,6 +94,8 @@ export default function TruckDetail() {
   const [linking, setLinking] = useState(false);
   const [linkError, setLinkError] = useState("");
   const [confirmDeleteExpenseId, setConfirmDeleteExpenseId] = useState<number | null>(null);
+  const pendingDeleteExpenseRef = useRef<CorrectionEntry | null>(null);
+  const [expenseCorrectionTarget, setExpenseCorrectionTarget] = useState<CorrectionEntry | null>(null);
 
   const handleLinkToTrip = async () => {
     if (!linkExpense || !linkTripId) { setLinkError("Please select a trip."); return; }
@@ -141,7 +144,13 @@ export default function TruckDetail() {
       await throwOnApiError(res);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] }); toast({ title: "Expense removed" }); },
-    onError: (e) => toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") }),
+    onError: (e: any) => {
+      if (e?.status === 409 && pendingDeleteExpenseRef.current) {
+        setExpenseCorrectionTarget(pendingDeleteExpenseRef.current);
+        return;
+      }
+      toast({ variant: "destructive", title: "Couldn't delete expense", description: getErrorMessage(e, "Failed to delete expense") });
+    },
   });
 
   const { confirm: confirmClosedPeriod, dialog: closedPeriodDialog } = useClosedPeriodConfirm();
@@ -705,7 +714,7 @@ export default function TruckDetail() {
                                   <ArrowRight className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => setConfirmDeleteExpenseId(e.id)}
+                                  onClick={() => { pendingDeleteExpenseRef.current = e; setConfirmDeleteExpenseId(e.id); }}
                                   className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -829,6 +838,18 @@ export default function TruckDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CorrectClosedEntryDialog
+        open={expenseCorrectionTarget !== null}
+        entry={expenseCorrectionTarget}
+        correctUrl={expenseCorrectionTarget ? `/api/expenses/${expenseCorrectionTarget.id}/correct` : ""}
+        costTypeOptions={EXPENSE_CATEGORIES.map((c) => ({ value: c, label: expenseLabel(c) }))}
+        onClose={() => setExpenseCorrectionTarget(null)}
+        onSuccess={() => {
+          qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] });
+          qc.invalidateQueries({ queryKey: ["/api/expenses"] });
+        }}
+      />
+
       <AlertDialog open={confirmDeleteExpenseId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteExpenseId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>

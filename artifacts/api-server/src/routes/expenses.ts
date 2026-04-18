@@ -244,6 +244,92 @@ router.patch("/:id/unlink-trip", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/expenses/:id/correct
+// Creates a reversal entry (negated amount, dated today) + an optional correcting entry.
+// Designed for the "can't delete — period is closed" workflow.
+router.post("/:id/correct", async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { newAmount, newCostType, newDescription, correctionNote } = req.body;
+
+    const [original] = await db.select().from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+    if (!original) return res.status(404).json({ error: "Not found" });
+
+    // Both entries land in the current open period (bump if today is also closed)
+    const bump = await bumpDateIfClosed(new Date());
+    const today = new Date(bump.effectiveDate);
+
+    // 1. Reversal — negates the original
+    const reversalDesc = appendNote(
+      `Reversal of expense #${id}: ${original.description ?? original.costType}`,
+      bump.noteSuffix,
+    );
+    const [reversal] = await db.insert(tripExpensesTable).values({
+      tripId: original.tripId,
+      batchId: original.batchId,
+      truckId: original.truckId,
+      subcontractorId: original.subcontractorId,
+      tier: original.tier,
+      costType: original.costType,
+      description: reversalDesc,
+      amount: (-parseFloat(original.amount)).toFixed(2),
+      currency: original.currency,
+      expenseDate: today,
+      settled: false,
+    }).returning();
+
+    await logAudit(req, {
+      action: "amendment",
+      entity: "trip_expense",
+      entityId: reversal.id,
+      description: `Reversal posted for closed-period expense #${id} (${original.costType} $${parseFloat(original.amount).toFixed(2)}) → entry #${reversal.id} dated ${bump.effectiveDate}`,
+      metadata: { originalId: id, type: "reversal", originalAmount: parseFloat(original.amount), originalDate: original.expenseDate },
+    });
+
+    // 2. Correcting entry — only when caller provides a new amount
+    let correction = null;
+    if (newAmount !== undefined && newAmount !== null) {
+      const correctionDesc = appendNote(
+        [
+          newDescription ?? original.description ?? original.costType,
+          `(corrects #${id})`,
+          correctionNote ? `— ${correctionNote}` : "",
+        ].filter(Boolean).join(" "),
+        bump.noteSuffix,
+      );
+      const [correctionRow] = await db.insert(tripExpensesTable).values({
+        tripId: original.tripId,
+        batchId: original.batchId,
+        truckId: original.truckId,
+        subcontractorId: original.subcontractorId,
+        tier: original.tier,
+        costType: newCostType ?? original.costType,
+        description: correctionDesc,
+        amount: parseFloat(newAmount).toFixed(2),
+        currency: original.currency,
+        expenseDate: today,
+        settled: false,
+      }).returning();
+
+      await logAudit(req, {
+        action: "amendment",
+        entity: "trip_expense",
+        entityId: correctionRow.id,
+        description: `Correcting entry for closed-period expense #${id}: ${correctionRow.costType} $${parseFloat(correctionRow.amount).toFixed(2)} dated ${bump.effectiveDate}`,
+        metadata: { originalId: id, type: "correction", newAmount: parseFloat(correctionRow.amount) },
+      });
+
+      correction = { ...correctionRow, amount: parseFloat(correctionRow.amount) };
+    }
+
+    res.status(201).json({
+      reversal: { ...reversal, amount: parseFloat(reversal.amount) },
+      correction,
+      posting: { date: bump.effectiveDate, bumped: bump.bumped, closedPeriodName: bump.closedPeriodName },
+    });
+  } catch (e) { next(e); }
+});
+
 router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
