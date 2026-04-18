@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
@@ -43,9 +43,24 @@ export default function GeneralLedger() {
   const now = new Date();
   const [from, setFrom] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
   const [to, setTo] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
+  const [rangeInitialised, setRangeInitialised] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
+
+  // Load the current open period and use its start/end as the default date range
+  const { data: currentPeriod } = useQuery<{ startDate: string; endDate: string } | null>({
+    queryKey: ["current-period-gl"],
+    queryFn: () => fetch("/api/periods/current", { credentials: "include" }).then((r) => r.json()),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (rangeInitialised || !currentPeriod) return;
+    setFrom(format(new Date(currentPeriod.startDate), "yyyy-MM-dd"));
+    setTo(format(new Date(currentPeriod.endDate), "yyyy-MM-dd"));
+    setRangeInitialised(true);
+  }, [currentPeriod, rangeInitialised]);
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["/api/gl/entries", from, to],
