@@ -55,7 +55,7 @@ export default function SupplierStatement() {
     <Layout><PageContent><div className="text-center text-muted-foreground py-20">Supplier not found</div></PageContent></Layout>
   );
 
-  const { supplier, charged, paid, balance, tripExpenses, companyExpenses, payments } = data;
+  const { supplier, openingBalance = 0, charged, paid, balance, tripExpenses, companyExpenses, payments } = data;
 
   // Merge and sort all line items chronologically
   const allLines = [
@@ -86,6 +86,12 @@ export default function SupplierStatement() {
       <PageContent>
         {/* Balance summary */}
         <div className="flex gap-4 mb-6 flex-wrap">
+          {openingBalance !== 0 && (
+            <div className="bg-card border border-border rounded-lg px-5 py-3 flex flex-col">
+              <span className="text-xs text-muted-foreground uppercase tracking-wider">Opening Balance</span>
+              <span className="text-xl font-bold text-blue-400">{formatCurrency(openingBalance)}</span>
+            </div>
+          )}
           <div className="bg-card border border-border rounded-lg px-5 py-3 flex flex-col">
             <span className="text-xs text-muted-foreground uppercase tracking-wider">Total Charged</span>
             <span className="text-xl font-bold text-amber-400">{formatCurrency(charged)}</span>
@@ -120,6 +126,14 @@ export default function SupplierStatement() {
                 </tr>
               </thead>
               <tbody>
+                {openingBalance !== 0 && (
+                  <tr className="border-b border-border/50 bg-blue-500/5">
+                    <td className="px-4 py-3 text-muted-foreground tabular-nums">—</td>
+                    <td className="px-4 py-3 text-blue-400 font-medium">Opening Balance</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-blue-400">{formatCurrency(openingBalance)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">—</td>
+                  </tr>
+                )}
                 {allLines.map((line: any, i: number) => {
                   const date = new Date(line.date ?? line.paymentDate ?? line.createdAt);
                   return (

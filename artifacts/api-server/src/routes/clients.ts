@@ -13,7 +13,7 @@ import { eq, desc, sql, count, and, gte, lte, inArray, isNull, notInArray } from
 import { logAudit } from "../lib/audit";
 import { calculateTripFinancials } from "../lib/financials";
 import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry } from "../lib/glPosting";
+import { postJournalEntry, postOrUpdateOpeningBalance } from "../lib/glPosting";
 
 const router = Router();
 
@@ -121,6 +121,10 @@ router.post("/", async (req, res, next) => {
   try {
     const [client] = await db.insert(clientsTable).values(req.body).returning();
     await logAudit(req, { action: "create", entity: "client", entityId: client.id, description: `Created client ${client.name}` });
+    const ob = parseFloat(client.openingBalance ?? "0");
+    if (ob !== 0) {
+      await postOrUpdateOpeningBalance("client_ob", client.id, ob, "1100", "3000", `Opening balance — ${client.name}`);
+    }
     res.status(201).json({ ...client, balance: 0 });
   } catch (e) { next(e); }
 });
@@ -214,6 +218,11 @@ router.put("/:id", async (req, res, next) => {
     const [client] = await db.update(clientsTable).set(req.body).where(eq(clientsTable.id, id)).returning();
     if (!client) return res.status(404).json({ error: "Not found" });
     await logAudit(req, { action: "update", entity: "client", entityId: id, description: `Updated client ${client.name}`, metadata: { before: { name: before?.name }, after: { name: client.name } } });
+    const obBefore = parseFloat(before?.openingBalance ?? "0");
+    const obAfter = parseFloat(client.openingBalance ?? "0");
+    if (obBefore !== obAfter) {
+      await postOrUpdateOpeningBalance("client_ob", id, obAfter, "1100", "3000", `Opening balance — ${client.name}`);
+    }
     const balance = await getClientBalance(id);
     res.json({ ...client, balance });
   } catch (e) { next(e); }
@@ -251,6 +260,7 @@ router.post("/:id/adjust-opening-balance", async (req, res, next) => {
       metadata: { previousBalance: parseFloat(before.openingBalance ?? "0"), newBalance, reason },
     });
 
+    await postOrUpdateOpeningBalance("client_ob", id, newBalance, "1100", "3000", `Opening balance — ${client.name}`);
     const balance = await getClientBalance(id);
     res.json({ ...client, balance });
   } catch (e) { next(e); }

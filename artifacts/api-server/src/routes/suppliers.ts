@@ -8,7 +8,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
-import { postJournalEntry } from "../lib/glPosting";
+import { postJournalEntry, postOrUpdateOpeningBalance } from "../lib/glPosting";
 
 const router = Router();
 
@@ -17,8 +17,6 @@ router.get("/", async (req, res, next) => {
   try {
     const suppliers = await db.select().from(suppliersTable).orderBy(suppliersTable.name);
 
-    // Calculate balance owed per supplier:
-    // Balance = sum of fuel_credit expenses - sum of payments made
     const results = await Promise.all(suppliers.map(async (s) => {
       const [tripTotal] = await db
         .select({ total: sql<string>`coalesce(sum(${tripExpensesTable.amount}), 0)` })
@@ -35,10 +33,12 @@ router.get("/", async (req, res, next) => {
         .from(supplierPaymentsTable)
         .where(eq(supplierPaymentsTable.supplierId, s.id));
 
+      const ob = parseFloat(s.openingBalance ?? "0");
       const charged = parseFloat(tripTotal.total) + parseFloat(companyTotal.total);
       const paid = parseFloat(paymentsTotal.total);
+      const balance = ob + charged - paid;
 
-      return { ...s, charged, paid, balance: charged - paid };
+      return { ...s, charged, paid, balance };
     }));
 
     res.json(results);
@@ -56,6 +56,10 @@ router.post("/", async (req, res, next) => {
       description: `Supplier created: ${supplier.name}`,
       metadata: { type: supplier.type },
     });
+    const ob = parseFloat(supplier.openingBalance ?? "0");
+    if (ob !== 0) {
+      await postOrUpdateOpeningBalance("supplier_ob", supplier.id, ob, "3000", "2050", `Opening balance — ${supplier.name}`);
+    }
     res.status(201).json(supplier);
   } catch (e) { next(e); }
 });
@@ -64,8 +68,14 @@ router.post("/", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const [before] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, id));
     const [supplier] = await db.update(suppliersTable).set(req.body).where(eq(suppliersTable.id, id)).returning();
     if (!supplier) return res.status(404).json({ error: "Not found" });
+    const obBefore = parseFloat(before?.openingBalance ?? "0");
+    const obAfter = parseFloat(supplier.openingBalance ?? "0");
+    if (obBefore !== obAfter) {
+      await postOrUpdateOpeningBalance("supplier_ob", id, obAfter, "3000", "2050", `Opening balance — ${supplier.name}`);
+    }
     res.json(supplier);
   } catch (e) { next(e); }
 });
@@ -107,16 +117,19 @@ router.get("/:id/statement", async (req, res, next) => {
       .where(eq(supplierPaymentsTable.supplierId, id))
       .orderBy(desc(supplierPaymentsTable.paymentDate));
 
+    const ob = parseFloat(supplier.openingBalance ?? "0");
     const charged =
       tripExpenses.reduce((s, e) => s + parseFloat(e.amount), 0) +
       companyExpenses.reduce((s, e) => s + parseFloat(e.amount), 0);
     const paid = payments.reduce((s, p) => s + parseFloat(p.amount), 0);
+    const balance = ob + charged - paid;
 
     res.json({
       supplier,
+      openingBalance: ob,
       charged,
       paid,
-      balance: charged - paid,
+      balance,
       tripExpenses: tripExpenses.map((e) => ({ ...e, amount: parseFloat(e.amount), entryType: "expense" })),
       companyExpenses: companyExpenses.map((e) => ({ ...e, amount: parseFloat(e.amount), entryType: "expense" })),
       payments: payments.map((p) => ({ ...p, amount: parseFloat(p.amount), entryType: "payment" })),

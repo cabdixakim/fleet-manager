@@ -32,7 +32,7 @@ async function fetchSuppliers() {
 
 const EMPTY_FORM = {
   name: "", type: "fuel", contactPerson: "", phone: "", email: "",
-  country: "", creditTermsDays: "30", notes: "",
+  country: "", creditTermsDays: "30", notes: "", openingBalance: "0",
 };
 
 export default function Suppliers() {
@@ -173,6 +173,17 @@ export default function Suppliers() {
               <div>
                 <Label>Credit Terms (days)</Label>
                 <Input value={form.creditTermsDays} onChange={(e) => setForm({ ...form, creditTermsDays: e.target.value })} type="number" min="0" />
+              </div>
+              <div>
+                <Label>Opening Balance (USD)</Label>
+                <Input
+                  value={form.openingBalance}
+                  onChange={(e) => setForm({ ...form, openingBalance: e.target.value })}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                />
               </div>
               <div className="col-span-2">
                 <Label>Notes</Label>

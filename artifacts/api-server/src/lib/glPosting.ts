@@ -6,7 +6,7 @@ import {
   pettyCashAccountsTable,
   pettyCashTransactionsTable,
 } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 
 async function getAccountByCode(code: string) {
   const [account] = await db.select().from(glAccountsTable).where(eq(glAccountsTable.code, code));
@@ -165,6 +165,56 @@ export async function deductPettyCash(amount: number, description: string, refer
     });
   } catch {
     // Never crash
+  }
+}
+
+/**
+ * Post (or replace) an opening balance GL entry for a client, subcontractor, or supplier.
+ * Always deletes any existing entry for the referenceType+referenceId first,
+ * then posts a fresh one if amount > 0. This means changing an opening balance
+ * stays correct in the GL without leaving ghost entries.
+ *
+ * Client:        Dr AR (1100) / Cr Opening Balance Equity (3000)
+ * Subcontractor: Dr Opening Balance Equity (3000) / Cr Sub Payables (2001)
+ * Supplier:      Dr Opening Balance Equity (3000) / Cr Supplier Payables (2050)
+ */
+export async function postOrUpdateOpeningBalance(
+  referenceType: string,
+  referenceId: number,
+  amount: number,
+  debitCode: string,
+  creditCode: string,
+  description: string,
+): Promise<void> {
+  try {
+    // Delete existing OB journal entry for this entity
+    const existing = await db
+      .select({ id: glJournalEntriesTable.id })
+      .from(glJournalEntriesTable)
+      .where(and(
+        eq(glJournalEntriesTable.referenceType, referenceType),
+        eq(glJournalEntriesTable.referenceId, referenceId),
+      ));
+    if (existing.length > 0) {
+      const ids = existing.map((e) => e.id);
+      await db.delete(glJournalEntryLinesTable).where(inArray(glJournalEntryLinesTable.journalEntryId, ids));
+      await db.delete(glJournalEntriesTable).where(inArray(glJournalEntriesTable.id, ids));
+    }
+    // Post new entry only if amount is non-zero
+    if (Math.abs(amount) > 0.001) {
+      await postJournalEntry({
+        description,
+        entryDate: new Date(),
+        referenceType,
+        referenceId,
+        lines: [
+          { accountCode: debitCode,  debit:  amount > 0 ? amount : 0,  credit: amount < 0 ? -amount : 0, description },
+          { accountCode: creditCode, credit: amount > 0 ? amount : 0,  debit:  amount < 0 ? -amount : 0, description },
+        ],
+      });
+    }
+  } catch {
+    // GL errors must never crash the main flow
   }
 }
 

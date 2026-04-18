@@ -27,6 +27,7 @@ const DEFAULT_COA = [
   { code: "2100", name: "Accrued Salaries",                type: "liability", subtype: "current_liability",    isSystem: false },
   { code: "2200", name: "Tax Payable",                     type: "liability", subtype: "current_liability",    isSystem: false },
   { code: "2500", name: "Loans Payable",                   type: "liability", subtype: "long_term_liability",  isSystem: false },
+  { code: "3000", name: "Opening Balance Equity",          type: "equity",    subtype: "equity",               isSystem: true  },
   { code: "3001", name: "Owner's Capital",                 type: "equity",    subtype: "equity",               isSystem: true  },
   { code: "3002", name: "Retained Earnings",               type: "equity",    subtype: "equity",               isSystem: true  },
   { code: "4001", name: "Freight Revenue",                 type: "revenue",   subtype: "operating",            isSystem: true  },

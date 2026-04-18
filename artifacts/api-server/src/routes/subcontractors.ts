@@ -16,7 +16,7 @@ import { eq, desc, sql, count, inArray, notInArray, and, isNull, gte, lte } from
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry } from "../lib/glPosting";
+import { postJournalEntry, postOrUpdateOpeningBalance } from "../lib/glPosting";
 
 const router = Router();
 
@@ -184,6 +184,10 @@ router.post("/", async (req, res, next) => {
   try {
     const [sub] = await db.insert(subcontractorsTable).values(req.body).returning();
     await logAudit(req, { action: "create", entity: "subcontractor", entityId: sub.id, description: `Created subcontractor ${sub.name}` });
+    const ob = parseFloat(sub.openingBalance ?? "0");
+    if (ob !== 0) {
+      await postOrUpdateOpeningBalance("sub_ob", sub.id, ob, "3000", "2001", `Opening balance — ${sub.name}`);
+    }
     res.status(201).json({ ...sub, balance: 0, truckCount: 0 });
   } catch (e) { next(e); }
 });
@@ -263,6 +267,11 @@ router.put("/:id", async (req, res, next) => {
     const [sub] = await db.update(subcontractorsTable).set(req.body).where(eq(subcontractorsTable.id, id)).returning();
     if (!sub) return res.status(404).json({ error: "Not found" });
     await logAudit(req, { action: "update", entity: "subcontractor", entityId: id, description: `Updated subcontractor ${sub.name}` });
+    const obBefore = parseFloat(before?.openingBalance ?? "0");
+    const obAfter = parseFloat(sub.openingBalance ?? "0");
+    if (obBefore !== obAfter) {
+      await postOrUpdateOpeningBalance("sub_ob", id, obAfter, "3000", "2001", `Opening balance — ${sub.name}`);
+    }
     const [tc] = await db.select({ count: count() }).from(trucksTable).where(eq(trucksTable.subcontractorId, id));
     const balance = await getSubBalance(id);
     res.json({ ...sub, balance, truckCount: tc.count });
@@ -301,6 +310,7 @@ router.post("/:id/adjust-opening-balance", async (req, res, next) => {
       metadata: { previousBalance: parseFloat(before.openingBalance ?? "0"), newBalance, reason },
     });
 
+    await postOrUpdateOpeningBalance("sub_ob", id, newBalance, "3000", "2001", `Opening balance — ${sub.name}`);
     const [tc] = await db.select({ count: count() }).from(trucksTable).where(eq(trucksTable.subcontractorId, id));
     const balance = await getSubBalance(id);
     res.json({ ...sub, balance, truckCount: tc.count });

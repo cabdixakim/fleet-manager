@@ -1,4 +1,4 @@
-import { pgTable, serial, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const suppliersTable = pgTable("suppliers", {
   phone: text("phone"),
   email: text("email"),
   country: text("country"),
+  openingBalance: numeric("opening_balance", { precision: 14, scale: 2 }).notNull().default("0"),
   creditTermsDays: text("credit_terms_days").default("30"),
   notes: text("notes"),
   isActive: boolean("is_active").notNull().default(true),
