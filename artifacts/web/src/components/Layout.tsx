@@ -165,21 +165,39 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {visibleLinks.map((item) => {
                 const Icon = getIcon(item.icon);
                 const active = location === item.path || (item.path !== "/" && location.startsWith(item.path));
-                return (
-                  <Link key={item.path} href={item.path} className={cn(
-                    "flex items-center gap-2.5 px-3 mx-2 rounded-lg transition-colors font-medium",
-                    item.subtle
-                      ? "py-1 text-xs"
-                      : "py-2 text-sm",
-                    active
-                      ? item.subtle ? "bg-primary/5 text-primary/70" : "bg-primary/10 text-primary"
-                      : item.subtle ? "text-muted-foreground/50 hover:bg-accent/30 hover:text-muted-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}>
+                const linkClass = cn(
+                  "flex items-center gap-2.5 px-3 mx-2 rounded-lg transition-colors font-medium w-[calc(100%-16px)]",
+                  item.subtle ? "py-1 text-xs" : "py-2 text-sm",
+                  active
+                    ? item.subtle ? "bg-primary/5 text-primary/70" : "bg-primary/10 text-primary"
+                    : item.subtle ? "text-muted-foreground/50 hover:bg-accent/30 hover:text-muted-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                );
+                const inner = (
+                  <>
                     <span className={cn("flex items-center justify-center shrink-0", item.subtle ? "w-3 h-3" : "w-4 h-4", collapsed && "mx-auto")}>
                       <Icon className={item.subtle ? "w-3 h-3" : "w-4 h-4"} />
                     </span>
                     {!collapsed && <span className="truncate">{item.label}</span>}
                     {collapsed && <span className="sr-only">{item.label}</span>}
+                  </>
+                );
+                if (item.action) {
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => {
+                        setMobileOpen(false);
+                        window.dispatchEvent(new CustomEvent(item.action!));
+                      }}
+                      className={linkClass}
+                    >
+                      {inner}
+                    </button>
+                  );
+                }
+                return (
+                  <Link key={item.path} href={item.path} className={linkClass}>
+                    {inner}
                   </Link>
                 );
               })}

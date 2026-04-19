@@ -148,7 +148,7 @@ export function ChatDrawer() {
 
       {/* Drawer — wider to fit split pane */}
       <div className="fixed right-0 top-0 z-[70] flex flex-col bg-card shadow-2xl border-l border-border
-                      w-full h-full
+                      w-full h-[100dvh]
                       sm:w-[520px]">
 
         {/* ── Header ─────────────────────────────────────────────── */}
@@ -275,9 +275,8 @@ export function ChatDrawer() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Input — safe-area + bottom-nav aware on mobile */}
-              <div className="flex-shrink-0 px-3 pt-2 border-t border-border bg-card"
-                   style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))" }}>
+              {/* Input — safe-area inset for notched phones */}
+              <div className="flex-shrink-0 px-3 pt-2 pb-[max(12px,env(safe-area-inset-bottom,12px))] border-t border-border bg-card">
                 <div className="flex items-center gap-2 bg-background border border-border rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary transition-all">
                   <input
                     ref={inputRef}

@@ -8,6 +8,7 @@ export type SidebarLink = {
   roles?: UserRole[]; // if omitted → visible to all roles
   fleetOnly?: "company";   // show only when fleetMode === "company"
   fleetHide?: "company";   // hide when fleetMode === "company"
+  action?: string;         // custom event name — fires window event instead of navigating
 };
 
 export type SidebarGroup = {
@@ -64,7 +65,7 @@ export const sidebarConfig: SidebarGroup[] = [
   {
     section: "Team",
     links: [
-      { label: "Chat", path: "/chat", icon: "messageSquare" },
+      { label: "Chat", path: "/chat", icon: "messageSquare", action: "open-chat" },
     ],
   },
   {
