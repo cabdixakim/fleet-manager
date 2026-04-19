@@ -112,17 +112,9 @@ export function NotificationBell() {
         )}
         aria-label="Notifications"
       >
-        {/* Bell icon — wiggles when there are unread notifications */}
-        <Bell className={cn("w-4 h-4", unread > 0 && !open && "animate-[wiggle_1s_ease-in-out]")} />
-
-        {/* Pulsing ring behind badge for extra visibility */}
+        <Bell className="w-4 h-4" />
         {unread > 0 && !open && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-50" />
-            <span className="relative flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-[9px] font-bold text-white leading-none">
-              {unread > 9 ? "9+" : unread}
-            </span>
-          </span>
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500" />
         )}
       </button>
 
