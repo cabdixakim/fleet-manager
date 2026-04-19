@@ -7,7 +7,7 @@ import {
 import { eq, and, desc, sql, isNull, isNotNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash } from "../lib/glPosting";
+import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash, deleteJournalEntriesForReference, refundPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
@@ -165,9 +165,8 @@ router.put("/:id", async (req, res, next) => {
     const { settled, description, amount, costType, expenseDate } = req.body;
     const id = parseInt(req.params.id);
 
-    // History is sacred: reject if either the existing row's date OR the proposed
-    // new date falls in a closed period.
-    const [existing] = await db.select({ expenseDate: tripExpensesTable.expenseDate }).from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+    // Load full existing expense so we can reverse its GL entry if amounts/type change
+    const [existing] = await db.select().from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
     if (!existing) return res.status(404).json({ error: "Not found" });
     if (await blockIfClosed(res, existing.expenseDate, expenseDate)) return;
 
@@ -184,12 +183,54 @@ router.put("/:id", async (req, res, next) => {
       .where(eq(tripExpensesTable.id, id))
       .returning();
     if (!expense) return res.status(404).json({ error: "Not found" });
+
+    // Re-post GL if financial fields changed (amount or costType)
+    const amountChanged = amount !== undefined && parseFloat(amount) !== parseFloat(existing.amount);
+    const typeChanged = costType !== undefined && costType !== existing.costType;
+    if (amountChanged || typeChanged) {
+      await deleteJournalEntriesForReference("trip_expense", id);
+      const newAmt = parseFloat(expense.amount);
+      const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[expense.costType ?? "other"] ?? "6001";
+      const creditCode = creditAccountForPaymentMethod(expense.paymentMethod);
+      const contextLabel = expense.tripId
+        ? `trip #${expense.tripId}`
+        : expense.batchId
+        ? `batch #${expense.batchId}`
+        : expense.truckId
+        ? `truck #${expense.truckId}`
+        : "general";
+      if (newAmt !== 0) {
+        await postJournalEntry({
+          description: `${expense.costType ?? "Expense"} — ${contextLabel}${expense.description ? `: ${expense.description}` : ""} (amended)`,
+          entryDate: expense.expenseDate ? new Date(expense.expenseDate) : new Date(),
+          referenceType: "trip_expense",
+          referenceId: id,
+          lines: [
+            { accountCode: glAccount, debit: Math.abs(newAmt), description: expense.description ?? expense.costType ?? undefined },
+            { accountCode: creditCode, credit: Math.abs(newAmt), description: "Payment" },
+          ],
+        });
+      }
+      // Adjust petty cash balance if payment was via petty cash
+      if (expense.paymentMethod === "petty_cash" && amountChanged) {
+        const oldAmt = parseFloat(existing.amount);
+        const delta = parseFloat(expense.amount) - oldAmt;
+        if (delta > 0) {
+          // Expense increased — deduct more
+          await deductPettyCash(delta, `${expense.costType} — ${contextLabel} (amendment)`, "trip_expense", id);
+        } else if (delta < 0) {
+          // Expense decreased — refund the difference
+          await refundPettyCash(Math.abs(delta), `${expense.costType} — ${contextLabel} (amendment refund)`, "trip_expense", id);
+        }
+      }
+    }
+
     await logAudit(req, {
       action: "update",
       entity: "trip_expense",
       entityId: expense.id,
-      description: `Expense updated: ${expense.costType} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      metadata: { costType: expense.costType, amount: parseFloat(expense.amount) },
+      description: `Expense updated: ${expense.costType} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}${amountChanged || typeChanged ? " (GL re-posted)" : ""}`,
+      metadata: { costType: expense.costType, amount: parseFloat(expense.amount), glReposted: amountChanged || typeChanged },
     });
     res.json({ ...expense, amount: parseFloat(expense.amount) });
   } catch (e) { next(e); }
@@ -371,11 +412,28 @@ router.delete("/:id", async (req, res, next) => {
     const [expense] = await db.select().from(tripExpensesTable).where(eq(tripExpensesTable.id, id));
     if (expense && (await blockIfClosed(res, expense.expenseDate))) return;
     await db.delete(tripExpensesTable).where(eq(tripExpensesTable.id, id));
+
+    // Remove the GL entry that was posted when this expense was created
+    await deleteJournalEntriesForReference("trip_expense", id);
+
+    // If paid from petty cash, return the amount to the petty cash balance
+    if (expense?.paymentMethod === "petty_cash") {
+      const amt = parseFloat(expense.amount);
+      if (amt > 0) {
+        await refundPettyCash(
+          amt,
+          `Refund: deleted ${expense.costType ?? "expense"} #${id}`,
+          "trip_expense",
+          id,
+        );
+      }
+    }
+
     await logAudit(req, {
       action: "delete",
       entity: "trip_expense",
       entityId: id,
-      description: `Deleted expense: ${expense?.costType ?? "expense"} — $${expense ? parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "?"}`,
+      description: `Deleted expense: ${expense?.costType ?? "expense"} — $${expense ? parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "?"} (GL reversed)`,
       metadata: { costType: expense?.costType, amount: expense ? parseFloat(expense.amount) : null },
     });
     res.status(204).send();

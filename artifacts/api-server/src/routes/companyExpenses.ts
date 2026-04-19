@@ -4,7 +4,7 @@ import { companyExpensesTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash } from "../lib/glPosting";
+import { postJournalEntry, EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash, deleteJournalEntriesForReference, refundPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
@@ -78,12 +78,45 @@ router.put("/:id", async (req, res, next) => {
     if (await blockIfClosed(res, existing.expenseDate, req.body.expenseDate)) return;
     const [expense] = await db.update(companyExpensesTable).set(req.body).where(eq(companyExpensesTable.id, id)).returning();
     if (!expense) return res.status(404).json({ error: "Not found" });
+
+    // Re-post GL if financial fields changed (amount or category)
+    const amountChanged = req.body.amount !== undefined && parseFloat(req.body.amount) !== parseFloat(existing.amount);
+    const categoryChanged = req.body.category !== undefined && req.body.category !== existing.category;
+    if (amountChanged || categoryChanged) {
+      await deleteJournalEntriesForReference("company_expense", id);
+      const newAmt = parseFloat(expense.amount);
+      const glAccount = EXPENSE_ACCOUNT_MAP[expense.category ?? "other"] ?? "6001";
+      const creditCode = creditAccountForPaymentMethod(expense.paymentMethod);
+      if (newAmt !== 0) {
+        await postJournalEntry({
+          description: `${expense.description ?? expense.category ?? "expense"} (amended)`,
+          entryDate: new Date(expense.expenseDate),
+          referenceType: "company_expense",
+          referenceId: id,
+          lines: [
+            { accountCode: glAccount, debit: Math.abs(newAmt), description: expense.description ?? undefined },
+            { accountCode: creditCode, credit: Math.abs(newAmt), description: "Payment" },
+          ],
+        });
+      }
+      // Adjust petty cash balance if payment was via petty cash
+      if (expense.paymentMethod === "petty_cash" && amountChanged) {
+        const oldAmt = parseFloat(existing.amount);
+        const delta = newAmt - oldAmt;
+        if (delta > 0) {
+          await deductPettyCash(delta, `${expense.category ?? expense.description} (amendment)`, "company_expense", id);
+        } else if (delta < 0) {
+          await refundPettyCash(Math.abs(delta), `${expense.category ?? expense.description} (amendment refund)`, "company_expense", id);
+        }
+      }
+    }
+
     await logAudit(req, {
       action: "update",
       entity: "company_expense",
       entityId: id,
-      description: `Company expense updated: ${expense.category ?? expense.description ?? "expense"} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      metadata: { category: expense.category, amount: parseFloat(expense.amount) },
+      description: `Company expense updated: ${expense.category ?? expense.description ?? "expense"} — $${parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}${amountChanged || categoryChanged ? " (GL re-posted)" : ""}`,
+      metadata: { category: expense.category, amount: parseFloat(expense.amount), glReposted: amountChanged || categoryChanged },
     });
     res.json({ ...expense, amount: parseFloat(expense.amount) });
   } catch (e) { next(e); }
@@ -170,11 +203,28 @@ router.delete("/:id", async (req, res, next) => {
     const [expense] = await db.select().from(companyExpensesTable).where(eq(companyExpensesTable.id, id));
     if (expense && (await blockIfClosed(res, expense.expenseDate))) return;
     await db.delete(companyExpensesTable).where(eq(companyExpensesTable.id, id));
+
+    // Remove the GL entry posted when this expense was created
+    await deleteJournalEntriesForReference("company_expense", id);
+
+    // If paid from petty cash, return the amount to the petty cash balance
+    if (expense?.paymentMethod === "petty_cash") {
+      const amt = parseFloat(expense.amount);
+      if (amt > 0) {
+        await refundPettyCash(
+          amt,
+          `Refund: deleted ${expense.category ?? expense.description ?? "expense"} #${id}`,
+          "company_expense",
+          id,
+        );
+      }
+    }
+
     await logAudit(req, {
       action: "delete",
       entity: "company_expense",
       entityId: id,
-      description: `Deleted company expense: ${expense?.category ?? expense?.description ?? "expense"} — $${expense ? parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "?"}`,
+      description: `Deleted company expense: ${expense?.category ?? expense?.description ?? "expense"} — $${expense ? parseFloat(expense.amount).toLocaleString("en-US", { minimumFractionDigits: 2 }) : "?"} (GL reversed)`,
       metadata: { category: expense?.category, amount: expense ? parseFloat(expense.amount) : null },
     });
     res.status(204).send();

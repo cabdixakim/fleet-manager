@@ -11,7 +11,7 @@ import {
 import { eq, desc, and, inArray, isNotNull, isNull } from "drizzle-orm";
 import { calculateTripFinancials } from "../lib/financials";
 import { logAudit } from "../lib/audit";
-import { postJournalEntry } from "../lib/glPosting";
+import { postJournalEntry, postReversalEntry, deleteJournalEntriesForReference } from "../lib/glPosting";
 
 const router = Router();
 
@@ -364,6 +364,21 @@ router.put("/:id/amend", async (req, res, next) => {
         description: reason.trim(),
         transactionDate: new Date(),
       });
+
+      // Re-post the AR/Revenue GL entry with the updated net revenue
+      await deleteJournalEntriesForReference("invoice", id);
+      if (newNet > 0) {
+        await postJournalEntry({
+          description: `Invoice ${invoice.invoiceNumber} — amendment #${updated.amendmentCount}`,
+          entryDate: new Date(),
+          referenceType: "invoice",
+          referenceId: id,
+          lines: [
+            { accountCode: "1100", debit: newNet, description: `AR — ${invoice.invoiceNumber}` },
+            { accountCode: "4001", credit: newNet, description: "Freight Revenue" },
+          ],
+        });
+      }
     }
 
     await logAudit(req, {
@@ -424,6 +439,11 @@ router.patch("/:id/status", async (req, res, next) => {
           }
         }
       }
+
+      // Reverse GL: Dr Revenue / Cr AR (undoes the original Dr AR / Cr Revenue posting)
+      await postReversalEntry("invoice", id, `VOID — ${invoice.invoiceNumber}`, new Date());
+      // Also reverse the payment GL entry if it exists (i.e. invoice was paid before cancellation)
+      await postReversalEntry("invoice_payment", id, `VOID payment — ${invoice.invoiceNumber}`, new Date());
     }
 
     // Auto-post to GL when paid: Dr Cash/Bank, Cr Accounts Receivable
@@ -523,12 +543,16 @@ router.delete("/:id", async (req, res, next) => {
       }
     }
 
+    // Reverse GL entries posted for this invoice (AR/Revenue and payment if it existed)
+    await postReversalEntry("invoice", id, `DELETED — ${invoice.invoiceNumber}`, new Date());
+    await postReversalEntry("invoice_payment", id, `DELETED payment — ${invoice.invoiceNumber}`, new Date());
+
     await db.delete(invoicesTable).where(eq(invoicesTable.id, id));
     await logAudit(req, {
       action: "delete",
       entity: "invoice",
       entityId: id,
-      description: `Deleted invoice ${invoice.invoiceNumber}${invoice.netRevenue ? ` ($${parseFloat(invoice.netRevenue).toLocaleString("en-US", { minimumFractionDigits: 2 })})` : ""} — ledger reversed, trips de-linked, batch reverted to Delivered`,
+      description: `Deleted invoice ${invoice.invoiceNumber}${invoice.netRevenue ? ` ($${parseFloat(invoice.netRevenue).toLocaleString("en-US", { minimumFractionDigits: 2 })})` : ""} — GL reversed, ledger reversed, trips de-linked, batch reverted to Delivered`,
     });
     res.json({ success: true });
   } catch (e) { next(e); }

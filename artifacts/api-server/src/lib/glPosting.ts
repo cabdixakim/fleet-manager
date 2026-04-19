@@ -169,6 +169,115 @@ export async function deductPettyCash(amount: number, description: string, refer
 }
 
 /**
+ * Delete all GL journal entries (and their lines) for a given reference.
+ * Use this in open periods before re-posting a corrected entry.
+ */
+export async function deleteJournalEntriesForReference(referenceType: string, referenceId: number): Promise<void> {
+  try {
+    const entries = await db
+      .select({ id: glJournalEntriesTable.id })
+      .from(glJournalEntriesTable)
+      .where(and(
+        eq(glJournalEntriesTable.referenceType, referenceType),
+        eq(glJournalEntriesTable.referenceId, referenceId),
+      ));
+    if (entries.length === 0) return;
+    const ids = entries.map((e) => e.id);
+    await db.delete(glJournalEntryLinesTable).where(inArray(glJournalEntryLinesTable.journalEntryId, ids));
+    await db.delete(glJournalEntriesTable).where(inArray(glJournalEntriesTable.id, ids));
+  } catch {
+    // GL errors must never crash the main flow
+  }
+}
+
+/**
+ * Post a reversal (mirror) of an existing GL entry for a reference.
+ * Flips debits and credits. Uses referenceType "reversal_{referenceType}" to avoid
+ * hitting the deduplication guard.
+ */
+export async function postReversalEntry(
+  referenceType: string,
+  referenceId: number,
+  description: string,
+  entryDate: Date,
+): Promise<void> {
+  try {
+    const entries = await db
+      .select({ id: glJournalEntriesTable.id })
+      .from(glJournalEntriesTable)
+      .where(and(
+        eq(glJournalEntriesTable.referenceType, referenceType),
+        eq(glJournalEntriesTable.referenceId, referenceId),
+      ));
+    if (entries.length === 0) return;
+
+    // Check if reversal already posted
+    const reversalType = `reversal_${referenceType}`;
+    const existingReversal = await db
+      .select({ id: glJournalEntriesTable.id })
+      .from(glJournalEntriesTable)
+      .where(and(
+        eq(glJournalEntriesTable.referenceType, reversalType),
+        eq(glJournalEntriesTable.referenceId, referenceId),
+      ))
+      .limit(1);
+    if (existingReversal.length > 0) return;
+
+    const lines = await db
+      .select()
+      .from(glJournalEntryLinesTable)
+      .where(eq(glJournalEntryLinesTable.journalEntryId, entries[0].id));
+    if (lines.length === 0) return;
+
+    const entryNumber = await getNextEntryNumber();
+    const [reversalEntry] = await db.insert(glJournalEntriesTable).values({
+      entryNumber,
+      description,
+      entryDate,
+      status: "posted",
+      referenceType: reversalType,
+      referenceId,
+    }).returning();
+
+    await db.insert(glJournalEntryLinesTable).values(
+      lines.map((l) => ({
+        journalEntryId: reversalEntry.id,
+        accountId: l.accountId,
+        debit: l.credit,
+        credit: l.debit,
+        description: l.description ?? null,
+      }))
+    );
+  } catch {
+    // Never crash
+  }
+}
+
+/**
+ * Add back to petty cash balance when an expense is deleted or reversed.
+ */
+export async function refundPettyCash(amount: number, description: string, referenceType: string, referenceId: number): Promise<void> {
+  try {
+    const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
+    if (!account) return;
+    await db.update(pettyCashAccountsTable)
+      .set({ balance: sql`${pettyCashAccountsTable.balance} + ${amount.toFixed(2)}` })
+      .where(eq(pettyCashAccountsTable.id, account.id));
+    await db.insert(pettyCashTransactionsTable).values({
+      accountId: account.id,
+      type: "top_up",
+      amount: amount.toFixed(2),
+      description,
+      referenceType: `refund_${referenceType}`,
+      referenceId,
+      transactionDate: new Date(),
+    });
+  } catch {
+    // Never crash
+  }
+}
+
+/**
  * Post (or replace) an opening balance GL entry for a client, subcontractor, or supplier.
  * Always deletes any existing entry for the referenceType+referenceId first,
  * then posts a fresh one if amount > 0. This means changing an opening balance
