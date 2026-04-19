@@ -45,6 +45,7 @@ const EXPENSE_TYPES = [
 const CLEARANCE_DOCS = ["T1", "TR8", "customs_declaration", "transit_permit", "health_cert", "other"];
 
 import { getRouteLabel } from "@/lib/routes";
+import { TaskTrigger } from "@/components/TaskPanel";
 
 function generateTripClientHtml(trip: any, company: any): string {
   const fin = trip.financials ?? {};
@@ -527,6 +528,8 @@ export default function TripDetail() {
             <Button variant="outline" size="sm" onClick={() => navigate(`/batches/${trip.batchId}`)}><ChevronLeft className="w-4 h-4 sm:mr-1" /><span className="hidden sm:inline">Batch</span></Button>
             {/* Status badge — always shown */}
             <StatusBadge status={trip.status} />
+            {/* Task trigger — always shown */}
+            <TaskTrigger recordType="trip" recordId={id} recordLabel={`${trip.truckPlate} — ${trip.batchName}`} />
             {/* Incident badge — always shown if flagged */}
             {(trip as any).incidentFlag && (
               <span className="flex items-center gap-1 text-xs font-semibold bg-red-500/10 text-red-600 border border-red-300 px-2.5 py-1 rounded-full">
@@ -1167,6 +1170,11 @@ export default function TripDetail() {
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="text-base font-bold">{formatCurrency(e.amount)}</span>
+                          <TaskTrigger
+                            recordType="expense"
+                            recordId={e.id}
+                            recordLabel={`${et?.label ?? e.costType} — ${formatCurrency(e.amount)}`}
+                          />
                           {(e as any).truckId && (
                             <button
                               onClick={() => setConfirmUnlinkId(e.id)}
@@ -1223,20 +1231,27 @@ export default function TripDetail() {
                             <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(e.expenseDate ?? e.createdAt)}</td>
                             <td className="px-4 py-3 font-semibold">{formatCurrency(e.amount)}</td>
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {(e as any).truckId && (
-                                  <button
-                                    onClick={() => setConfirmUnlinkId(e.id)}
-                                    className="text-muted-foreground hover:text-amber-400"
-                                    title="Unlink from trip"
-                                    disabled={unlinkingExpenseId === e.id}
-                                  >
-                                    {unlinkingExpenseId === e.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink2 className="w-4 h-4" />}
+                              <div className="flex items-center gap-1">
+                                <TaskTrigger
+                                  recordType="expense"
+                                  recordId={e.id}
+                                  recordLabel={`${et?.label ?? e.costType} — ${formatCurrency(e.amount)}`}
+                                />
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {(e as any).truckId && (
+                                    <button
+                                      onClick={() => setConfirmUnlinkId(e.id)}
+                                      className="text-muted-foreground hover:text-amber-400"
+                                      title="Unlink from trip"
+                                      disabled={unlinkingExpenseId === e.id}
+                                    >
+                                      {unlinkingExpenseId === e.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink2 className="w-4 h-4" />}
+                                    </button>
+                                  )}
+                                  <button onClick={() => setDeleteExpenseId(e.id)} className="text-muted-foreground hover:text-destructive">
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
-                                )}
-                                <button onClick={() => setDeleteExpenseId(e.id)} className="text-muted-foreground hover:text-destructive">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                </div>
                               </div>
                             </td>
                           </tr>
