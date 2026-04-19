@@ -104,14 +104,24 @@ export function NotificationBell() {
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
-          open ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+          open
+            ? "bg-primary/10 text-primary"
+            : unread > 0
+            ? "text-orange-400 hover:bg-orange-500/10"
+            : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
         )}
         aria-label="Notifications"
       >
-        <Bell className="w-4 h-4" />
-        {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-[9px] font-bold text-white leading-none">
-            {unread > 9 ? "9+" : unread}
+        {/* Bell icon — wiggles when there are unread notifications */}
+        <Bell className={cn("w-4 h-4", unread > 0 && !open && "animate-[wiggle_1s_ease-in-out]")} />
+
+        {/* Pulsing ring behind badge for extra visibility */}
+        {unread > 0 && !open && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-50" />
+            <span className="relative flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-[9px] font-bold text-white leading-none">
+              {unread > 9 ? "9+" : unread}
+            </span>
           </span>
         )}
       </button>
