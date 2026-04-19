@@ -96,7 +96,8 @@ export function TripDiscussion({ tripId }: Props) {
   }
 
   return (
-    <div className="flex flex-col h-[520px] bg-card border border-border rounded-lg overflow-hidden">
+    <div className="flex flex-col bg-card border border-border rounded-lg overflow-hidden h-[420px] sm:h-[520px]">
+      {/* Header */}
       <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-2 flex-shrink-0">
         <MessageSquare className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm font-medium text-foreground">Trip Discussion</span>
@@ -105,7 +106,8 @@ export function TripDiscussion({ tripId }: Props) {
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
             <MessageSquare className="w-8 h-8 opacity-20" />
@@ -119,11 +121,11 @@ export function TripDiscussion({ tripId }: Props) {
           const isOwn = msg.userId === (user as any)?.id;
           const showAvatar = idx === 0 || messages[idx - 1].userId !== msg.userId;
           return (
-            <div key={msg.id} className={`flex gap-2.5 group ${isOwn ? "flex-row-reverse" : ""}`}>
+            <div key={msg.id} className={`flex gap-2 group ${isOwn ? "flex-row-reverse" : ""}`}>
               <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white ${avatarColor(msg.userId)} ${!showAvatar ? "invisible" : ""}`}>
                 {initials(msg.userName)}
               </div>
-              <div className={`flex flex-col max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
+              <div className={`flex flex-col max-w-[85%] sm:max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
                 {showAvatar && (
                   <div className={`flex items-baseline gap-1.5 mb-0.5 ${isOwn ? "flex-row-reverse" : ""}`}>
                     <span className="text-[11px] font-semibold text-foreground">{msg.userName ?? "Unknown"}</span>
@@ -141,7 +143,7 @@ export function TripDiscussion({ tripId }: Props) {
                   {isOwn && (
                     <button
                       onClick={() => deleteMessage(msg.id)}
-                      className="absolute -top-2 -right-2 hidden group-hover:flex w-5 h-5 rounded-full bg-destructive items-center justify-center shadow"
+                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive items-center justify-center shadow flex md:hidden md:group-hover:flex"
                       title="Delete"
                     >
                       <Trash2 className="w-2.5 h-2.5 text-white" />
@@ -155,8 +157,9 @@ export function TripDiscussion({ tripId }: Props) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-4 py-2.5 border-t border-border bg-card flex-shrink-0">
-        <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-1.5 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary transition-all">
+      {/* Input */}
+      <div className="px-3 sm:px-4 py-2.5 border-t border-border bg-card flex-shrink-0">
+        <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary transition-all">
           <input
             ref={inputRef}
             type="text"
@@ -164,14 +167,14 @@ export function TripDiscussion({ tripId }: Props) {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
             placeholder="Add a message to this trip…"
-            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none min-w-0"
           />
           <button
             onClick={sendMessage}
             disabled={!draft.trim() || sending}
-            className="w-7 h-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground disabled:opacity-40 hover:opacity-90 transition-opacity"
+            className="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground disabled:opacity-40 hover:opacity-90 transition-opacity flex-shrink-0"
           >
-            <Send className="w-3 h-3" />
+            <Send className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
