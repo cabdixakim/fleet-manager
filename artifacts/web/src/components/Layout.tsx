@@ -199,7 +199,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <div className="text-xs font-medium text-foreground truncate">{user?.name}</div>
                 <div className="text-[10px] text-muted-foreground capitalize">{user?.role}</div>
               </div>
-              <NotificationBell />
               <ThemeToggleButton />
               <button onClick={logout} title="Sign out" className="text-muted-foreground hover:text-red-500 rounded p-1 transition-colors">
                 <LogOut className="w-3.5 h-3.5" />
@@ -207,7 +206,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <NotificationBell />
               <ThemeToggleButton />
               <button onClick={logout} className="text-muted-foreground hover:text-red-500 rounded p-1 transition-colors">
                 <LogOut className="w-4 h-4" />
@@ -333,6 +331,7 @@ export function PageHeader({
             <span className="hidden md:inline">Search</span>
             <kbd className="hidden md:inline ml-1 text-[10px] bg-background border border-border rounded px-1.5 py-0.5">⌘K</kbd>
           </button>
+          <NotificationBell />
           {/* Actions inline on desktop */}
           {actions && <div className="hidden md:flex items-center gap-2">{actions}</div>}
         </div>
