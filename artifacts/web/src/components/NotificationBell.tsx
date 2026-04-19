@@ -106,15 +106,13 @@ export function NotificationBell() {
           "relative flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
           open
             ? "bg-primary/10 text-primary"
-            : unread > 0
-            ? "text-orange-400 hover:bg-orange-500/10"
             : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
         )}
         aria-label="Notifications"
       >
         <Bell className="w-4 h-4" />
         {unread > 0 && !open && (
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-orange-500" />
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
         )}
       </button>
 
