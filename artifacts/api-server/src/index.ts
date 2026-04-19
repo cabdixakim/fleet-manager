@@ -3,6 +3,7 @@ import app from "./app";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { seedGLAccounts, backfillGLEntries, seedPettyCashAccount } from "./lib/glBackfill";
+import { seedDefaultBankAccount } from "./lib/glPosting";
 
 const rawPort = process.env["PORT"];
 
@@ -41,6 +42,7 @@ app.listen(port, async () => {
     const seeded = await seedGLAccounts();
     if (seeded > 0) console.log(`[startup] Seeded ${seeded} GL account(s).`);
     await seedPettyCashAccount();
+    await seedDefaultBankAccount();
     const backfill = await backfillGLEntries();
     const total = backfill.invoices + backfill.payments + backfill.expenses + backfill.tripExpenses + backfill.payroll;
     if (total > 0) {

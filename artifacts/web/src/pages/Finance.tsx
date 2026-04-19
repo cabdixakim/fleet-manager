@@ -85,7 +85,7 @@ export default function Finance() {
   const pendingDeleteRef = useRef<CorrectionEntry | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<CorrectionEntry | null>(null);
 
-  const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "" };
+  const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "", bankAccountId: "" };
   const defaultCostType: Record<string, string> = { trip: "toll", truck: "maintenance", overhead: "office_rent" };
   const [form, setForm] = useState(emptyForm);
 
@@ -96,6 +96,10 @@ export default function Finance() {
   const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["/api/suppliers"],
     queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
+  });
+  const { data: bankAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/bank-accounts"],
+    queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
   });
 
   const selectedTruck = (allTrucks as any[]).find((t: any) => String(t.id) === form.truckId);
@@ -155,6 +159,7 @@ export default function Finance() {
         expenseDate: form.expenseDate,
         paymentMethod: form.paymentMethod,
         supplierId: form.paymentMethod === "fuel_credit" && form.supplierId ? parseInt(form.supplierId) : null,
+        bankAccountId: form.paymentMethod === "bank_transfer" && form.bankAccountId ? parseInt(form.bankAccountId) : null,
       });
       setShowCreate(false);
       setForm(emptyForm);
@@ -422,7 +427,7 @@ export default function Finance() {
 
               <div>
                 <Label className="text-xs">Paid via</Label>
-                <Select value={form.paymentMethod} onValueChange={(v)=>setForm({...form,paymentMethod:v,supplierId:""})}>
+                <Select value={form.paymentMethod} onValueChange={(v)=>setForm({...form,paymentMethod:v,supplierId:"",bankAccountId:""})}>
                   <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
@@ -432,6 +437,20 @@ export default function Finance() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {form.paymentMethod === "bank_transfer" && (bankAccounts as any[]).filter(b => b.isActive).length > 0 && (
+                <div>
+                  <Label className="text-xs">Bank Account</Label>
+                  <Select value={form.bankAccountId} onValueChange={(v)=>setForm({...form,bankAccountId:v})}>
+                    <SelectTrigger className="mt-1 h-8 text-sm"><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
+                    <SelectContent>
+                      {(bankAccounts as any[]).filter(b => b.isActive).map((b:any)=>(
+                        <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.bankName ? ` — ${b.bankName}` : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {form.paymentMethod === "fuel_credit" && (
                 <div>

@@ -5,6 +5,7 @@ import {
   glAccountsTable,
   pettyCashAccountsTable,
   pettyCashTransactionsTable,
+  bankAccountsTable,
 } from "@workspace/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 
@@ -340,6 +341,45 @@ export function pettyCashSourceAccount(source?: string | null): string {
     case "owner_cash":  return "3001";
     case "client_cash": return "1100";
     default:            return "1002"; // bank_transfer (default)
+  }
+}
+
+/**
+ * Resolve the GL credit/debit account code for a bank payment.
+ * If a specific bankAccountId is provided and the payment method is bank/cash,
+ * look up that bank's GL code; otherwise fall back to creditAccountForPaymentMethod.
+ */
+export async function resolveBankGlCode(paymentMethod: string, bankAccountId?: number | null): Promise<string> {
+  if ((paymentMethod === "bank_transfer" || paymentMethod === "cash") && bankAccountId) {
+    try {
+      const [bankAccount] = await db
+        .select({ glCode: bankAccountsTable.glCode })
+        .from(bankAccountsTable)
+        .where(eq(bankAccountsTable.id, bankAccountId))
+        .limit(1);
+      if (bankAccount) return bankAccount.glCode;
+    } catch { /* fall through */ }
+  }
+  return creditAccountForPaymentMethod(paymentMethod);
+}
+
+/**
+ * Seed the default bank account (GL 1002) if no bank accounts exist yet.
+ * Called once on server startup.
+ */
+export async function seedDefaultBankAccount(): Promise<void> {
+  try {
+    const existing = await db.select({ id: bankAccountsTable.id }).from(bankAccountsTable).limit(1);
+    if (existing.length > 0) return;
+    await db.insert(bankAccountsTable).values({
+      name: "Default Bank Account",
+      glCode: "1002",
+      isDefault: true,
+      isActive: true,
+    });
+    console.log("[startup] Seeded default bank account (GL 1002).");
+  } catch (e) {
+    console.error("[startup] Failed to seed default bank account:", e);
   }
 }
 

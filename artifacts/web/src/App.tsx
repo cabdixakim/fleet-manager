@@ -38,6 +38,8 @@ import Suppliers from "@/pages/Suppliers";
 import SupplierStatement from "@/pages/SupplierStatement";
 import PettyCash from "@/pages/PettyCash";
 import DriverDetail from "@/pages/DriverDetail";
+import BankAccounts from "@/pages/BankAccounts";
+import BankReconcile from "@/pages/BankReconcile";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -141,6 +143,8 @@ function Router() {
               <Route path="/suppliers" component={Suppliers} />
               <Route path="/suppliers/:id" component={SupplierStatement} />
               <Route path="/petty-cash" component={PettyCash} />
+              <Route path="/bank-accounts" component={BankAccounts} />
+              <Route path="/bank-accounts/:id/reconcile" component={BankReconcile} />
               <Route component={NotFound} />
             </Switch>
           </AuthGate>

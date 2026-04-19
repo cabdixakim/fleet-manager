@@ -4,7 +4,7 @@ import { companyExpensesTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash, deleteJournalEntriesForReference, refundPettyCash } from "../lib/glPosting";
+import { postJournalEntry, EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, resolveBankGlCode, deductPettyCash, deleteJournalEntriesForReference, refundPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
@@ -25,7 +25,7 @@ router.get("/", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const { paymentMethod, supplierId, ...rest } = req.body;
+    const { paymentMethod, supplierId, bankAccountId, ...rest } = req.body;
     const bump = await bumpDateIfClosed(rest.expenseDate ?? new Date());
     const [expense] = await db.insert(companyExpensesTable).values({
       ...rest,
@@ -33,6 +33,7 @@ router.post("/", async (req, res, next) => {
       description: appendNote(rest.description, bump.noteSuffix),
       paymentMethod: paymentMethod ?? "cash",
       supplierId: supplierId ? parseInt(supplierId) : null,
+      bankAccountId: bankAccountId ? parseInt(bankAccountId) : null,
     }).returning();
     await logAudit(req, {
       action: "create",
@@ -44,7 +45,7 @@ router.post("/", async (req, res, next) => {
 
     // Auto-post to GL: Dr expense account, Cr correct account based on payment method
     const expenseAccountCode = EXPENSE_ACCOUNT_MAP[expense.category ?? "other"] ?? "6001";
-    const creditCode = creditAccountForPaymentMethod(expense.paymentMethod);
+    const creditCode = await resolveBankGlCode(expense.paymentMethod, expense.bankAccountId);
     const amount = parseFloat(expense.amount);
     if (amount > 0) {
       await postJournalEntry({

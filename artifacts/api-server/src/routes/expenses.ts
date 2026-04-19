@@ -7,7 +7,7 @@ import {
 import { eq, and, desc, sql, isNull, isNotNull } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, deductPettyCash, deleteJournalEntriesForReference, refundPettyCash } from "../lib/glPosting";
+import { postJournalEntry, TRIP_EXPENSE_ACCOUNT_MAP, creditAccountForPaymentMethod, resolveBankGlCode, deductPettyCash, deleteJournalEntriesForReference, refundPettyCash } from "../lib/glPosting";
 
 const router = Router();
 
@@ -75,7 +75,7 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const body = req.body;
-    let { tripId, batchId, truckId, subcontractorId, tier, costType, description, amount, currency, expenseDate, settled, paymentMethod, supplierId } = body;
+    let { tripId, batchId, truckId, subcontractorId, tier, costType, description, amount, currency, expenseDate, settled, paymentMethod, supplierId, bankAccountId } = body;
 
     if (tier === "trip" && batchId && truckId && !tripId) {
       const [trip] = await db
@@ -112,6 +112,7 @@ router.post("/", async (req, res, next) => {
         settled: settled ?? false,
         paymentMethod: paymentMethod ?? "cash",
         supplierId: supplierId ? parseInt(supplierId) : null,
+        bankAccountId: bankAccountId ? parseInt(bankAccountId) : null,
       })
       .returning();
 
@@ -135,7 +136,7 @@ router.post("/", async (req, res, next) => {
     const expAmt = parseFloat(expense.amount);
     if (expAmt > 0) {
       const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[expense.costType ?? "other"] ?? "6001";
-      const creditCode = creditAccountForPaymentMethod(expense.paymentMethod);
+      const creditCode = await resolveBankGlCode(expense.paymentMethod, expense.bankAccountId);
       await postJournalEntry({
         description: `${expense.costType ?? "Expense"} — ${contextLabel}${expense.description ? `: ${expense.description}` : ""}`,
         entryDate: new Date(bump.effectiveDate),

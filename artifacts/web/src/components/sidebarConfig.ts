@@ -58,6 +58,7 @@ export const sidebarConfig: SidebarGroup[] = [
       { label: "Reports",           path: "/reports",        icon: "barChart" },
       { label: "Periods",           path: "/periods",        icon: "calendar" },
       { label: "Petty Cash",        path: "/petty-cash",     icon: "wallet" },
+      { label: "Bank Accounts",     path: "/bank-accounts",  icon: "building2" },
     ],
   },
   {

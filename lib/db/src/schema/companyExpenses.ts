@@ -13,6 +13,7 @@ export const companyExpensesTable = pgTable("company_expenses", {
   // Payment method: how the expense was/will be paid
   paymentMethod: text("payment_method").notNull().default("cash"), // cash | petty_cash | fuel_credit | bank_transfer
   supplierId: integer("supplier_id").references(() => suppliersTable.id),
+  bankAccountId: integer("bank_account_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
