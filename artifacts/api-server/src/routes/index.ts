@@ -34,6 +34,7 @@ import documentsRouter from "./documents";
 import bankAccountsRouter from "./bankAccounts";
 import tasksRouter from "./tasks";
 import notificationsRouter from "./notifications";
+import alertsRouter from "./alerts";
 
 const router: IRouter = Router();
 
@@ -73,5 +74,6 @@ router.use("/documents", documentsRouter);
 router.use("/bank-accounts", bankAccountsRouter);
 router.use("/tasks", tasksRouter);
 router.use("/notifications", notificationsRouter);
+router.use("/alerts", alertsRouter);
 
 export default router;

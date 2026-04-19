@@ -51,6 +51,18 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Run system alert checks on mount + every 10 minutes; refetch count after each run
+  useEffect(() => {
+    const runCheck = () =>
+      api("/api/alerts/check", { method: "POST" })
+        .then(() => qc.invalidateQueries({ queryKey: ["notifications-count"] }))
+        .catch(() => {}); // silent fail — never block UI for background checks
+
+    runCheck();
+    const interval = setInterval(runCheck, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { data: countData } = useQuery<{ count: number }>({
     queryKey: ["notifications-count"],
     queryFn: () => api("/api/notifications/unread-count").then((r) => r.json()),
