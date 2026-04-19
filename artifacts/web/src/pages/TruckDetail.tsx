@@ -121,12 +121,16 @@ export default function TruckDetail() {
   };
   const [expenseForm, setExpenseForm] = useState({
     costType: "maintenance", description: "", amount: "", currency: "USD",
-    expenseDate: format(new Date(), "yyyy-MM-dd"), paymentMethod: "cash", supplierId: "",
+    expenseDate: format(new Date(), "yyyy-MM-dd"), paymentMethod: "petty_cash", supplierId: "", bankAccountId: "",
   });
 
   const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["/api/suppliers"],
     queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
+  });
+  const { data: bankAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/bank-accounts"],
+    queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
   });
   const [addingExpense, setAddingExpense] = useState(false);
 
@@ -182,6 +186,7 @@ export default function TruckDetail() {
           tier: "truck",
           paymentMethod: expenseForm.paymentMethod,
           supplierId: expenseForm.paymentMethod === "fuel_credit" && expenseForm.supplierId ? parseInt(expenseForm.supplierId) : null,
+          bankAccountId: expenseForm.paymentMethod === "bank_transfer" && expenseForm.bankAccountId ? parseInt(expenseForm.bankAccountId) : null,
         }),
       });
       await throwOnApiError(r);
@@ -189,7 +194,7 @@ export default function TruckDetail() {
       await qc.invalidateQueries({ queryKey: [`/api/trucks/${id}/detail`] });
       qc.invalidateQueries({ queryKey: ["/api/expenses"] });
       setShowAddExpense(false);
-      setExpenseForm({ costType: "maintenance", description: "", amount: "", currency: "USD", expenseDate: format(new Date(), "yyyy-MM-dd"), paymentMethod: "cash", supplierId: "" });
+      setExpenseForm({ costType: "maintenance", description: "", amount: "", currency: "USD", expenseDate: format(new Date(), "yyyy-MM-dd"), paymentMethod: "petty_cash", supplierId: "", bankAccountId: "" });
       if (result?.posting?.bumped) {
         toast({
           title: `Posted to ${result.posting.date}`,
@@ -816,7 +821,7 @@ export default function TruckDetail() {
             </div>
             <div className="space-y-1.5">
               <Label>Paid via</Label>
-              <Select value={expenseForm.paymentMethod} onValueChange={(v) => setExpenseForm({ ...expenseForm, paymentMethod: v, supplierId: "" })}>
+              <Select value={expenseForm.paymentMethod} onValueChange={(v) => setExpenseForm({ ...expenseForm, paymentMethod: v, supplierId: "", bankAccountId: "" })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cash">Cash</SelectItem>
@@ -834,6 +839,19 @@ export default function TruckDetail() {
                   <SelectContent>
                     {(suppliers as any[]).map((s: any) => (
                       <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {expenseForm.paymentMethod === "bank_transfer" && (bankAccounts as any[]).filter((b: any) => b.isActive).length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Bank Account</Label>
+                <Select value={expenseForm.bankAccountId} onValueChange={(v) => setExpenseForm({ ...expenseForm, bankAccountId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    {(bankAccounts as any[]).filter((b: any) => b.isActive).map((b: any) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.bankName ? ` — ${b.bankName}` : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

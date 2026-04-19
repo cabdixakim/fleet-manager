@@ -201,7 +201,7 @@ export default function TripDetail() {
     return { docType: "other", docNumber: "", url: content, notes: "" };
   };
   const [showAmend, setShowAmend] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "" });
+  const [expenseForm, setExpenseForm] = useState({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "petty_cash", supplierId: "", bankAccountId: "" });
   const [clearanceForm, setClearanceForm] = useState({ checkpoint: "zambia_entry", documentType: "T1", documentNumber: "", status: "requested", notes: "" });
   const [noteForm, setNoteForm] = useState({ docType: "waybill", docNumber: "", url: "", notes: "" });
   const [uploading, setUploading] = useState(false);
@@ -268,6 +268,10 @@ export default function TripDetail() {
   const { data: suppliers = [] } = useQuery<any[]>({
     queryKey: ["/api/suppliers"],
     queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then((r) => r.json()),
+  });
+  const { data: bankAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/bank-accounts"],
+    queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
   });
   const selectableBatches = (allBatches as any[]).filter(
     (b) => !["cancelled", "closed", "invoiced"].includes(b.status) && b.id !== trip?.batchId
@@ -376,11 +380,12 @@ export default function TripDetail() {
       amount: parseFloat(expenseForm.amount),
       paymentMethod: expenseForm.paymentMethod,
       supplierId: expenseForm.paymentMethod === "fuel_credit" && expenseForm.supplierId ? parseInt(expenseForm.supplierId) : null,
+      bankAccountId: expenseForm.paymentMethod === "bank_transfer" && expenseForm.bankAccountId ? parseInt(expenseForm.bankAccountId) : null,
     }});
     invalidate();
     qc.invalidateQueries({ queryKey: ["/api/expenses"] });
     setShowExpense(false);
-    setExpenseForm({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "" });
+    setExpenseForm({ costType: "fuel_1", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "petty_cash", supplierId: "", bankAccountId: "" });
   };
 
   const handleClearanceSave = async () => {
@@ -1375,7 +1380,7 @@ export default function TripDetail() {
               </div>
             </div>
             <div><Label>Paid via</Label>
-              <Select value={expenseForm.paymentMethod} onValueChange={(v) => setExpenseForm({ ...expenseForm, paymentMethod: v, supplierId: "" })}>
+              <Select value={expenseForm.paymentMethod} onValueChange={(v) => setExpenseForm({ ...expenseForm, paymentMethod: v, supplierId: "", bankAccountId: "" })}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cash">Cash</SelectItem>
@@ -1392,6 +1397,18 @@ export default function TripDetail() {
                   <SelectContent>
                     {(suppliers as any[]).map((s: any) => (
                       <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {expenseForm.paymentMethod === "bank_transfer" && (bankAccounts as any[]).filter((b: any) => b.isActive).length > 0 && (
+              <div><Label>Bank Account</Label>
+                <Select value={expenseForm.bankAccountId} onValueChange={(v) => setExpenseForm({ ...expenseForm, bankAccountId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select bank (optional)" /></SelectTrigger>
+                  <SelectContent>
+                    {(bankAccounts as any[]).filter((b: any) => b.isActive).map((b: any) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.bankName ? ` — ${b.bankName}` : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

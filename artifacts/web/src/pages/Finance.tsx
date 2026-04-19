@@ -85,7 +85,7 @@ export default function Finance() {
   const pendingDeleteRef = useRef<CorrectionEntry | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<CorrectionEntry | null>(null);
 
-  const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "cash", supplierId: "", bankAccountId: "" };
+  const emptyForm = { tier: "trip", batchId: "", truckId: "", costType: "toll", description: "", amount: "", currency: "USD", expenseDate: new Date().toISOString().split("T")[0], paymentMethod: "petty_cash", supplierId: "", bankAccountId: "" };
   const defaultCostType: Record<string, string> = { trip: "toll", truck: "maintenance", overhead: "office_rent" };
   const [form, setForm] = useState(emptyForm);
 
