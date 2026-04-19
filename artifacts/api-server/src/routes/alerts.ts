@@ -5,9 +5,11 @@ import {
   invoicesTable,
   tripsTable,
   trucksTable,
+  driversTable,
+  documentsTable,
   usersTable,
 } from "@workspace/db/schema";
-import { eq, and, lt, inArray, sql, gte, count } from "drizzle-orm";
+import { eq, and, lt, lte, inArray, sql, gte, count } from "drizzle-orm";
 
 const router = Router();
 
@@ -129,7 +131,83 @@ router.post("/check", async (req, res) => {
       }
     }
 
-    res.json({ created, overdueInvoices: overdueInvoices.length, stuckTrips: stuckTrips.length });
+    // ── 3. Document expiry (trucks + drivers) ───────────────────────────
+    const EXPIRY_WARN_DAYS = 30;
+    const expiryWindow = new Date(Date.now() + EXPIRY_WARN_DAYS * 24 * 60 * 60 * 1000)
+      .toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
+
+    const expiringDocs = await db
+      .select({
+        id: documentsTable.id,
+        entityType: documentsTable.entityType,
+        entityId: documentsTable.entityId,
+        docLabel: documentsTable.docLabel,
+        expiryDate: documentsTable.expiryDate,
+      })
+      .from(documentsTable)
+      .where(
+        and(
+          gte(documentsTable.expiryDate, today),
+          lte(documentsTable.expiryDate, expiryWindow),
+        )
+      );
+
+    if (expiringDocs.length > 0) {
+      // Build lookup maps for entity names
+      const truckIds  = [...new Set(expiringDocs.filter((d) => d.entityType === "truck").map((d) => d.entityId))];
+      const driverIds = [...new Set(expiringDocs.filter((d) => d.entityType === "driver").map((d) => d.entityId))];
+      const truckMap: Record<number, string>  = {};
+      const driverMap: Record<number, string> = {};
+      if (truckIds.length > 0) {
+        const trucks = await db.select({ id: trucksTable.id, plateNumber: trucksTable.plateNumber }).from(trucksTable);
+        trucks.forEach((t) => { truckMap[t.id] = t.plateNumber; });
+      }
+      if (driverIds.length > 0) {
+        const drivers = await db.select({ id: driversTable.id, name: driversTable.name }).from(driversTable);
+        drivers.forEach((d) => { driverMap[d.id] = d.name; });
+      }
+
+      const docUsers = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(inArray(usersTable.role, ["operations", "manager", "admin", "owner"]));
+
+      for (const doc of expiringDocs) {
+        const entityName = doc.entityType === "truck"
+          ? (truckMap[doc.entityId] ?? `Truck #${doc.entityId}`)
+          : (driverMap[doc.entityId] ?? `Driver #${doc.entityId}`);
+
+        const link = doc.entityType === "truck"
+          ? `/fleet/${doc.entityId}`
+          : `/drivers/${doc.entityId}`;
+
+        const daysLeft = Math.ceil(
+          (new Date(doc.expiryDate!).getTime() - Date.now()) / 86400000
+        );
+
+        for (const u of docUsers) {
+          if (await alreadyNotified(u.id, "doc_expiry", doc.id, dedupMs)) continue;
+          await db.insert(notificationsTable).values({
+            userId: u.id,
+            type: "doc_expiry",
+            title: "Document Expiring Soon",
+            body: `${entityName} — ${doc.docLabel} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+            link,
+            read: false,
+            metadata: {
+              recordId: String(doc.id),
+              recordType: "document",
+              entityType: doc.entityType,
+              entityName,
+            },
+          });
+          created++;
+        }
+      }
+    }
+
+    res.json({ created, overdueInvoices: overdueInvoices.length, stuckTrips: stuckTrips.length, expiringDocs: expiringDocs.length });
   } catch (e: any) {
     console.error("Alert check error:", e);
     res.status(500).json({ error: "Alert check failed", detail: e?.message });

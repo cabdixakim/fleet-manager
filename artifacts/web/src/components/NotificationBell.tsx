@@ -22,7 +22,8 @@ const TYPE_ICON: Record<string, { icon: React.ElementType; color: string }> = {
   task_assigned: { icon: MessageSquare, color: "text-blue-400" },
   task_completed: { icon: CheckCircle2, color: "text-emerald-400" },
   overdue_invoice: { icon: AlertCircle, color: "text-red-400" },
-  stuck_trip: { icon: AlertCircle, color: "text-orange-400" },
+  stuck_trip:     { icon: AlertCircle, color: "text-orange-400" },
+  doc_expiry:     { icon: AlertCircle, color: "text-amber-400" },
 };
 
 function timeAgo(dateStr: string) {
