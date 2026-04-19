@@ -1,15 +1,27 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { GitBranch, CheckSquare, Square, ArrowLeft, CheckCheck } from "lucide-react";
+import { GitBranch, CheckSquare, Square, ArrowLeft, CheckCheck, Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const API = "/api/bank-accounts";
+
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+function firstOfMonthStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+function stmtKey(bankId: number, from: string, to: string) {
+  return `recon_stmt_${bankId}_${from}_${to}`;
+}
 
 export default function BankReconcile() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +29,9 @@ export default function BankReconcile() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [, navigate] = useLocation();
+
+  const [dateFrom, setDateFrom] = useState(firstOfMonthStr());
+  const [dateTo, setDateTo] = useState(todayStr());
   const [statementBalance, setStatementBalance] = useState("");
   const [pendingChanges, setPendingChanges] = useState<Map<number, boolean>>(new Map());
 
@@ -37,6 +52,26 @@ export default function BankReconcile() {
       return res.json();
     },
   });
+
+  useEffect(() => {
+    const saved = localStorage.getItem(stmtKey(bankId, dateFrom, dateTo));
+    setStatementBalance(saved ?? "");
+    setPendingChanges(new Map());
+  }, [bankId, dateFrom, dateTo]);
+
+  const handleStatementChange = (val: string) => {
+    setStatementBalance(val);
+    if (val) {
+      localStorage.setItem(stmtKey(bankId, dateFrom, dateTo), val);
+    } else {
+      localStorage.removeItem(stmtKey(bankId, dateFrom, dateTo));
+    }
+  };
+
+  const clearFilter = () => {
+    setDateFrom("");
+    setDateTo("");
+  };
 
   const { mutateAsync: saveReconcile, isPending: saving } = useMutation({
     mutationFn: async (changes: Map<number, boolean>) => {
@@ -63,7 +98,19 @@ export default function BankReconcile() {
     onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message }),
   });
 
-  const txList = transactions as any[];
+  const allTx = transactions as any[];
+
+  const txList = useMemo(() => {
+    return allTx.filter((t) => {
+      const d = t.entryDate ? t.entryDate.split("T")[0] : null;
+      if (!d) return true;
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }, [allTx, dateFrom, dateTo]);
+
+  const isFiltered = dateFrom || dateTo;
 
   const effectiveCleared = (t: any): boolean => {
     if (pendingChanges.has(t.lineId)) return pendingChanges.get(t.lineId)!;
@@ -75,6 +122,7 @@ export default function BankReconcile() {
   const unclearedBalance = glBalance - clearedBalance;
   const stmtBal = parseFloat(statementBalance) || 0;
   const difference = stmtBal - clearedBalance;
+  const isBalanced = statementBalance !== "" && Math.abs(difference) < 0.01;
 
   const toggle = (lineId: number, currentCleared: boolean) => {
     const next = new Map(pendingChanges);
@@ -111,6 +159,40 @@ export default function BankReconcile() {
         }
       />
       <PageContent>
+
+        {/* Date Range Filter */}
+        <div className="flex flex-wrap items-end gap-3 mb-6 p-4 bg-card border border-border rounded-lg">
+          <Filter className="w-4 h-4 text-muted-foreground mb-2 shrink-0" />
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Statement From</Label>
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-8 text-sm w-40"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Statement To</Label>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-8 text-sm w-40"
+            />
+          </div>
+          {isFiltered && (
+            <Button size="sm" variant="ghost" className="h-8 text-xs mb-0.5" onClick={clearFilter}>
+              <X className="w-3 h-3 mr-1" /> Show all
+            </Button>
+          )}
+          {isFiltered && (
+            <span className="text-xs text-muted-foreground mb-2 ml-1">
+              Showing {txList.length} of {allTx.length} transactions
+            </span>
+          )}
+        </div>
+
         {/* Summary Cards */}
         <div className="flex gap-4 mb-6 flex-wrap">
           <div className="bg-card border border-border rounded-lg px-5 py-4 flex flex-col min-w-[160px]">
@@ -118,7 +200,7 @@ export default function BankReconcile() {
             <span className={`text-xl font-bold mt-1 ${glBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>
               {formatCurrency(glBalance)}
             </span>
-            <span className="text-xs text-muted-foreground mt-0.5">All GL transactions</span>
+            <span className="text-xs text-muted-foreground mt-0.5">{isFiltered ? "In selected period" : "All GL transactions"}</span>
           </div>
           <div className="bg-card border border-border rounded-lg px-5 py-4 flex flex-col min-w-[160px]">
             <span className="text-xs text-muted-foreground uppercase tracking-wider">Cleared Balance</span>
@@ -137,15 +219,18 @@ export default function BankReconcile() {
               <input
                 type="number"
                 value={statementBalance}
-                onChange={(e) => setStatementBalance(e.target.value)}
+                onChange={(e) => handleStatementChange(e.target.value)}
                 placeholder="Enter from statement"
                 className="bg-transparent text-xl font-bold w-full outline-none placeholder:text-muted-foreground/40"
               />
             </div>
-            {statementBalance && (
-              <span className={cn("text-xs mt-1 font-medium", Math.abs(difference) < 0.01 ? "text-emerald-400" : "text-red-400")}>
-                {Math.abs(difference) < 0.01 ? "✓ Balanced" : `Difference: ${formatCurrency(Math.abs(difference))} ${difference > 0 ? "over" : "under"}`}
+            {statementBalance !== "" && (
+              <span className={cn("text-xs mt-1 font-medium", isBalanced ? "text-emerald-400" : "text-red-400")}>
+                {isBalanced ? "✓ Balanced" : `Difference: ${formatCurrency(Math.abs(difference))} ${difference > 0 ? "over" : "under"}`}
               </span>
+            )}
+            {statementBalance !== "" && isFiltered && (
+              <span className="text-xs text-muted-foreground mt-0.5 opacity-60">Saved for this date range</span>
             )}
           </div>
         </div>
@@ -153,12 +238,14 @@ export default function BankReconcile() {
         {/* Quick Actions */}
         {txList.length > 0 && (
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs text-muted-foreground">{txList.length} transactions</span>
+            <span className="text-xs text-muted-foreground">
+              {txList.filter(t => effectiveCleared(t)).length} of {txList.length} cleared
+            </span>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markAll(true)}>
               <CheckSquare className="w-3 h-3 mr-1" /> Mark All Cleared
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => markAll(false)}>
-              <Square className="w-3 h-3 mr-1" /> Clear All
+              <Square className="w-3 h-3 mr-1" /> Uncheck All
             </Button>
           </div>
         )}
@@ -169,8 +256,8 @@ export default function BankReconcile() {
         ) : txList.length === 0 ? (
           <div className="text-center text-muted-foreground py-20 flex flex-col items-center gap-3">
             <GitBranch className="w-10 h-10 opacity-30" />
-            <p className="font-medium">No transactions found</p>
-            <p className="text-sm">Transactions posted to this bank's GL account will appear here.</p>
+            <p className="font-medium">{isFiltered ? "No transactions in this date range" : "No transactions found"}</p>
+            <p className="text-sm">{isFiltered ? "Try adjusting the From / To dates above." : "Transactions posted to this bank's GL account will appear here."}</p>
           </div>
         ) : (
           <div className="bg-card border border-border rounded-lg overflow-hidden">
