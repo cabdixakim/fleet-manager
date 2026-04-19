@@ -62,12 +62,6 @@ export const sidebarConfig: SidebarGroup[] = [
     ],
   },
   {
-    section: "Team",
-    links: [
-      { label: "Chat", path: "/chat", icon: "messageSquare" },
-    ],
-  },
-  {
     section: "Compliance",
     roles: ["admin", "manager"],
     links: [

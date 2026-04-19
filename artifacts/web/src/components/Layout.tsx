@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { sidebarConfig } from "@/components/sidebarConfig";
 import { ThemeToggleButton } from "@/components/ThemeToggleButton";
 import { NotificationBell } from "@/components/NotificationBell";
+import { ChatDrawer } from "@/components/ChatDrawer";
 
 type UserRole = "admin" | "manager" | "accounts" | "operations";
 
@@ -235,6 +236,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        {/* Chat button opens drawer */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+          className="flex-1 flex flex-col items-center gap-0.5 py-2 px-1 text-muted-foreground"
+        >
+          <MessageSquare className="w-5 h-5" />
+          <span className="text-[9px] font-medium">Chat</span>
+        </button>
         {/* More button opens sidebar */}
         <button
           onClick={() => setMobileOpen(true)}
@@ -246,6 +255,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </nav>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ChatDrawer />
     </div>
   );
 }
@@ -330,6 +340,14 @@ export function PageHeader({
             <Search className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Search</span>
             <kbd className="hidden md:inline ml-1 text-[10px] bg-background border border-border rounded px-1.5 py-0.5">⌘K</kbd>
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent("open-chat"))}
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title="Team Chat"
+            aria-label="Open chat"
+          >
+            <MessageSquare className="w-4 h-4" />
           </button>
           <NotificationBell />
           {/* Actions inline on desktop */}
