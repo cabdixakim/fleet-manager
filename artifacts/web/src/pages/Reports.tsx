@@ -390,61 +390,90 @@ export default function Reports() {
                   const overheads = p.totalCompanyOverheads ?? 0;
                   const netProfit = p.netProfit ?? 0;
                   const avgCommRate = grossRev > 0 ? ((commission / grossRev) * 100).toFixed(1) : "0";
+                  const incomeRows = [
+                    { label: "Commission on Freight Revenue", sub: `${avgCommRate}% avg rate on ${formatCurrency(grossRev)} gross`, amount: commission },
+                    ...(netShort !== 0 ? [{ label: "Short Charge Income (Net)", sub: `${formatCurrency(subShort)} from subs${clientShort > 0 ? ` − ${formatCurrency(clientShort)} to clients` : ""}`, amount: netShort }] : []),
+                  ];
                   return (
-                    <div className="bg-card border border-border rounded-xl overflow-hidden">
-                      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-foreground">Income Statement</h3>
-                        <span className="text-xs text-muted-foreground">{periodLabel(pnlPeriodType, pnlYear, pnlMonth, pnlQuarter)}</span>
+                    <div className="bg-card border border-border rounded-xl overflow-hidden max-w-2xl">
+                      {/* Document header */}
+                      <div className="text-center py-5 border-b border-border/60">
+                        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">Optima Transport LLC</p>
+                        <h3 className="text-base font-bold text-foreground">Profit & Loss Statement</h3>
+                        <p className="text-sm text-muted-foreground mt-0.5">{periodLabel(pnlPeriodType, pnlYear, pnlMonth, pnlQuarter)}</p>
                       </div>
-                      <div className="divide-y divide-border/40">
-                        {/* Commission */}
-                        <div className="px-5 py-4 flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Commission Earned</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {avgCommRate}% avg commission on {formatCurrency(grossRev)} gross revenue
-                            </p>
-                          </div>
-                          <p className="text-base font-bold text-primary tabular-nums shrink-0">{formatCurrency(commission)}</p>
-                        </div>
 
-                        {/* Short Charge Income */}
-                        <div className="px-5 py-4 flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Short Charge Income</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {formatCurrency(subShort)} collected from subs
-                              {clientShort > 0 ? ` − ${formatCurrency(clientShort)} credited to clients` : ""}
-                            </p>
-                          </div>
-                          <p className={`text-base font-bold tabular-nums shrink-0 ${netShort >= 0 ? "text-green-400" : "text-destructive"}`}>
-                            {netShort >= 0 ? "+" : "−"}{formatCurrency(Math.abs(netShort))}
-                          </p>
-                        </div>
-
-                        {/* Total income separator */}
-                        <div className="px-5 py-3 flex items-center justify-between bg-secondary/30">
-                          <p className="text-sm font-semibold text-foreground">Total Company Income</p>
-                          <p className="text-base font-bold text-foreground tabular-nums">{formatCurrency(totalIncome)}</p>
-                        </div>
-
-                        {/* Overheads */}
-                        <div className="px-5 py-4 flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">Company Overheads</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">Office, admin & other operating costs</p>
-                          </div>
-                          <p className="text-base font-bold text-orange-400 tabular-nums shrink-0">−{formatCurrency(overheads)}</p>
-                        </div>
-
-                        {/* Net profit */}
-                        <div className={`px-5 py-4 flex items-center justify-between ${netProfit >= 0 ? "bg-green-500/5" : "bg-destructive/5"}`}>
-                          <p className="text-base font-bold text-foreground">Net Profit / Loss</p>
-                          <p className={`text-xl font-bold tabular-nums ${netProfit >= 0 ? "text-green-400" : "text-destructive"}`}>
-                            {netProfit >= 0 ? "" : "−"}{formatCurrency(Math.abs(netProfit))}
-                          </p>
-                        </div>
+                      {/* Column headers */}
+                      <div className="flex items-center px-5 py-2 border-b border-border bg-secondary/30">
+                        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account</span>
+                        <span className="w-16 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">% Inc.</span>
+                        <span className="w-36 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Amount</span>
                       </div>
+
+                      {/* INCOME */}
+                      <div className="flex items-center gap-3 px-5 pt-4 pb-2">
+                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/80">Income</span>
+                        <div className="flex-1 h-px bg-primary/20" />
+                      </div>
+                      {incomeRows.map((row, i) => (
+                        <div key={i} className="flex items-start px-5 py-2 border-b border-border/20 hover:bg-secondary/10">
+                          <div className="flex-1 pr-4">
+                            <p className="text-sm text-foreground">{row.label}</p>
+                            <p className="text-xs text-muted-foreground/60 mt-0.5">{row.sub}</p>
+                          </div>
+                          <span className="w-16 text-right text-xs text-muted-foreground/60 tabular-nums shrink-0 pt-0.5">
+                            {totalIncome > 0 ? `${((row.amount / totalIncome) * 100).toFixed(1)}%` : ""}
+                          </span>
+                          <span className={`w-36 text-right text-sm font-mono tabular-nums shrink-0 pt-0.5 ${row.amount >= 0 ? "text-foreground" : "text-red-400"}`}>
+                            {row.amount < 0 ? `(${formatCurrency(Math.abs(row.amount))})` : formatCurrency(row.amount)}
+                          </span>
+                        </div>
+                      ))}
+                      {/* Total Income */}
+                      <div className="flex items-center px-5 py-2.5 border-t border-border/60 bg-secondary/10">
+                        <span className="flex-1 text-sm font-semibold text-foreground">Total Income</span>
+                        <span className="w-16 text-right text-xs font-semibold text-muted-foreground tabular-nums shrink-0">100%</span>
+                        <span className="w-36 text-right text-sm font-bold font-mono tabular-nums text-foreground shrink-0">{formatCurrency(totalIncome)}</span>
+                      </div>
+                      <div className="my-1 border-t border-dashed border-border/30 mx-5" />
+
+                      {/* EXPENSES */}
+                      <div className="flex items-center gap-3 px-5 pt-4 pb-2">
+                        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary/80">Expenses</span>
+                        <div className="flex-1 h-px bg-primary/20" />
+                      </div>
+                      <div className="flex items-start px-5 py-2 border-b border-border/20 hover:bg-secondary/10">
+                        <div className="flex-1 pr-4">
+                          <p className="text-sm text-foreground">Company Overheads</p>
+                          <p className="text-xs text-muted-foreground/60 mt-0.5">Office, admin & operating costs</p>
+                        </div>
+                        <span className="w-16 text-right text-xs text-muted-foreground/60 tabular-nums shrink-0 pt-0.5">
+                          {totalIncome > 0 ? `${((overheads / totalIncome) * 100).toFixed(1)}%` : ""}
+                        </span>
+                        <span className="w-36 text-right text-sm font-mono tabular-nums shrink-0 pt-0.5 text-foreground">
+                          {formatCurrency(overheads)}
+                        </span>
+                      </div>
+                      <div className="flex items-center px-5 py-2.5 border-t border-border/60 bg-secondary/10">
+                        <span className="flex-1 text-sm font-semibold text-foreground">Total Expenses</span>
+                        <span className="w-16 text-right text-xs font-semibold text-muted-foreground tabular-nums shrink-0">
+                          {totalIncome > 0 ? `${((overheads / totalIncome) * 100).toFixed(1)}%` : ""}
+                        </span>
+                        <span className="w-36 text-right text-sm font-bold font-mono tabular-nums text-foreground shrink-0">{formatCurrency(overheads)}</span>
+                      </div>
+                      <div className="my-1 border-t border-dashed border-border/30 mx-5" />
+
+                      {/* NET INCOME */}
+                      <div className="flex items-center px-5 py-4 border-t-2 border-border bg-secondary/20">
+                        <span className="flex-1 text-base font-bold text-foreground uppercase tracking-wide">Net Income</span>
+                        <span className={`w-16 text-right text-sm font-bold tabular-nums shrink-0 ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {totalIncome > 0 ? `${((netProfit / totalIncome) * 100).toFixed(1)}%` : ""}
+                        </span>
+                        <span className={`w-36 text-right text-lg font-bold font-mono tabular-nums shrink-0 ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {netProfit < 0 ? `(${formatCurrency(Math.abs(netProfit))})` : formatCurrency(netProfit)}
+                        </span>
+                      </div>
+                      <div className="h-2" />
                     </div>
                   );
                 })()}
