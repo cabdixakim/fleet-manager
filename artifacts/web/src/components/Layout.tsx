@@ -6,7 +6,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import {
   LayoutDashboard, Truck, Users, Package, Building2, CreditCard, FileText,
   BarChart3, ChevronRight, X, Layers, TruckIcon, UserCheck, DollarSign,
-  ClipboardCheck, Receipt, Settings, LogOut, Shield, Calendar, Search,
+  ClipboardCheck, Receipt, Settings, LogOut, Shield, Calendar, Search, MessageSquare,
   Menu, ChevronLeft, MapPin, List, Calculator, BookOpen, BarChart2, Wallet,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +21,7 @@ function getIcon(icon: string) {
     dashboard: LayoutDashboard, layers: Layers, truck: TruckIcon,
     fileText: FileText, shieldCheck: Shield, users: Users, user: UserCheck,
     briefcase: Building2, creditCard: CreditCard, dollarSign: DollarSign,
-    barChart: BarChart3, clipboardList: ClipboardCheck, settings: Settings,
+    barChart: BarChart3, clipboardList: ClipboardCheck, settings: Settings, messageSquare: MessageSquare,
     userCog: UserCheck, calendar: Calendar, receipt: Receipt, package: Package,
     list: List, mapPin: MapPin, calculator: Calculator, bookOpen: BookOpen, barChart2: BarChart2,
     building2: Building2, wallet: Wallet,

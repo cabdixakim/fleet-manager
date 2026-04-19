@@ -46,6 +46,7 @@ const CLEARANCE_DOCS = ["T1", "TR8", "customs_declaration", "transit_permit", "h
 
 import { getRouteLabel } from "@/lib/routes";
 import { TaskTrigger } from "@/components/TaskPanel";
+import { TripDiscussion } from "@/components/TripDiscussion";
 
 function generateTripClientHtml(trip: any, company: any): string {
   const fin = trip.financials ?? {};
@@ -192,7 +193,7 @@ export default function TripDetail() {
   const { toast } = useToast();
   const [confirmRemoveClearanceId, setConfirmRemoveClearanceId] = useState<number | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"details" | "financials" | "clearances" | "expenses" | "amendments">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "financials" | "clearances" | "expenses" | "amendments" | "discussion">("details");
   const [showExpense, setShowExpense] = useState(false);
   const [showClearance, setShowClearance] = useState(false);
   const [showNote, setShowNote] = useState(false);
@@ -515,6 +516,7 @@ export default function TripDetail() {
     { id: "clearances", label: `Clearances (${trip.clearances?.length ?? 0})` },
     { id: "expenses", label: `Expenses (${trip.expenses?.length ?? 0})` },
     { id: "amendments", label: `Amendments (${trip.amendments?.length ?? 0})` },
+    { id: "discussion", label: "Discussion" },
   ];
 
   return (
@@ -1325,6 +1327,13 @@ export default function TripDetail() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Discussion Tab ── */}
+        {activeTab === "discussion" && (
+          <div className="max-w-2xl">
+            <TripDiscussion tripId={parseInt(id)} />
           </div>
         )}
       </PageContent>
