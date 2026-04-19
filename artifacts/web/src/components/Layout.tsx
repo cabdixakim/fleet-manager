@@ -12,6 +12,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { sidebarConfig } from "@/components/sidebarConfig";
 import { ThemeToggleButton } from "@/components/ThemeToggleButton";
+import { NotificationBell } from "@/components/NotificationBell";
 
 type UserRole = "admin" | "manager" | "accounts" | "operations";
 
@@ -330,6 +331,7 @@ export function PageHeader({
             <span className="hidden md:inline">Search</span>
             <kbd className="hidden md:inline ml-1 text-[10px] bg-background border border-border rounded px-1.5 py-0.5">⌘K</kbd>
           </button>
+          <NotificationBell />
           {/* Actions inline on desktop */}
           {actions && <div className="hidden md:flex items-center gap-2">{actions}</div>}
         </div>

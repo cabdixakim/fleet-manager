@@ -32,6 +32,8 @@ import suppliersRouter from "./suppliers";
 import pettyCashRouter from "./pettyCash";
 import documentsRouter from "./documents";
 import bankAccountsRouter from "./bankAccounts";
+import tasksRouter from "./tasks";
+import notificationsRouter from "./notifications";
 
 const router: IRouter = Router();
 
@@ -69,5 +71,7 @@ router.use("/suppliers", suppliersRouter);
 router.use("/petty-cash", pettyCashRouter);
 router.use("/documents", documentsRouter);
 router.use("/bank-accounts", bankAccountsRouter);
+router.use("/tasks", tasksRouter);
+router.use("/notifications", notificationsRouter);
 
 export default router;

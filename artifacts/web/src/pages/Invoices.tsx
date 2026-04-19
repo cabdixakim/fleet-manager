@@ -8,6 +8,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Download, Search, FileText, Trash2 } from "lucide-react";
+import { TaskTrigger } from "@/components/TaskPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -171,6 +172,18 @@ export default function Invoices() {
             { key: "grossRevenue", label: "Amount", render: (r) => <span className="font-semibold">{formatCurrency((r as Invoice).grossRevenue)}</span> },
             { key: "status", label: "Status", render: (r) => <StatusBadge status={(r as Invoice).status} /> },
             { key: "dueDate", label: "Due Date", render: (r) => <span className="text-xs text-muted-foreground">{(r as Invoice).dueDate ? formatDate((r as Invoice).dueDate!) : "-"}</span> },
+            {
+              key: "tasks", label: "",
+              render: (r) => (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <TaskTrigger
+                    recordType="invoice"
+                    recordId={(r as Invoice).id}
+                    recordLabel={`${(r as Invoice).invoiceNumber} — ${(r as Invoice).clientName}`}
+                  />
+                </div>
+              ),
+            },
           ]}
         />
       </PageContent>

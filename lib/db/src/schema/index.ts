@@ -28,3 +28,5 @@ export * from "./supplierPayments";
 export * from "./pettyCash";
 export * from "./documents";
 export * from "./bankAccounts";
+export * from "./tasks";
+export * from "./notifications";

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { getRouteShort } from "@/lib/routes";
+import { TaskTrigger } from "@/components/TaskPanel";
 
 const STATUS_FILTERS = [
   { value: "", label: "All" },
@@ -238,8 +239,15 @@ export default function TripsPage() {
                     </div>
                   </div>
 
-                  {/* Chevron */}
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors shrink-0 mt-1" />
+                  {/* Task trigger + Chevron */}
+                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                    <TaskTrigger
+                      recordType="trip"
+                      recordId={trip.id}
+                      recordLabel={`${trip.truckPlate ?? "Trip"} — ${trip.batchName}`}
+                    />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+                  </div>
                 </div>
               </button>
             ))}
