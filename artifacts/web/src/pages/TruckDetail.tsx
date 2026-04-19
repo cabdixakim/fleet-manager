@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search, FileText, Wrench } from "lucide-react";
 import { DocumentsPanel } from "@/components/DocumentsPanel";
 import { format } from "date-fns";
 import { CorrectClosedEntryDialog, type CorrectionEntry } from "@/components/CorrectClosedEntryDialog";
@@ -89,7 +89,22 @@ export default function TruckDetail() {
   const { user } = useAuth();
   const canCorrect = !!user && ["accounts", "manager", "admin", "owner", "system"].includes(user.role);
 
-  const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses" | "documents">("trips");
+  const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses" | "documents" | "maintenance">("trips");
+
+  // Maintenance state
+  const [showAddMaintenance, setShowAddMaintenance] = useState(false);
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    date: format(new Date(), "yyyy-MM-dd"),
+    type: "service",
+    description: "",
+    cost: "",
+    currency: "USD",
+    odometer: "",
+    mechanic: "",
+    nextServiceDate: "",
+  });
+  const [addingMaintenance, setAddingMaintenance] = useState(false);
+  const [confirmDeleteMaintenanceId, setConfirmDeleteMaintenanceId] = useState<number | null>(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
 
   // Link to Trip
@@ -133,6 +148,13 @@ export default function TruckDetail() {
     queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
   });
   const [addingExpense, setAddingExpense] = useState(false);
+
+  // Maintenance records
+  const { data: maintenanceRecords = [], refetch: refetchMaintenance } = useQuery<any[]>({
+    queryKey: [`/api/maintenance/trucks/${id}`],
+    queryFn: () => fetch(`/api/maintenance/trucks/${id}`, { credentials: "include" }).then((r) => r.json()),
+    enabled: !!id,
+  });
 
   // Shared period filter (drives KPIs + both tabs)
   const [dateFrom, setDateFrom] = useState("");
@@ -526,7 +548,7 @@ export default function TruckDetail() {
 
           {/* Tabs */}
           <div className="flex border-b border-border gap-1 flex-wrap">
-            {(["trips", "drivers", "expenses", "documents"] as const).map((tab) => (
+            {(["trips", "drivers", "expenses", "documents", "maintenance"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -541,7 +563,9 @@ export default function TruckDetail() {
                   ? `Driver History (${driverAssignments.length})`
                   : tab === "expenses"
                   ? `Other Expenses (${filteredExpenses.length}${filteredExpenses.length !== otherExpenses.length ? `/${otherExpenses.length}` : ""})`
-                  : <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />Documents</span>}
+                  : tab === "documents"
+                  ? <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5" />Documents</span>
+                  : <span className="flex items-center gap-1"><Wrench className="w-3.5 h-3.5" />Maintenance ({maintenanceRecords.length})</span>}
               </button>
             ))}
           </div>
@@ -768,6 +792,74 @@ export default function TruckDetail() {
               />
             </div>
           )}
+
+          {/* ── Maintenance Tab ── */}
+          {activeTab === "maintenance" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">{maintenanceRecords.length} record{maintenanceRecords.length !== 1 ? "s" : ""}</p>
+                <Button size="sm" onClick={() => setShowAddMaintenance(true)}>
+                  <Plus className="w-4 h-4 mr-1.5" /> Log Service
+                </Button>
+              </div>
+
+              {maintenanceRecords.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 border border-dashed border-border rounded-xl">
+                  <Wrench className="w-8 h-8 opacity-20" />
+                  <p className="text-sm">No maintenance records yet.</p>
+                  <Button size="sm" variant="outline" onClick={() => setShowAddMaintenance(true)}>
+                    <Plus className="w-4 h-4 mr-1.5" /> Log first service
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Date</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Type</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground hidden sm:table-cell">Description</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground hidden md:table-cell">Mechanic</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Cost</th>
+                        <th className="px-4 py-2.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {maintenanceRecords.map((r: any, i: number) => (
+                        <tr key={r.id} className={cn("border-b border-border last:border-0", i % 2 === 0 ? "bg-card" : "bg-muted/10")}>
+                          <td className="px-4 py-2.5 text-xs whitespace-nowrap">{r.date}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", {
+                              "bg-blue-500/10 text-blue-500": r.type === "service",
+                              "bg-red-500/10 text-red-500": r.type === "repair",
+                              "bg-purple-500/10 text-purple-500": r.type === "inspection",
+                              "bg-amber-500/10 text-amber-500": r.type === "tyre_change",
+                              "bg-muted text-muted-foreground": r.type === "other",
+                            })}>
+                              {r.type.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell max-w-[200px] truncate">{r.description}</td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">{r.mechanic ?? "—"}</td>
+                          <td className="px-4 py-2.5 text-xs text-right whitespace-nowrap">
+                            {r.cost ? `${r.currency} ${parseFloat(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => setConfirmDeleteMaintenanceId(r.id)}
+                              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </PageContent>
 
@@ -926,6 +1018,137 @@ export default function TruckDetail() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={() => { if (confirmDeleteExpenseId !== null) { deleteExpense.mutate(confirmDeleteExpenseId); setConfirmDeleteExpenseId(null); } }}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Add Maintenance Dialog ── */}
+      <Dialog open={showAddMaintenance} onOpenChange={setShowAddMaintenance}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Log Maintenance — {truck.plateNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Date *</Label>
+                <Input type="date" value={maintenanceForm.date} onChange={(e) => setMaintenanceForm((f) => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Type *</Label>
+                <Select value={maintenanceForm.type} onValueChange={(v) => setMaintenanceForm((f) => ({ ...f, type: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="service">Service</SelectItem>
+                    <SelectItem value="repair">Repair</SelectItem>
+                    <SelectItem value="inspection">Inspection</SelectItem>
+                    <SelectItem value="tyre_change">Tyre Change</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Description *</Label>
+              <Input value={maintenanceForm.description} onChange={(e) => setMaintenanceForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Oil change, brake pads replaced…" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Cost</Label>
+                <Input type="number" min="0" value={maintenanceForm.cost} onChange={(e) => setMaintenanceForm((f) => ({ ...f, cost: e.target.value }))} placeholder="0.00" />
+              </div>
+              <div>
+                <Label>Currency</Label>
+                <Select value={maintenanceForm.currency} onValueChange={(v) => setMaintenanceForm((f) => ({ ...f, currency: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="ZMW">ZMW</SelectItem>
+                    <SelectItem value="CDF">CDF</SelectItem>
+                    <SelectItem value="ZAR">ZAR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Odometer (km)</Label>
+                <Input type="number" min="0" value={maintenanceForm.odometer} onChange={(e) => setMaintenanceForm((f) => ({ ...f, odometer: e.target.value }))} placeholder="Optional" />
+              </div>
+              <div>
+                <Label>Mechanic / Garage</Label>
+                <Input value={maintenanceForm.mechanic} onChange={(e) => setMaintenanceForm((f) => ({ ...f, mechanic: e.target.value }))} placeholder="Optional" />
+              </div>
+            </div>
+            <div>
+              <Label>Next Service Date</Label>
+              <Input type="date" value={maintenanceForm.nextServiceDate} onChange={(e) => setMaintenanceForm((f) => ({ ...f, nextServiceDate: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddMaintenance(false)}>Cancel</Button>
+            <Button
+              disabled={addingMaintenance}
+              onClick={async () => {
+                if (!maintenanceForm.date || !maintenanceForm.type || !maintenanceForm.description) {
+                  toast({ title: "Date, type and description are required", variant: "destructive" }); return;
+                }
+                setAddingMaintenance(true);
+                try {
+                  const res = await fetch(`/api/maintenance/trucks/${id}`, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      date: maintenanceForm.date,
+                      type: maintenanceForm.type,
+                      description: maintenanceForm.description,
+                      cost: maintenanceForm.cost ? parseFloat(maintenanceForm.cost) : null,
+                      currency: maintenanceForm.currency,
+                      odometer: maintenanceForm.odometer ? parseInt(maintenanceForm.odometer) : null,
+                      mechanic: maintenanceForm.mechanic || null,
+                      nextServiceDate: maintenanceForm.nextServiceDate || null,
+                    }),
+                  });
+                  if (!res.ok) throw new Error("Failed to save");
+                  await refetchMaintenance();
+                  setShowAddMaintenance(false);
+                  setMaintenanceForm({ date: format(new Date(), "yyyy-MM-dd"), type: "service", description: "", cost: "", currency: "USD", odometer: "", mechanic: "", nextServiceDate: "" });
+                  toast({ title: "Maintenance logged" });
+                } catch {
+                  toast({ title: "Error saving record", variant: "destructive" });
+                } finally {
+                  setAddingMaintenance(false);
+                }
+              }}
+            >
+              {addingMaintenance ? "Saving…" : "Save Record"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Confirm Delete Maintenance ── */}
+      <AlertDialog open={confirmDeleteMaintenanceId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteMaintenanceId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this maintenance record?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={async () => {
+                if (confirmDeleteMaintenanceId === null) return;
+                await fetch(`/api/maintenance/${confirmDeleteMaintenanceId}`, { method: "DELETE", credentials: "include" });
+                await refetchMaintenance();
+                setConfirmDeleteMaintenanceId(null);
+                toast({ title: "Record removed" });
+              }}
+            >
+              Remove
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

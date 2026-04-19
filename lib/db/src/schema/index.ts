@@ -31,3 +31,5 @@ export * from "./bankAccounts";
 export * from "./tasks";
 export * from "./notifications";
 export * from "./chat";
+export * from "./maintenance";
+export * from "./assets";

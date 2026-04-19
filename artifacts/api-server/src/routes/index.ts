@@ -36,6 +36,8 @@ import tasksRouter from "./tasks";
 import notificationsRouter from "./notifications";
 import alertsRouter from "./alerts";
 import chatRouter from "./chat";
+import maintenanceRouter from "./maintenance";
+import assetsRouter from "./assets";
 
 const router: IRouter = Router();
 
@@ -77,5 +79,7 @@ router.use("/tasks", tasksRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/alerts", alertsRouter);
 router.use("/chat", chatRouter);
+router.use("/maintenance", maintenanceRouter);
+router.use("/assets", assetsRouter);
 
 export default router;
