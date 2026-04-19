@@ -126,7 +126,12 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
   });
 
   const [showTx, setShowTx] = useState(false);
-  const [txForm, setTxForm] = useState({ type: "payment_made", amount: "", description: "", reference: "" });
+  const [txForm, setTxForm] = useState({ type: "payment_made", amount: "", description: "", reference: "", bankAccountId: "" });
+
+  const { data: bankAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/bank-accounts"],
+    queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
+  });
   const [activeTab, setActiveTab] = useState<"ledger" | "expenses" | "otherExpenses" | "trips">("ledger");
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -175,7 +180,7 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
 
   const handleTx = async () => {
     try {
-      await createTx({ id, data: { type: txForm.type as any, amount: parseFloat(txForm.amount), description: txForm.description, reference: txForm.reference } });
+      await createTx({ id, data: { type: txForm.type as any, amount: parseFloat(txForm.amount), description: txForm.description, reference: txForm.reference, bankAccountId: txForm.bankAccountId ? parseInt(txForm.bankAccountId) : undefined } });
     } catch (e) {
       toast({ variant: "destructive", title: "Couldn't save transaction", description: getErrorMessage(e, "Failed to save transaction") });
       return;
@@ -183,7 +188,7 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
     qc.invalidateQueries({ queryKey: [`/api/subcontractors/${id}/transactions`] });
     qc.invalidateQueries({ queryKey: [`/api/subcontractors/${id}`] });
     setShowTx(false);
-    setTxForm({ type: "payment_made", amount: "", description: "", reference: "" });
+    setTxForm({ type: "payment_made", amount: "", description: "", reference: "", bankAccountId: "" });
   };
 
   const handleAdjustOB = async () => {
@@ -693,7 +698,7 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div><Label>Type *</Label>
-              <Select value={txForm.type} onValueChange={(v) => setTxForm({ ...txForm, type: v })}>
+              <Select value={txForm.type} onValueChange={(v) => setTxForm({ ...txForm, type: v, bankAccountId: "" })}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="net_payable">Net Payable (Credit)</SelectItem>
@@ -704,13 +709,26 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 </SelectContent>
               </Select>
             </div>
+            {(txForm.type === "payment_made" || txForm.type === "advance_given") && (
+              <div>
+                <Label>Paid From Bank Account *</Label>
+                <Select value={txForm.bankAccountId} onValueChange={(v) => setTxForm({ ...txForm, bankAccountId: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select bank account" /></SelectTrigger>
+                  <SelectContent>
+                    {(bankAccounts as any[]).map((b: any) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.accountName} ({b.bankName})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div><Label>Amount (USD) *</Label><Input type="number" value={txForm.amount} onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} className="mt-1" /></div>
             <div><Label>Description</Label><Input value={txForm.description} onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} className="mt-1" /></div>
             <div><Label>Reference</Label><Input value={txForm.reference} onChange={(e) => setTxForm({ ...txForm, reference: e.target.value })} className="mt-1" /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTx(false)}>Cancel</Button>
-            <Button onClick={handleTx} disabled={isPending || !txForm.amount}>Save</Button>
+            <Button onClick={handleTx} disabled={isPending || !txForm.amount || ((txForm.type === "payment_made" || txForm.type === "advance_given") && !txForm.bankAccountId)}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

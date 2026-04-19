@@ -139,7 +139,7 @@ router.post("/", async (req, res, next) => {
         });
       }
 
-      // Auto-post to GL: Dr Staff Expense, Cr Accounts Payable (one entry per driver per month)
+      // Auto-post to GL: Dr Staff Expense, Cr Accrued Salaries (2100)
       await postJournalEntry({
         description: `Payroll — ${driver.name} ${month}/${year}`,
         entryDate: new Date(year, month - 1, 1),
@@ -147,7 +147,7 @@ router.post("/", async (req, res, next) => {
         referenceId: payroll.id,
         lines: [
           { accountCode: "5002", debit: salary, description: `Driver salary ${driver.name}` },
-          { accountCode: "2000", credit: salary, description: "Accounts Payable" },
+          { accountCode: "2100", credit: salary, description: "Accrued Salaries" },
         ],
       });
 

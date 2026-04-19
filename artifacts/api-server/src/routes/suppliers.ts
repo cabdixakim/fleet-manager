@@ -8,7 +8,7 @@ import {
 } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
-import { postJournalEntry, postOrUpdateOpeningBalance } from "../lib/glPosting";
+import { postJournalEntry, postOrUpdateOpeningBalance, resolveBankGlCode } from "../lib/glPosting";
 
 const router = Router();
 
@@ -157,7 +157,9 @@ router.post("/:id/payments", async (req, res, next) => {
       notes: notes ?? null,
     }).returning();
 
-    // GL: Dr Supplier Payables (2050) / Cr Bank (1002)
+    // GL: Dr Supplier Payables (2050) / Cr Bank (specific or default)
+    const { bankAccountId } = req.body;
+    const bankGlCode = await resolveBankGlCode("bank_transfer", bankAccountId ?? null);
     await postJournalEntry({
       description: `Payment to ${supplier.name}${reference ? ` — Ref: ${reference}` : ""}`,
       entryDate: new Date(payment.paymentDate),
@@ -165,7 +167,7 @@ router.post("/:id/payments", async (req, res, next) => {
       referenceId: payment.id,
       lines: [
         { accountCode: "2050", debit: amt, description: `Clear payable — ${supplier.name}` },
-        { accountCode: "1002", credit: amt, description: "Bank Account" },
+        { accountCode: bankGlCode, credit: amt, description: "Bank Account" },
       ],
     });
 

@@ -77,15 +77,16 @@ export const TRIP_EXPENSE_ACCOUNT_MAP: Record<string, string> = {
 
 // Resolve the credit account code based on payment method
 // petty_cash → 1003 (Petty Cash)
-// fuel_credit → 2100 (Supplier Payables)
-// bank_transfer → 1002 (Bank)
-// cash / default → 2000 (AP — legacy; for unclassified cash expenses)
+// fuel_credit → 2050 (Supplier Payables)
+// bank_transfer → 1002 (Bank — or specific bank GL code via resolveBankGlCode)
+// cash → 1001 (Cash on Hand — physical cash not in the petty cash tin)
+// default → 2000 (AP — legacy / unset)
 export function creditAccountForPaymentMethod(paymentMethod?: string | null): string {
   switch (paymentMethod) {
     case "petty_cash":    return "1003";
     case "fuel_credit":   return "2050";
     case "bank_transfer": return "1002";
-    case "cash":          return "1002";
+    case "cash":          return "1001";
     default:              return "2000"; // legacy / unset → AP
   }
 }
@@ -383,12 +384,14 @@ export async function seedDefaultBankAccount(): Promise<void> {
   }
 }
 
-export async function topUpPettyCash(amount: number, description: string, entryDate: Date, source?: string | null): Promise<void> {
+export async function topUpPettyCash(amount: number, description: string, entryDate: Date, source?: string | null, bankAccountId?: number | null): Promise<void> {
   try {
     const [account] = await db.select().from(pettyCashAccountsTable).limit(1);
     if (!account) return;
 
-    const creditCode = pettyCashSourceAccount(source);
+    const creditCode = source === "bank_transfer"
+      ? await resolveBankGlCode("bank_transfer", bankAccountId)
+      : pettyCashSourceAccount(source);
     await postJournalEntry({
       description,
       entryDate,

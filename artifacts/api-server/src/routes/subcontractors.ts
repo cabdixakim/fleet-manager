@@ -16,7 +16,7 @@ import { eq, desc, sql, count, inArray, notInArray, and, isNull, gte, lte } from
 import { calculateTripFinancials, REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 import { bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
-import { postJournalEntry, postOrUpdateOpeningBalance } from "../lib/glPosting";
+import { postJournalEntry, postOrUpdateOpeningBalance, resolveBankGlCode } from "../lib/glPosting";
 
 const router = Router();
 
@@ -438,7 +438,8 @@ router.post("/:id/transactions", async (req, res, next) => {
     const amount = parseFloat(tx.amount);
     if (amount > 0) {
       if (tx.type === "payment_made") {
-        // Paying the subcontractor: Dr Subcontractor Payables / Cr Bank
+        // Paying the subcontractor: Dr Subcontractor Payables / Cr Bank (specific or default)
+        const subBankGlCode = await resolveBankGlCode("bank_transfer", req.body.bankAccountId ?? null);
         await postJournalEntry({
           description: `Sub payment — ${sub?.name ?? `sub #${subcontractorId}`}${tx.description ? `: ${tx.description}` : ""}`,
           entryDate: new Date(bump.effectiveDate),
@@ -446,11 +447,12 @@ router.post("/:id/transactions", async (req, res, next) => {
           referenceId: tx.id,
           lines: [
             { accountCode: "2001", debit: amount, description: `Payment to ${sub?.name ?? `sub #${subcontractorId}`}` },
-            { accountCode: "1002", credit: amount, description: "Bank Account" },
+            { accountCode: subBankGlCode, credit: amount, description: "Bank Account" },
           ],
         });
       } else if (tx.type === "advance") {
-        // Advance to subcontractor: Dr Subcontractor Payables / Cr Bank
+        // Advance to subcontractor: Dr Subcontractor Payables / Cr Bank (specific or default)
+        const advBankGlCode = await resolveBankGlCode("bank_transfer", req.body.bankAccountId ?? null);
         await postJournalEntry({
           description: `Sub advance — ${sub?.name ?? `sub #${subcontractorId}`}${tx.description ? `: ${tx.description}` : ""}`,
           entryDate: new Date(bump.effectiveDate),
@@ -458,7 +460,7 @@ router.post("/:id/transactions", async (req, res, next) => {
           referenceId: tx.id,
           lines: [
             { accountCode: "2001", debit: amount, description: `Advance to ${sub?.name ?? `sub #${subcontractorId}`}` },
-            { accountCode: "1002", credit: amount, description: "Bank Account" },
+            { accountCode: advBankGlCode, credit: amount, description: "Bank Account" },
           ],
         });
       } else if (tx.type === "earnings") {

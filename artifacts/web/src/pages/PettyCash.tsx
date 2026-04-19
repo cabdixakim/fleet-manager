@@ -21,9 +21,14 @@ export default function PettyCash() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showTopUp, setShowTopUp] = useState(false);
-  const [topUpForm, setTopUpForm] = useState({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd"), source: "bank_transfer" });
+  const [topUpForm, setTopUpForm] = useState({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd"), source: "bank_transfer", bankAccountId: "" });
 
   const { data, isLoading } = useQuery({ queryKey: ["/api/petty-cash"], queryFn: fetchPettyCash });
+
+  const { data: bankAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/bank-accounts"],
+    queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
+  });
 
   const topUp = useMutation({
     mutationFn: (body: any) => fetch("/api/petty-cash/top-up", {
@@ -35,7 +40,7 @@ export default function PettyCash() {
       qc.invalidateQueries({ queryKey: ["/api/petty-cash"] });
       qc.invalidateQueries({ queryKey: ["/api/gl/entries"] });
       setShowTopUp(false);
-      setTopUpForm({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd"), source: "bank_transfer" });
+      setTopUpForm({ amount: "", description: "", date: format(new Date(), "yyyy-MM-dd"), source: "bank_transfer", bankAccountId: "" });
       toast({ title: "Petty cash topped up — GL updated" });
     },
     onError: () => toast({ title: "Failed to top up", variant: "destructive" }),
@@ -139,7 +144,7 @@ export default function PettyCash() {
           <div className="space-y-4">
             <div>
               <Label>Funding Source *</Label>
-              <Select value={topUpForm.source} onValueChange={(v) => setTopUpForm({ ...topUpForm, source: v })}>
+              <Select value={topUpForm.source} onValueChange={(v) => setTopUpForm({ ...topUpForm, source: v, bankAccountId: "" })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bank_transfer">Bank Withdrawal</SelectItem>
@@ -155,6 +160,19 @@ export default function PettyCash() {
                 {topUpForm.source === "client_cash" && "Dr Petty Cash / Cr Accounts Receivable — client paid in cash on the road"}
               </p>
             </div>
+            {topUpForm.source === "bank_transfer" && (
+              <div>
+                <Label>Bank Account *</Label>
+                <Select value={topUpForm.bankAccountId} onValueChange={(v) => setTopUpForm({ ...topUpForm, bankAccountId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select bank account" /></SelectTrigger>
+                  <SelectContent>
+                    {(bankAccounts as any[]).map((b: any) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.accountName} ({b.bankName})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>Amount *</Label>
               <Input
@@ -180,8 +198,8 @@ export default function PettyCash() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTopUp(false)}>Cancel</Button>
             <Button
-              onClick={() => topUp.mutate({ amount: parseFloat(topUpForm.amount), description: topUpForm.description || undefined, date: topUpForm.date, source: topUpForm.source })}
-              disabled={!topUpForm.amount || parseFloat(topUpForm.amount) <= 0 || topUp.isPending}
+              onClick={() => topUp.mutate({ amount: parseFloat(topUpForm.amount), description: topUpForm.description || undefined, date: topUpForm.date, source: topUpForm.source, bankAccountId: topUpForm.bankAccountId ? parseInt(topUpForm.bankAccountId) : undefined })}
+              disabled={!topUpForm.amount || parseFloat(topUpForm.amount) <= 0 || (topUpForm.source === "bank_transfer" && !topUpForm.bankAccountId) || topUp.isPending}
             >
               {topUp.isPending ? "Saving..." : "Top Up"}
             </Button>

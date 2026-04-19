@@ -40,7 +40,7 @@ router.get("/", async (req, res, next) => {
 // POST /api/petty-cash/top-up
 router.post("/top-up", async (req, res, next) => {
   try {
-    const { amount, description, date, source } = req.body;
+    const { amount, description, date, source, bankAccountId } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return res.status(400).json({ error: "amount must be > 0" });
 
@@ -50,7 +50,7 @@ router.post("/top-up", async (req, res, next) => {
       : `Petty cash top-up (${sourceLabel}) — $${amt.toFixed(2)}`;
     const entryDate = date ? new Date(date) : new Date();
 
-    await topUpPettyCash(amt, desc, entryDate, source ?? "bank_transfer");
+    await topUpPettyCash(amt, desc, entryDate, source ?? "bank_transfer", bankAccountId ?? null);
 
     await logAudit(req, {
       action: "create",

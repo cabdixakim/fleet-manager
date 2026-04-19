@@ -11,7 +11,7 @@ import {
 import { eq, desc, and, inArray, isNotNull, isNull } from "drizzle-orm";
 import { calculateTripFinancials } from "../lib/financials";
 import { logAudit } from "../lib/audit";
-import { postJournalEntry, postReversalEntry, deleteJournalEntriesForReference } from "../lib/glPosting";
+import { postJournalEntry, postReversalEntry, deleteJournalEntriesForReference, resolveBankGlCode } from "../lib/glPosting";
 
 const router = Router();
 
@@ -446,17 +446,19 @@ router.patch("/:id/status", async (req, res, next) => {
       await postReversalEntry("invoice_payment", id, `VOID payment — ${invoice.invoiceNumber}`, new Date());
     }
 
-    // Auto-post to GL when paid: Dr Cash/Bank, Cr Accounts Receivable
+    // Auto-post to GL when paid: Dr Bank (specific or default), Cr Accounts Receivable
     if (status === "paid") {
+      const { bankAccountId } = req.body;
       const amount = parseFloat(invoice.netRevenue ?? invoice.grossRevenue ?? "0");
       if (amount > 0) {
+        const bankGlCode = await resolveBankGlCode("bank_transfer", bankAccountId ?? null);
         await postJournalEntry({
           description: `Payment received — ${invoice.invoiceNumber}`,
           entryDate: paidDate ? new Date(paidDate) : new Date(),
           referenceType: "invoice_payment",
           referenceId: invoice.id,
           lines: [
-            { accountCode: "1002", debit: amount, description: `Payment — ${invoice.invoiceNumber}` },
+            { accountCode: bankGlCode, debit: amount, description: `Payment — ${invoice.invoiceNumber}` },
             { accountCode: "1100", credit: amount, description: "Clear AR" },
           ],
         });

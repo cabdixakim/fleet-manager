@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -24,11 +25,16 @@ export default function SupplierStatement() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showPay, setShowPay] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: "", reference: "", notes: "", paymentDate: format(new Date(), "yyyy-MM-dd") });
+  const [payForm, setPayForm] = useState({ amount: "", reference: "", notes: "", paymentDate: format(new Date(), "yyyy-MM-dd"), bankAccountId: "" });
 
   const { data, isLoading } = useQuery({
     queryKey: [`/api/suppliers/${id}/statement`],
     queryFn: () => fetchStatement(id),
+  });
+
+  const { data: bankAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/bank-accounts"],
+    queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
   });
 
   const pay = useMutation({
@@ -42,7 +48,7 @@ export default function SupplierStatement() {
       qc.invalidateQueries({ queryKey: ["/api/suppliers"] });
       qc.invalidateQueries({ queryKey: ["/api/gl/entries"] });
       setShowPay(false);
-      setPayForm({ amount: "", reference: "", notes: "", paymentDate: format(new Date(), "yyyy-MM-dd") });
+      setPayForm({ amount: "", reference: "", notes: "", paymentDate: format(new Date(), "yyyy-MM-dd"), bankAccountId: "" });
       toast({ title: "Payment recorded — GL updated" });
     },
     onError: () => toast({ title: "Failed to record payment", variant: "destructive" }),
@@ -196,6 +202,17 @@ export default function SupplierStatement() {
               <Input type="date" value={payForm.paymentDate} onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })} />
             </div>
             <div>
+              <Label>Paid From Bank Account *</Label>
+              <Select value={payForm.bankAccountId} onValueChange={(v) => setPayForm({ ...payForm, bankAccountId: v })}>
+                <SelectTrigger><SelectValue placeholder="Select bank account" /></SelectTrigger>
+                <SelectContent>
+                  {(bankAccounts as any[]).map((b: any) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.accountName} ({b.bankName})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label>Reference</Label>
               <Input value={payForm.reference} onChange={(e) => setPayForm({ ...payForm, reference: e.target.value })} placeholder="e.g. Bank transfer ref" />
             </div>
@@ -207,8 +224,8 @@ export default function SupplierStatement() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPay(false)}>Cancel</Button>
             <Button
-              onClick={() => pay.mutate({ amount: parseFloat(payForm.amount), reference: payForm.reference || undefined, notes: payForm.notes || undefined, paymentDate: payForm.paymentDate })}
-              disabled={!payForm.amount || parseFloat(payForm.amount) <= 0 || pay.isPending}
+              onClick={() => pay.mutate({ amount: parseFloat(payForm.amount), reference: payForm.reference || undefined, notes: payForm.notes || undefined, paymentDate: payForm.paymentDate, bankAccountId: payForm.bankAccountId ? parseInt(payForm.bankAccountId) : undefined })}
+              disabled={!payForm.amount || parseFloat(payForm.amount) <= 0 || !payForm.bankAccountId || pay.isPending}
             >
               {pay.isPending ? "Saving..." : "Record Payment"}
             </Button>
