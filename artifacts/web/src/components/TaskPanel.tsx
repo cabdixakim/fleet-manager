@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MessageSquare, Plus, CheckCircle2, Circle, X, Send, RotateCcw, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,19 +34,22 @@ export function TaskTrigger({
   recordType: string; recordId: number; recordLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const [location] = useLocation();
 
   // Close when the route changes
   useEffect(() => { setOpen(false); }, [location]);
 
-  // Close on outside click
+  // Close on outside click — checks both button and popup
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      const inButton = buttonRef.current?.contains(target);
+      const inPopup  = popupRef.current?.contains(target);
+      if (!inButton && !inPopup) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -67,10 +71,24 @@ export function TaskTrigger({
 
   const openCount = tasks.filter((t) => t.status === "open").length;
 
+  function handleToggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setAnchor({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((v) => !v);
+  }
+
   return (
-    <div ref={wrapperRef} className="relative">
+    <>
       <button
-        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen((v) => !v); }}
+        ref={buttonRef}
+        onClick={handleToggle}
         className={cn(
           "relative flex items-center justify-center w-7 h-7 rounded-lg transition-colors shrink-0",
           open
@@ -89,23 +107,26 @@ export function TaskTrigger({
         )}
       </button>
 
-      {open && (
+      {open && anchor && createPortal(
         <TaskPopup
+          ref={popupRef}
           recordType={recordType}
           recordId={recordId}
           recordLabel={recordLabel}
+          anchor={anchor}
           onClose={() => setOpen(false)}
-        />
+        />,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 
-function TaskPopup({
-  recordType, recordId, recordLabel, onClose,
-}: {
-  recordType: string; recordId: number; recordLabel?: string; onClose: () => void;
-}) {
+const TaskPopup = React.forwardRef<HTMLDivElement, {
+  recordType: string; recordId: number; recordLabel?: string;
+  anchor: { top: number; right: number };
+  onClose: () => void;
+}>(function TaskPopup({ recordType, recordId, recordLabel, anchor, onClose }, ref) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [note, setNote] = useState("");
@@ -153,8 +174,9 @@ function TaskPopup({
 
   return (
     <div
-      className="absolute right-0 top-8 z-50 w-72 rounded-xl border border-border bg-card shadow-xl flex flex-col overflow-hidden"
-      style={{ maxHeight: "min(480px, calc(100vh - 120px))" }}
+      ref={ref}
+      className="fixed z-[9999] w-72 rounded-xl border border-border bg-card shadow-xl flex flex-col overflow-hidden"
+      style={{ top: anchor.top, right: anchor.right, maxHeight: "min(480px, calc(100vh - 120px))" }}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}
@@ -249,7 +271,7 @@ function TaskPopup({
       </div>
     </div>
   );
-}
+});
 
 function TaskItem({ task, currentUserId, onComplete, onReopen }: {
   task: Task; currentUserId?: number;
