@@ -171,10 +171,13 @@ export default function TripsPage() {
         ) : (
           <div className="space-y-2">
             {trips.map((trip) => (
-              <button
+              <div
                 key={trip.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => navigate(`/trips/${trip.id}`)}
-                className="w-full text-left bg-card border border-border rounded-xl p-4 hover:border-primary/30 hover:bg-card/80 active:scale-[0.99] transition-all group"
+                onKeyDown={(e) => e.key === "Enter" && navigate(`/trips/${trip.id}`)}
+                className="w-full cursor-pointer text-left bg-card border border-border rounded-xl p-4 hover:border-primary/30 hover:bg-card/80 active:scale-[0.99] transition-all group"
               >
                 <div className="flex items-start gap-3">
                   {/* Status indicator */}
@@ -240,7 +243,10 @@ export default function TripsPage() {
                   </div>
 
                   {/* Task trigger + Chevron */}
-                  <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                  <div
+                    className="flex items-center gap-1 shrink-0 mt-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <TaskTrigger
                       recordType="trip"
                       recordId={trip.id}
@@ -249,7 +255,7 @@ export default function TripsPage() {
                     <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary transition-colors" />
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCheck, MessageSquare, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 
 type Notification = {
   id: number;
@@ -36,8 +36,11 @@ function timeAgo(dateStr: string) {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
   const qc = useQueryClient();
+
+  // Close when the route changes
+  useEffect(() => { setOpen(false); }, [location]);
 
   // Close on outside click
   useEffect(() => {
