@@ -4,6 +4,12 @@ import {
   glAccountsTable,
   glJournalEntriesTable,
   glJournalEntryLinesTable,
+  invoicesTable,
+  clientsTable,
+  suppliersTable,
+  supplierPaymentsTable,
+  tripExpensesTable,
+  companyExpensesTable,
 } from "@workspace/db/schema";
 import { eq, and, gte, lte, sql, asc, desc, inArray } from "drizzle-orm";
 
@@ -349,6 +355,264 @@ router.get("/reports/balance-sheet", async (req, res, next) => {
     const totalEquity = equityRows.reduce((s, r) => s + r.balance, 0) + currentPeriodEarnings;
 
     res.json({ assetRows, liabilityRows, equityRows, currentPeriodEarnings, totalAssets, totalLiabilities, totalEquity });
+  } catch (e) { next(e); }
+});
+
+// ─── AR Aging ──────────────────────────────────────────────────────────────
+router.get("/reports/ar-aging", async (req, res, next) => {
+  try {
+    const today = new Date();
+
+    const rows = await db
+      .select({
+        id: invoicesTable.id,
+        invoiceNumber: invoicesTable.invoiceNumber,
+        clientId: invoicesTable.clientId,
+        clientName: clientsTable.name,
+        netRevenue: invoicesTable.netRevenue,
+        issuedDate: invoicesTable.issuedDate,
+        dueDate: invoicesTable.dueDate,
+        status: invoicesTable.status,
+      })
+      .from(invoicesTable)
+      .leftJoin(clientsTable, eq(invoicesTable.clientId, clientsTable.id))
+      .where(inArray(invoicesTable.status, ["sent", "overdue"]));
+
+    const enriched = rows.map((inv) => {
+      const base = inv.dueDate
+        ? new Date(inv.dueDate)
+        : inv.issuedDate
+          ? new Date(new Date(inv.issuedDate).getTime() + 30 * 86400000)
+          : today;
+      const ageDays = Math.max(0, Math.floor((today.getTime() - base.getTime()) / 86400000));
+      const amount = parseFloat(inv.netRevenue ?? "0");
+      return { ...inv, ageDays, amount };
+    });
+
+    type ClientBucket = {
+      clientId: number; clientName: string;
+      current: number; d30: number; d60: number; d90plus: number; total: number;
+      invoices: typeof enriched;
+    };
+
+    const byClient: Record<string, ClientBucket> = {};
+    for (const row of enriched) {
+      const key = String(row.clientId);
+      if (!byClient[key]) {
+        byClient[key] = {
+          clientId: row.clientId, clientName: row.clientName ?? "",
+          current: 0, d30: 0, d60: 0, d90plus: 0, total: 0, invoices: [],
+        };
+      }
+      const b = byClient[key];
+      b.total += row.amount;
+      b.invoices.push(row);
+      if (row.ageDays <= 30) b.current += row.amount;
+      else if (row.ageDays <= 60) b.d30 += row.amount;
+      else if (row.ageDays <= 90) b.d60 += row.amount;
+      else b.d90plus += row.amount;
+    }
+
+    const clients = Object.values(byClient).sort((a, b) => b.total - a.total);
+    const summary = clients.reduce(
+      (s, c) => ({ current: s.current + c.current, d30: s.d30 + c.d30, d60: s.d60 + c.d60, d90plus: s.d90plus + c.d90plus, total: s.total + c.total }),
+      { current: 0, d30: 0, d60: 0, d90plus: 0, total: 0 }
+    );
+
+    res.json({ clients, summary, asOf: today.toISOString() });
+  } catch (e) { next(e); }
+});
+
+// ─── AP Aging ──────────────────────────────────────────────────────────────
+router.get("/reports/ap-aging", async (req, res, next) => {
+  try {
+    const today = new Date();
+    const allSuppliers = await db.select().from(suppliersTable).orderBy(suppliersTable.name);
+
+    const rows = await Promise.all(allSuppliers.map(async (s) => {
+      const [tripTot] = await db
+        .select({ total: sql<string>`coalesce(sum(amount::numeric), 0)` })
+        .from(tripExpensesTable).where(eq(tripExpensesTable.supplierId, s.id));
+      const [compTot] = await db
+        .select({ total: sql<string>`coalesce(sum(amount::numeric), 0)` })
+        .from(companyExpensesTable).where(eq(companyExpensesTable.supplierId, s.id));
+      const [payTot] = await db
+        .select({ total: sql<string>`coalesce(sum(amount::numeric), 0)` })
+        .from(supplierPaymentsTable).where(eq(supplierPaymentsTable.supplierId, s.id));
+
+      const ob = parseFloat(s.openingBalance ?? "0");
+      const charged = parseFloat(tripTot?.total ?? "0") + parseFloat(compTot?.total ?? "0");
+      const paid = parseFloat(payTot?.total ?? "0");
+      const balance = ob + charged - paid;
+      if (balance < 0.01) return null;
+
+      const [latestExp] = await db
+        .select({ date: tripExpensesTable.expenseDate })
+        .from(tripExpensesTable)
+        .where(eq(tripExpensesTable.supplierId, s.id))
+        .orderBy(desc(tripExpensesTable.expenseDate))
+        .limit(1);
+
+      const baseDate = latestExp?.date ? new Date(latestExp.date) : today;
+      const ageDays = Math.max(0, Math.floor((today.getTime() - baseDate.getTime()) / 86400000));
+
+      return {
+        supplierId: s.id, supplierName: s.name, supplierType: s.type,
+        balance, ageDays,
+        current: ageDays <= 30 ? balance : 0,
+        d30: ageDays > 30 && ageDays <= 60 ? balance : 0,
+        d60: ageDays > 60 && ageDays <= 90 ? balance : 0,
+        d90plus: ageDays > 90 ? balance : 0,
+      };
+    }));
+
+    const suppliers = rows.filter(Boolean).sort((a: any, b: any) => b.balance - a.balance);
+    const summary = (suppliers as any[]).reduce(
+      (s: any, c: any) => ({ current: s.current + c.current, d30: s.d30 + c.d30, d60: s.d60 + c.d60, d90plus: s.d90plus + c.d90plus, total: s.total + c.balance }),
+      { current: 0, d30: 0, d60: 0, d90plus: 0, total: 0 }
+    );
+
+    res.json({ suppliers, summary, asOf: today.toISOString() });
+  } catch (e) { next(e); }
+});
+
+// ─── Cash Flow Statement ────────────────────────────────────────────────────
+router.get("/reports/cash-flow", async (req, res, next) => {
+  try {
+    const { from, to } = req.query as { from?: string; to?: string };
+
+    // Cash/bank accounts: type = 'asset' and code starts with 10
+    const cashAccounts = await db
+      .select({ id: glAccountsTable.id, code: glAccountsTable.code, name: glAccountsTable.name })
+      .from(glAccountsTable)
+      .where(and(eq(glAccountsTable.type, "asset"), sql`${glAccountsTable.code} LIKE '10%'`));
+
+    const cashAccountIds = cashAccounts.map((a) => a.id);
+    if (cashAccountIds.length === 0) return res.json({ operating: [], financing: [], openingCash: 0, closingCash: 0, netChange: 0 });
+
+    const periodConditions: any[] = [];
+    if (from) periodConditions.push(gte(glJournalEntriesTable.entryDate, new Date(from)));
+    if (to) periodConditions.push(lte(glJournalEntriesTable.entryDate, new Date(to)));
+
+    // Lines touching cash accounts within period
+    const cashLines = await db
+      .select({
+        lineId: glJournalEntryLinesTable.id,
+        accountId: glJournalEntryLinesTable.accountId,
+        debit: glJournalEntryLinesTable.debit,
+        credit: glJournalEntryLinesTable.credit,
+        description: glJournalEntryLinesTable.description,
+        entryDate: glJournalEntriesTable.entryDate,
+        referenceType: glJournalEntriesTable.referenceType,
+      })
+      .from(glJournalEntryLinesTable)
+      .innerJoin(glJournalEntriesTable, eq(glJournalEntryLinesTable.journalEntryId, glJournalEntriesTable.id))
+      .where(and(
+        inArray(glJournalEntryLinesTable.accountId, cashAccountIds),
+        ...(periodConditions.length ? periodConditions : [])
+      ))
+      .orderBy(asc(glJournalEntriesTable.entryDate));
+
+    // Opening cash balance (Dr - Cr before period start)
+    let openingCash = 0;
+    if (from) {
+      const [obRow] = await db
+        .select({ total: sql<string>`coalesce(sum(${glJournalEntryLinesTable.debit}::numeric - ${glJournalEntryLinesTable.credit}::numeric), 0)` })
+        .from(glJournalEntryLinesTable)
+        .innerJoin(glJournalEntriesTable, eq(glJournalEntryLinesTable.journalEntryId, glJournalEntriesTable.id))
+        .where(and(
+          inArray(glJournalEntryLinesTable.accountId, cashAccountIds),
+          sql`${glJournalEntriesTable.entryDate} < ${from}::timestamp`
+        ));
+      openingCash = parseFloat(obRow?.total ?? "0");
+    }
+
+    // Categorise cash movements
+    const OPERATING_TYPES = ["invoice_payment", "company_expense", "trip_expense", "payroll", "sub_payment", "sub_advance", "supplier_payment", "petty_cash_topup", "petty_cash_expense", "petty_cash_replenishment", "opening_balance", "supplier_ob", "subcontractor_ob", "client_ob"];
+
+    type FlowItem = { label: string; amount: number; referenceType: string };
+    const operating: Record<string, FlowItem> = {};
+    const financing: Record<string, FlowItem> = {};
+
+    const LABELS: Record<string, string> = {
+      invoice_payment: "Cash received from customers",
+      company_expense: "Cash paid for company expenses",
+      trip_expense: "Cash paid for trip expenses",
+      payroll: "Cash paid for payroll",
+      sub_payment: "Cash paid to subcontractors",
+      sub_advance: "Cash advances to subcontractors",
+      supplier_payment: "Cash paid to suppliers",
+      petty_cash_topup: "Petty cash top-ups",
+      petty_cash_expense: "Petty cash disbursements",
+      petty_cash_replenishment: "Petty cash replenishments",
+      opening_balance: "Opening balance adjustments",
+      supplier_ob: "Supplier opening balances",
+      subcontractor_ob: "Subcontractor opening balances",
+      client_ob: "Client opening balances",
+      manual: "Other financing / manual entries",
+    };
+
+    let closingCash = openingCash;
+    for (const line of cashLines) {
+      const dr = parseFloat(line.debit ?? "0");
+      const cr = parseFloat(line.credit ?? "0");
+      const netAmt = dr - cr; // positive = cash in (Dr increases asset), negative = cash out
+      closingCash += netAmt;
+
+      const rt = line.referenceType ?? "manual";
+      const bucket = OPERATING_TYPES.includes(rt) ? operating : financing;
+      if (!bucket[rt]) bucket[rt] = { label: LABELS[rt] ?? rt, amount: 0, referenceType: rt };
+      bucket[rt].amount += netAmt;
+    }
+
+    const netChange = closingCash - openingCash;
+
+    res.json({
+      operating: Object.values(operating),
+      financing: Object.values(financing),
+      openingCash,
+      closingCash,
+      netChange,
+      period: { from, to },
+    });
+  } catch (e) { next(e); }
+});
+
+// ─── Expense Breakdown by Account ───────────────────────────────────────────
+router.get("/reports/expense-breakdown", async (req, res, next) => {
+  try {
+    const { from, to } = req.query as { from?: string; to?: string };
+
+    const conditions: any[] = [
+      eq(glAccountsTable.type, "expense"),
+    ];
+    if (from) conditions.push(gte(glJournalEntriesTable.entryDate, new Date(from)));
+    if (to) conditions.push(lte(glJournalEntriesTable.entryDate, new Date(to)));
+
+    const rows = await db
+      .select({
+        accountId: glAccountsTable.id,
+        code: glAccountsTable.code,
+        accountName: glAccountsTable.name,
+        totalDebit: sql<string>`COALESCE(SUM(${glJournalEntryLinesTable.debit}::numeric), 0)`,
+        totalCredit: sql<string>`COALESCE(SUM(${glJournalEntryLinesTable.credit}::numeric), 0)`,
+      })
+      .from(glJournalEntryLinesTable)
+      .innerJoin(glAccountsTable, eq(glJournalEntryLinesTable.accountId, glAccountsTable.id))
+      .innerJoin(glJournalEntriesTable, eq(glJournalEntryLinesTable.journalEntryId, glJournalEntriesTable.id))
+      .where(and(...conditions))
+      .groupBy(glAccountsTable.id, glAccountsTable.code, glAccountsTable.name)
+      .orderBy(asc(glAccountsTable.code));
+
+    const accounts = rows.map((r) => {
+      const net = parseFloat(r.totalDebit) - parseFloat(r.totalCredit);
+      return { ...r, net, totalDebit: parseFloat(r.totalDebit), totalCredit: parseFloat(r.totalCredit) };
+    }).filter((r) => r.net !== 0);
+
+    const total = accounts.reduce((s, r) => s + r.net, 0);
+    const withPct = accounts.map((r) => ({ ...r, pct: total > 0 ? (r.net / total) * 100 : 0 }));
+
+    res.json({ accounts: withPct, total, period: { from, to } });
   } catch (e) { next(e); }
 });
 
