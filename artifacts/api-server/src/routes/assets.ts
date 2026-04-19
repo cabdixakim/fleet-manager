@@ -35,7 +35,34 @@ function computeDepreciation(asset: {
   };
 }
 
-// GET /api/assets — all assets with depreciation computed
+function computeLoan(asset: {
+  financed: boolean;
+  loanAmount: string | null;
+  installmentAmount: string | null;
+  totalInstallments: number | null;
+  installmentsPaid: number;
+}) {
+  if (!asset.financed || !asset.loanAmount) {
+    return { outstandingBalance: 0, loanPaidPct: 100, loanFullyPaid: true };
+  }
+  const loan = parseFloat(asset.loanAmount);
+  const instAmt = asset.installmentAmount ? parseFloat(asset.installmentAmount) : 0;
+  const paid = asset.installmentsPaid ?? 0;
+  const paidAmount = instAmt * paid;
+  const outstanding = Math.max(0, loan - paidAmount);
+  const pct = loan > 0 ? Math.min(100, (paidAmount / loan) * 100) : 100;
+  return {
+    outstandingBalance: parseFloat(outstanding.toFixed(2)),
+    loanPaidPct: parseFloat(pct.toFixed(1)),
+    loanFullyPaid: outstanding <= 0,
+  };
+}
+
+function enrich(a: any) {
+  return { ...a, ...computeDepreciation(a), ...computeLoan(a) };
+}
+
+// GET /api/assets
 router.get("/", async (_req, res, next) => {
   try {
     const rows = await db
@@ -49,21 +76,25 @@ router.get("/", async (_req, res, next) => {
         purchaseDate: assetsTable.purchaseDate,
         usefulLifeYears: assetsTable.usefulLifeYears,
         salvageValue: assetsTable.salvageValue,
+        financed: assetsTable.financed,
+        lender: assetsTable.lender,
+        downPayment: assetsTable.downPayment,
+        loanAmount: assetsTable.loanAmount,
+        installmentAmount: assetsTable.installmentAmount,
+        installmentFrequency: assetsTable.installmentFrequency,
+        totalInstallments: assetsTable.totalInstallments,
+        installmentsPaid: assetsTable.installmentsPaid,
         createdAt: assetsTable.createdAt,
       })
       .from(assetsTable)
       .leftJoin(trucksTable, eq(assetsTable.truckId, trucksTable.id))
       .orderBy(desc(assetsTable.purchaseDate));
 
-    const result = rows.map((a) => ({
-      ...a,
-      ...computeDepreciation(a as any),
-    }));
-    res.json(result);
+    res.json(rows.map(enrich));
   } catch (err) { next(err); }
 });
 
-// GET /api/assets/truck/:truckId — assets for one truck
+// GET /api/assets/truck/:truckId
 router.get("/truck/:truckId", async (req, res, next) => {
   try {
     const truckId = parseInt(req.params.truckId);
@@ -72,18 +103,23 @@ router.get("/truck/:truckId", async (req, res, next) => {
       .from(assetsTable)
       .where(eq(assetsTable.truckId, truckId))
       .orderBy(desc(assetsTable.purchaseDate));
-    const result = rows.map((a) => ({ ...a, ...computeDepreciation(a as any) }));
-    res.json(result);
+    res.json(rows.map(enrich));
   } catch (err) { next(err); }
 });
 
 // POST /api/assets
 router.post("/", async (req, res, next) => {
   try {
-    const { truckId, name, description, purchasePrice, purchaseDate, usefulLifeYears, salvageValue } = req.body;
+    const {
+      truckId, name, description, purchasePrice, purchaseDate, usefulLifeYears, salvageValue,
+      financed, lender, downPayment, loanAmount, installmentAmount, installmentFrequency,
+      totalInstallments, installmentsPaid,
+    } = req.body;
+
     if (!name || !purchasePrice || !purchaseDate || !usefulLifeYears) {
       return res.status(400).json({ error: "name, purchasePrice, purchaseDate and usefulLifeYears are required" });
     }
+
     const [row] = await db
       .insert(assetsTable)
       .values({
@@ -94,9 +130,17 @@ router.post("/", async (req, res, next) => {
         purchaseDate,
         usefulLifeYears: parseInt(usefulLifeYears),
         salvageValue: salvageValue ? String(salvageValue) : "0",
+        financed: !!financed,
+        lender: lender ?? null,
+        downPayment: downPayment ? String(downPayment) : null,
+        loanAmount: loanAmount ? String(loanAmount) : null,
+        installmentAmount: installmentAmount ? String(installmentAmount) : null,
+        installmentFrequency: installmentFrequency ?? null,
+        totalInstallments: totalInstallments ? parseInt(totalInstallments) : null,
+        installmentsPaid: installmentsPaid ? parseInt(installmentsPaid) : 0,
       })
       .returning();
-    res.status(201).json({ ...row, ...computeDepreciation(row as any) });
+    res.status(201).json(enrich(row));
   } catch (err) { next(err); }
 });
 
@@ -104,7 +148,12 @@ router.post("/", async (req, res, next) => {
 router.patch("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, description, purchasePrice, purchaseDate, usefulLifeYears, salvageValue, truckId } = req.body;
+    const {
+      name, description, purchasePrice, purchaseDate, usefulLifeYears, salvageValue, truckId,
+      financed, lender, downPayment, loanAmount, installmentAmount, installmentFrequency,
+      totalInstallments, installmentsPaid,
+    } = req.body;
+
     const [row] = await db
       .update(assetsTable)
       .set({
@@ -115,11 +164,38 @@ router.patch("/:id", async (req, res, next) => {
         ...(usefulLifeYears !== undefined && { usefulLifeYears: parseInt(usefulLifeYears) }),
         ...(salvageValue !== undefined && { salvageValue: String(salvageValue) }),
         ...(truckId !== undefined && { truckId: truckId ? parseInt(truckId) : null }),
+        ...(financed !== undefined && { financed: !!financed }),
+        ...(lender !== undefined && { lender }),
+        ...(downPayment !== undefined && { downPayment: downPayment ? String(downPayment) : null }),
+        ...(loanAmount !== undefined && { loanAmount: loanAmount ? String(loanAmount) : null }),
+        ...(installmentAmount !== undefined && { installmentAmount: installmentAmount ? String(installmentAmount) : null }),
+        ...(installmentFrequency !== undefined && { installmentFrequency }),
+        ...(totalInstallments !== undefined && { totalInstallments: totalInstallments ? parseInt(totalInstallments) : null }),
+        ...(installmentsPaid !== undefined && { installmentsPaid: parseInt(installmentsPaid) }),
       })
       .where(eq(assetsTable.id, id))
       .returning();
+
     if (!row) return res.status(404).json({ error: "Not found" });
-    res.json({ ...row, ...computeDepreciation(row as any) });
+    res.json(enrich(row));
+  } catch (err) { next(err); }
+});
+
+// POST /api/assets/:id/record-payment — increment installmentsPaid by 1
+router.post("/:id/record-payment", async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [current] = await db.select().from(assetsTable).where(eq(assetsTable.id, id));
+    if (!current) return res.status(404).json({ error: "Not found" });
+
+    const newPaid = (current.installmentsPaid ?? 0) + 1;
+    const [row] = await db
+      .update(assetsTable)
+      .set({ installmentsPaid: newPaid })
+      .where(eq(assetsTable.id, id))
+      .returning();
+
+    res.json(enrich(row));
   } catch (err) { next(err); }
 });
 
