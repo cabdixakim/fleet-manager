@@ -41,6 +41,7 @@ import assetsRouter from "./assets";
 import advancesRouter from "./advances";
 import openingBalancesRouter from "./openingBalances";
 import insuranceClaimsRouter from "./insuranceClaims";
+import lanesRouter from "./lanes";
 
 const router: IRouter = Router();
 
@@ -87,5 +88,6 @@ router.use("/assets", assetsRouter);
 router.use("/advances", advancesRouter);
 router.use("/opening-balances", openingBalancesRouter);
 router.use("/insurance-claims", insuranceClaimsRouter);
+router.use("/lanes", lanesRouter);
 
 export default router;

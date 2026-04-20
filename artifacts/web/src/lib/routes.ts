@@ -5,24 +5,35 @@ export interface RouteConfig {
   chart: string;
 }
 
-export const ROUTES: RouteConfig[] = [
-  { value: "dar_to_lubumbashi",   label: "Dar es Salaam → Lubumbashi", short: "Dar → Lub",          chart: "Dar→Lbm"   },
-  { value: "beira_to_lubumbashi", label: "Beira → Lubumbashi",         short: "Beira → Lub",        chart: "Beira→Lbm" },
-  { value: "ndola_lubumbashi",    label: "Ndola → Lubumbashi",         short: "Ndola → Lub",        chart: "Ndola→Lbm" },
-  { value: "lusaka_lubumbashi",   label: "Lusaka → Lubumbashi",        short: "Lusaka → Lub",       chart: "Lsk→Lbm"   },
-  { value: "dar_lusaka",          label: "Dar es Salaam → Lusaka",     short: "Dar → Lusaka",       chart: "Dar→Lsk"   },
-  { value: "beira_lusaka",        label: "Beira → Lusaka",             short: "Beira → Lusaka",     chart: "Beira→Lsk" },
-  { value: "durban_lusaka",       label: "Durban → Lusaka",            short: "Durban → Lusaka",    chart: "Dur→Lsk"   },
-  { value: "ndola_kolwezi",       label: "Ndola → Kolwezi",            short: "Ndola → Kolwezi",    chart: "Ndl→Klw"   },
-  { value: "lusaka_kolwezi",      label: "Lusaka → Kolwezi",           short: "Lusaka → Kolwezi",   chart: "Lsk→Klw"   },
+export const STATIC_ROUTES: RouteConfig[] = [
+  { value: "dar_to_lubumbashi",   label: "Dar es Salaam → Lubumbashi", short: "Dar → Lub",       chart: "Dar→Lbm"   },
+  { value: "beira_to_lubumbashi", label: "Beira → Lubumbashi",         short: "Beira → Lub",     chart: "Beira→Lbm" },
+  { value: "ndola_lubumbashi",    label: "Ndola → Lubumbashi",         short: "Ndola → Lub",     chart: "Ndola→Lbm" },
+  { value: "lusaka_lubumbashi",   label: "Lusaka → Lubumbashi",        short: "Lusaka → Lub",    chart: "Lsk→Lbm"   },
+  { value: "dar_lusaka",          label: "Dar es Salaam → Lusaka",     short: "Dar → Lusaka",    chart: "Dar→Lsk"   },
+  { value: "beira_lusaka",        label: "Beira → Lusaka",             short: "Beira → Lusaka",  chart: "Beira→Lsk" },
+  { value: "durban_lusaka",       label: "Durban → Lusaka",            short: "Durban → Lusaka", chart: "Dur→Lsk"   },
+  { value: "ndola_kolwezi",       label: "Ndola → Kolwezi",            short: "Ndola → Kolwezi", chart: "Ndl→Klw"   },
+  { value: "lusaka_kolwezi",      label: "Lusaka → Kolwezi",           short: "Lusaka → Kolwezi",chart: "Lsk→Klw"   },
 ];
 
-const LABEL_MAP: Record<string, string> = Object.fromEntries(ROUTES.map((r) => [r.value, r.label]));
-const SHORT_MAP: Record<string, string> = Object.fromEntries(ROUTES.map((r) => [r.value, r.short]));
-const CHART_MAP: Record<string, string> = Object.fromEntries(ROUTES.map((r) => [r.value, r.chart]));
+// Keep ROUTES as an alias used by Batches.tsx before dynamic load
+export const ROUTES = STATIC_ROUTES;
 
-export const getRouteLabel = (key: string): string => LABEL_MAP[key] ?? key;
-export const getRouteShort = (key: string): string => SHORT_MAP[key] ?? key;
-export const getRouteChart = (key: string): string => CHART_MAP[key] ?? key;
+let _cache: Record<string, RouteConfig> = Object.fromEntries(STATIC_ROUTES.map(r => [r.value, r]));
 
-export const DEFAULT_ROUTE = ROUTES[0].value;
+export function initLanes(lanes: RouteConfig[]) {
+  if (lanes.length > 0) {
+    _cache = Object.fromEntries(lanes.map(r => [r.value, r]));
+  }
+}
+
+export function getLanesSnapshot(): RouteConfig[] {
+  return Object.values(_cache);
+}
+
+export const getRouteLabel = (key: string): string => _cache[key]?.label ?? key;
+export const getRouteShort = (key: string): string => _cache[key]?.short ?? key;
+export const getRouteChart = (key: string): string => _cache[key]?.chart ?? key;
+
+export const DEFAULT_ROUTE = STATIC_ROUTES[0].value;

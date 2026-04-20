@@ -1,5 +1,7 @@
 import { Switch, Route, Router as WouterRouter, Redirect, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { initLanes } from "@/lib/routes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -46,6 +48,7 @@ import MyTasks from "@/pages/MyTasks";
 import OpeningBalances from "@/pages/OpeningBalances";
 import InsuranceClaims from "@/pages/InsuranceClaims";
 import DocumentVault from "@/pages/Documents";
+import LanesPage from "@/pages/Lanes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -89,6 +92,14 @@ function SetupGate({ children }: { children: React.ReactNode }) {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/lanes", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(initLanes)
+      .catch(() => {});
+  }, [user]);
 
   if (loading) {
     return (
@@ -157,6 +168,7 @@ function Router() {
               <Route path="/opening-balances" component={OpeningBalances} />
               <Route path="/insurance-claims" component={InsuranceClaims} />
               <Route path="/documents" component={DocumentVault} />
+              <Route path="/lanes" component={LanesPage} />
               <Route component={NotFound} />
             </Switch>
           </AuthGate>

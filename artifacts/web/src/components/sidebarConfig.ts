@@ -90,6 +90,7 @@ export const sidebarConfig: SidebarGroup[] = [
     roles: ["admin"],
     links: [
       { label: "Company Settings", path: "/settings", icon: "settings" },
+      { label: "Routes",           path: "/lanes",    icon: "mapPin" },
       { label: "Users",            path: "/users",    icon: "userCog" },
     ],
   },

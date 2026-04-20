@@ -1,9 +1,30 @@
 import 'dotenv/config';
 import app from "./app";
 import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { sql, count } from "drizzle-orm";
 import { seedGLAccounts, backfillGLEntries, seedPettyCashAccount } from "./lib/glBackfill";
 import { seedDefaultBankAccount } from "./lib/glPosting";
+import { lanesTable } from "@workspace/db/schema";
+
+const DEFAULT_LANES = [
+  { value: "dar_to_lubumbashi",   label: "Dar es Salaam → Lubumbashi", short: "Dar → Lub",        chart: "Dar→Lbm",   sortOrder: 0 },
+  { value: "beira_to_lubumbashi", label: "Beira → Lubumbashi",         short: "Beira → Lub",      chart: "Beira→Lbm", sortOrder: 1 },
+  { value: "ndola_lubumbashi",    label: "Ndola → Lubumbashi",         short: "Ndola → Lub",      chart: "Ndola→Lbm", sortOrder: 2 },
+  { value: "lusaka_lubumbashi",   label: "Lusaka → Lubumbashi",        short: "Lusaka → Lub",     chart: "Lsk→Lbm",   sortOrder: 3 },
+  { value: "dar_lusaka",          label: "Dar es Salaam → Lusaka",     short: "Dar → Lusaka",     chart: "Dar→Lsk",   sortOrder: 4 },
+  { value: "beira_lusaka",        label: "Beira → Lusaka",             short: "Beira → Lusaka",   chart: "Beira→Lsk", sortOrder: 5 },
+  { value: "durban_lusaka",       label: "Durban → Lusaka",            short: "Durban → Lusaka",  chart: "Dur→Lsk",   sortOrder: 6 },
+  { value: "ndola_kolwezi",       label: "Ndola → Kolwezi",            short: "Ndola → Kolwezi",  chart: "Ndl→Klw",   sortOrder: 7 },
+  { value: "lusaka_kolwezi",      label: "Lusaka → Kolwezi",           short: "Lusaka → Kolwezi", chart: "Lsk→Klw",   sortOrder: 8 },
+];
+
+async function seedLanes() {
+  const [{ value: existing }] = await db.select({ value: count() }).from(lanesTable);
+  if (existing === 0) {
+    await db.insert(lanesTable).values(DEFAULT_LANES);
+    console.log(`[startup] Seeded ${DEFAULT_LANES.length} default lanes.`);
+  }
+}
 
 const rawPort = process.env["PORT"];
 
@@ -51,4 +72,6 @@ app.listen(port, async () => {
   } catch (e) {
     console.error("[startup] GL seed/backfill failed:", e);
   }
+
+  try { await seedLanes(); } catch (e) { console.error("[startup] Lane seed failed:", e); }
 });

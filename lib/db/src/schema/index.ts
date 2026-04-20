@@ -18,6 +18,7 @@ export * from "./users";
 export * from "./auditLogs";
 export * from "./truckDriverAssignments";
 export * from "./periods";
+export * from "./lanes";
 export * from "./periods.relations";
 export * from "./agents";
 export * from "./glAccounts";

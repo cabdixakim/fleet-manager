@@ -11,10 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusRevertDialog } from "@/components/StatusRevertDialog";
-import { ROUTES, getRouteShort, DEFAULT_ROUTE } from "@/lib/routes";
+import { getRouteShort, DEFAULT_ROUTE, type RouteConfig } from "@/lib/routes";
 
 const BATCH_STATUS_ORDER = ["planning", "loading", "in_transit", "delivered", "invoiced", "closed"];
 const BATCH_FINANCIAL_STATUSES = ["invoiced", "closed"];
@@ -38,6 +38,10 @@ export default function Batches() {
   const { data: batches = [], isLoading } = useGetBatches(params);
   const { data: clients = [] } = useGetClients();
   const { data: agents = [] } = useGetAgents();
+  const { data: lanes = [] } = useQuery<RouteConfig[]>({
+    queryKey: ["/api/lanes"],
+    queryFn: () => fetch("/api/lanes", { credentials: "include" }).then(r => r.json()),
+  });
   const { mutateAsync: createBatch, isPending } = useCreateBatch();
   const { mutateAsync: updateBatch, isPending: updating } = useUpdateBatch();
 
@@ -191,7 +195,7 @@ export default function Batches() {
               <Label>Route *</Label>
               <Select value={form.route} onValueChange={(v) => setForm({ ...form, route: v })}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
-                <SelectContent>{ROUTES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{lanes.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div>
