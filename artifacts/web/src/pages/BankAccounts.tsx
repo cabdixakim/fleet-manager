@@ -191,7 +191,7 @@ export default function BankAccounts() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Raw Bank — Operations Account"
+                placeholder="e.g. Zanaco — Operations Account"
                 className="mt-1"
               />
             </div>
@@ -200,7 +200,7 @@ export default function BankAccounts() {
               <Input
                 value={form.bankName}
                 onChange={(e) => setForm({ ...form, bankName: e.target.value })}
-                placeholder="e.g. Raw Bank, Salam Bank, Access Bank"
+                placeholder="e.g. Zanaco, Stanbic, FNB"
                 className="mt-1"
               />
             </div>

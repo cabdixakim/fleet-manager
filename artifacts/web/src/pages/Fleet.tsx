@@ -731,11 +731,11 @@ export default function Fleet() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Insurer</Label>
-                    <Input value={editTruck.insurerName ?? ""} onChange={(e) => setEditTruck({ ...editTruck, insurerName: e.target.value })} className="mt-1" placeholder="e.g. Hollard" />
+                    <Input value={editTruck.insurerName ?? ""} onChange={(e) => setEditTruck({ ...editTruck, insurerName: e.target.value })} className="mt-1" placeholder="e.g. NICO, Madison, Hollard" />
                   </div>
                   <div>
                     <Label>Policy Number</Label>
-                    <Input value={editTruck.policyNumber ?? ""} onChange={(e) => setEditTruck({ ...editTruck, policyNumber: e.target.value })} className="mt-1" placeholder="e.g. HI-2024-001" />
+                    <Input value={editTruck.policyNumber ?? ""} onChange={(e) => setEditTruck({ ...editTruck, policyNumber: e.target.value })} className="mt-1" placeholder="e.g. MCF-2025-00312" />
                   </div>
                   <div>
                     <Label>Coverage (USD)</Label>
