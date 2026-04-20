@@ -93,7 +93,7 @@ export default function BankAccounts() {
     <Layout>
       <PageHeader
         title="Bank Accounts"
-        subtitle="Configure each bank you use — transactions are tracked and reconciled separately per account"
+        subtitle="Bank accounts and balances"
         actions={
           <Button size="sm" onClick={openAdd}>
             <Plus className="w-4 h-4 mr-1" /> Add Bank Account
@@ -104,10 +104,9 @@ export default function BankAccounts() {
         {/* Summary */}
         <div className="flex gap-4 mb-6 flex-wrap">
           <div className="bg-card border border-border rounded-lg px-6 py-4 flex flex-col min-w-[180px]">
-            <span className="text-xs text-muted-foreground uppercase tracking-wider">Total Bank Balance (GL)</span>
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">Total Balance</span>
             <span className="text-2xl font-bold mt-1 text-emerald-400">{formatCurrency(totalBalance)}</span>
-            <span className="text-xs text-muted-foreground mt-0.5">Across all active accounts</span>
-          </div>
+            </div>
           <div className="bg-card border border-border rounded-lg px-6 py-4 flex flex-col min-w-[160px]">
             <span className="text-xs text-muted-foreground uppercase tracking-wider">Active Banks</span>
             <span className="text-2xl font-bold mt-1">{(accounts as any[]).filter(a => a.isActive).length}</span>
@@ -120,8 +119,7 @@ export default function BankAccounts() {
         ) : (accounts as any[]).filter(a => a.isActive).length === 0 ? (
           <div className="text-center text-muted-foreground py-20 flex flex-col items-center gap-3">
             <Building2 className="w-10 h-10 opacity-30" />
-            <p className="font-medium">No bank accounts configured</p>
-            <p className="text-sm max-w-md">Add your bank accounts to track transactions per bank and run reconciliations. Existing transactions are tracked under the Default Bank Account.</p>
+            <p className="font-medium">No bank accounts added yet</p>
             <Button size="sm" onClick={openAdd}><Plus className="w-4 h-4 mr-1" />Add Bank Account</Button>
           </div>
         ) : (
@@ -152,12 +150,11 @@ export default function BankAccounts() {
 
                 <div className="flex items-end justify-between gap-2">
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">GL Balance</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Balance</p>
                     <p className={`text-xl font-bold ${a.glBalance >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                       {formatCurrency(a.glBalance ?? 0)}
                     </p>
                     {a.accountNumber && <p className="text-xs text-muted-foreground mt-0.5 font-mono">{a.accountNumber}</p>}
-                    <p className="text-[10px] text-muted-foreground mt-1">GL Code: {a.glCode}</p>
                   </div>
                   <Button
                     size="sm"
@@ -197,7 +194,6 @@ export default function BankAccounts() {
                 placeholder="e.g. Raw Bank — Operations Account"
                 className="mt-1"
               />
-              <p className="text-xs text-muted-foreground mt-1">How you refer to this account internally</p>
             </div>
             <div>
               <Label className="text-xs">Bank Name</Label>
@@ -217,11 +213,6 @@ export default function BankAccounts() {
                 className="mt-1 font-mono"
               />
             </div>
-            {!editId && (
-              <p className="text-xs text-muted-foreground bg-secondary/50 rounded p-3">
-                A dedicated ledger account will be created automatically for this bank. You can then select it when logging expenses and payments.
-              </p>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>Cancel</Button>
@@ -236,7 +227,7 @@ export default function BankAccounts() {
       <Dialog open={deleteId !== null} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Deactivate Bank Account?</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">This bank account will be hidden from future transactions. Existing GL entries are preserved.</p>
+          <p className="text-sm text-muted-foreground">Existing transactions are preserved.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => deleteId && deleteAccount(deleteId)}>Deactivate</Button>

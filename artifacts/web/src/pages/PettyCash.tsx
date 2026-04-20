@@ -56,7 +56,7 @@ export default function PettyCash() {
     <Layout>
       <PageHeader
         title="Petty Cash"
-        subtitle="Track the physical cash tin — top it up from bank, see where every dollar went"
+        subtitle="Physical cash tin"
         icon={<Wallet className="w-5 h-5" />}
         actions={
           <Button size="sm" onClick={() => setShowTopUp(true)}>
@@ -72,7 +72,6 @@ export default function PettyCash() {
             <span className={cn("text-2xl font-bold mt-1", balance >= 0 ? "text-emerald-400" : "text-red-400")}>
               {formatCurrency(balance)}
             </span>
-            <span className="text-xs text-muted-foreground mt-0.5">Should be in the tin right now</span>
           </div>
           <div className="bg-card border border-border rounded-lg px-5 py-4 flex flex-col min-w-[140px]">
             <span className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -95,7 +94,6 @@ export default function PettyCash() {
           <div className="text-center text-muted-foreground py-20 flex flex-col items-center gap-3">
             <AlertCircle className="w-8 h-8 opacity-40" />
             <p className="font-medium">No transactions yet</p>
-            <p className="text-sm">Top up the petty cash tin to start tracking, or log expenses as "Petty Cash" to see them here.</p>
           </div>
         ) : (
           <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -153,12 +151,6 @@ export default function PettyCash() {
                   <SelectItem value="client_cash">Client Cash Payment</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {topUpForm.source === "bank_transfer" && "Dr Petty Cash / Cr Bank — standard bank withdrawal"}
-                {topUpForm.source === "loan" && "Dr Petty Cash / Cr Loans Payable — cash borrowed from a lender"}
-                {topUpForm.source === "owner_cash" && "Dr Petty Cash / Cr Owner's Capital — owner injecting personal cash"}
-                {topUpForm.source === "client_cash" && "Dr Petty Cash / Cr Accounts Receivable — client paid in cash on the road"}
-              </p>
             </div>
             {topUpForm.source === "bank_transfer" && (
               <div>

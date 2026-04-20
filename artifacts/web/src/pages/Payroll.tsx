@@ -265,7 +265,6 @@ export default function Payroll() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Run Monthly Payroll</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">Processes all active drivers. Any pending advances are automatically deducted from gross salary.</p>
             <div><Label>Month *</Label>
               <Select value={String(form.month)} onValueChange={(v) => setForm({ ...form, month: parseInt(v) })}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -288,7 +287,6 @@ export default function Payroll() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Record Driver Advance</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">Record cash given to a driver in advance. It will be deducted automatically when payroll is run.</p>
             <div><Label>Driver *</Label>
               <Select value={advanceForm.driverId} onValueChange={(v) => setAdvanceForm({ ...advanceForm, driverId: v })}>
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select driver…" /></SelectTrigger>

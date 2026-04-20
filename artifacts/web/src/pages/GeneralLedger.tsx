@@ -172,8 +172,7 @@ export default function GeneralLedger() {
         ) : (entries as any[]).length === 0 ? (
           <div className="bg-card border border-border rounded-2xl flex flex-col items-center justify-center py-16 text-center">
             <BookOpen className="w-10 h-10 text-muted-foreground/20 mb-3" />
-            <p className="text-foreground font-semibold mb-1">No journal entries in this period</p>
-            <p className="text-sm text-muted-foreground mb-4">Entries are created automatically when you raise invoices, record expenses, or run payroll. You can also create manual entries.</p>
+            <p className="text-foreground font-semibold mb-3">No journal entries in this period</p>
             <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-2" />Manual Journal Entry</Button>
           </div>
         ) : (
