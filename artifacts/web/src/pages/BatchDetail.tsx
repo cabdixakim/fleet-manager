@@ -1370,43 +1370,39 @@ export default function BatchDetail() {
               </div>
               <div>
                 <Label className="text-xs">Sub Rate/MT (USD)</Label>
-                <p className="text-[11px] text-muted-foreground mb-1">Sets rate-differential model. Leave blank to use commission %.</p>
                 <Input
                   type="number"
                   step="0.0001"
                   value={tripRatesDialog.subRatePerMt}
                   onChange={(e) => setTripRatesDialog({ ...tripRatesDialog, subRatePerMt: e.target.value })}
-                  placeholder={`Default from sub profile`}
-                  className="h-8 text-sm"
+                  placeholder="Default from sub profile"
+                  className="h-8 text-sm mt-1"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Client Short Rate/MT</Label>
-                  <p className="text-[11px] text-muted-foreground mb-1">Override client penalty rate.</p>
                   <Input
                     type="number"
                     step="0.0001"
                     value={tripRatesDialog.clientShortRate}
                     onChange={(e) => setTripRatesDialog({ ...tripRatesDialog, clientShortRate: e.target.value })}
                     placeholder="Default"
-                    className="h-8 text-sm"
+                    className="h-8 text-sm mt-1"
                   />
                 </div>
                 <div>
                   <Label className="text-xs">Sub Short Rate/MT</Label>
-                  <p className="text-[11px] text-muted-foreground mb-1">Override sub penalty rate.</p>
                   <Input
                     type="number"
                     step="0.0001"
                     value={tripRatesDialog.subShortRate}
                     onChange={(e) => setTripRatesDialog({ ...tripRatesDialog, subShortRate: e.target.value })}
                     placeholder="Default"
-                    className="h-8 text-sm"
+                    className="h-8 text-sm mt-1"
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">Clear a field (leave blank) to revert to the default from the sub's profile or product settings.</p>
             </div>
           )}
           <DialogFooter>

@@ -647,7 +647,6 @@ export default function InvoiceDetail() {
               <div className="bg-card border border-border rounded-xl overflow-hidden print:break-inside-avoid">
                 <div className="px-5 py-4 border-b border-border">
                   <h3 className="text-sm font-semibold text-foreground">Account Statement</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Net amount due from client for this batch</p>
                 </div>
                 <div className="divide-y divide-border/50">
                   {rows.map((row, i) => (
@@ -686,9 +685,6 @@ export default function InvoiceDetail() {
             <DialogTitle className="flex items-center gap-2">
               <FilePen className="w-4 h-4" /> Amend Invoice — {inv.invoiceNumber}
             </DialogTitle>
-            <DialogDescription>
-              Correct quantities or rates for individual trips. A balancing entry will be posted to the client ledger automatically.
-            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-5 py-1">
@@ -806,7 +802,6 @@ export default function InvoiceDetail() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
-            <DialogDescription>Select the bank account and date this invoice was paid. The GL will be updated automatically.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
@@ -839,9 +834,6 @@ export default function InvoiceDetail() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Cancel Invoice?</DialogTitle>
-            <DialogDescription>
-              This will unstamp all trips and revert the batch to Delivered. The cancelled invoice stays on record.
-            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>Keep It</Button>
