@@ -668,23 +668,6 @@ export default function InvoiceDetail() {
             );
           })()}
 
-          {/* Broker / Agent */}
-          {inv.agentName && inv.agentFeePerMt != null && (
-            <div className="bg-card border border-border rounded-xl p-5">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Broker</p>
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{inv.agentName}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{formatCurrency(inv.agentFeePerMt)} / MT · {totalDelivered.toFixed(3)} MT delivered</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Broker Fee (internal)</p>
-                  <p className="text-lg font-bold font-mono text-amber-400">{formatCurrency(inv.agentFeePerMt * totalDelivered)}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Notes */}
           {inv.notes && (
             <div className="bg-card border border-border rounded-xl p-5">
