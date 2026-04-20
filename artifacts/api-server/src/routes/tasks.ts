@@ -14,6 +14,36 @@ const RECORD_LABELS: Record<string, string> = {
   supplier: "Supplier",
 };
 
+// GET /api/tasks/mine — all tasks assigned to the current user
+router.get("/mine", async (req, res) => {
+  const userId = (req.session as any)?.userId;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const tasks = await db
+      .select({
+        id: tasksTable.id,
+        note: tasksTable.note,
+        status: tasksTable.status,
+        priority: tasksTable.priority,
+        dueDate: tasksTable.dueDate,
+        createdAt: tasksTable.createdAt,
+        completedAt: tasksTable.completedAt,
+        recordType: tasksTable.recordType,
+        recordId: tasksTable.recordId,
+        assignedBy: { id: usersTable.id, name: usersTable.name, role: usersTable.role },
+      })
+      .from(tasksTable)
+      .innerJoin(usersTable, eq(tasksTable.assignedBy, usersTable.id))
+      .where(eq(tasksTable.assignedTo, userId))
+      .orderBy(desc(tasksTable.createdAt));
+
+    res.json(tasks);
+  } catch (e) {
+    res.status(500).json({ error: "Failed to load tasks" });
+  }
+});
+
 // GET /api/tasks/record/:type/:id — tasks for a specific record
 router.get("/record/:type/:id", async (req, res) => {
   const userId = (req.session as any)?.userId;
@@ -26,6 +56,8 @@ router.get("/record/:type/:id", async (req, res) => {
         id: tasksTable.id,
         note: tasksTable.note,
         status: tasksTable.status,
+        priority: tasksTable.priority,
+        dueDate: tasksTable.dueDate,
         createdAt: tasksTable.createdAt,
         completedAt: tasksTable.completedAt,
         assignedBy: { id: usersTable.id, name: usersTable.name, role: usersTable.role },
@@ -35,7 +67,6 @@ router.get("/record/:type/:id", async (req, res) => {
       .where(and(eq(tasksTable.recordType, type), eq(tasksTable.recordId, parseInt(id))))
       .orderBy(desc(tasksTable.createdAt));
 
-    // Get assignedTo names separately
     const tasksWithAssignees = await Promise.all(
       tasks.map(async (t) => {
         const fullTask = await db.select().from(tasksTable).where(eq(tasksTable.id, t.id)).then(r => r[0]);
@@ -56,7 +87,7 @@ router.post("/", async (req, res) => {
   const userId = (req.session as any)?.userId;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-  const { recordType, recordId, assignedTo, note, recordLabel } = req.body;
+  const { recordType, recordId, assignedTo, note, recordLabel, priority, dueDate } = req.body;
   if (!assignedTo || !note?.trim()) return res.status(400).json({ error: "assignedTo and note are required" });
 
   try {
@@ -71,6 +102,8 @@ router.post("/", async (req, res) => {
       assignedTo: Number(assignedTo),
       note: note.trim(),
       status: "open",
+      priority: priority || "normal",
+      dueDate: dueDate || null,
     }).returning();
 
     const contextLabel = recordType
@@ -81,7 +114,7 @@ router.post("/", async (req, res) => {
       userId: Number(assignedTo),
       type: "task_assigned",
       title: `Task from ${assigner?.name ?? "Someone"}`,
-      body: `${note.trim()}${recordType ? ` · ${contextLabel}` : ""}`,
+      body: `${note.trim()}${recordType ? ` · ${contextLabel}` : ""}${dueDate ? ` · Due ${dueDate}` : ""}`,
       link: recordType && recordId ? `/${recordType}s/${recordId}` : null,
       metadata: { taskId: task.id, recordType, recordId, assignedBy: userId },
     });

@@ -9,6 +9,8 @@ export const tasksTable = pgTable("tasks", {
   assignedTo: integer("assigned_to").notNull().references(() => usersTable.id),
   note: text("note"),
   status: varchar("status", { length: 20 }).notNull().default("open"),
+  priority: varchar("priority", { length: 20 }).notNull().default("normal"), // low | normal | high | urgent
+  dueDate: text("due_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
 });

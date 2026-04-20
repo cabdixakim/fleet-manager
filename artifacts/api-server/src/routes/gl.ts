@@ -22,6 +22,7 @@ const DEFAULT_COA = [
   { code: "1002", name: "Bank Account",                   type: "asset",     subtype: "current_asset",  isSystem: true },
   { code: "1100", name: "Accounts Receivable",            type: "asset",     subtype: "current_asset",  isSystem: true },
   { code: "1200", name: "Prepaid Expenses",               type: "asset",     subtype: "current_asset",  isSystem: false },
+  { code: "1300", name: "Employee Advances Receivable",   type: "asset",     subtype: "current_asset",  isSystem: false },
   { code: "1500", name: "Trucks & Vehicles",              type: "asset",     subtype: "fixed_asset",    isSystem: false },
   { code: "1501", name: "Accum. Depreciation — Vehicles", type: "asset",     subtype: "fixed_asset",    isSystem: false },
   { code: "1600", name: "Other Fixed Assets",             type: "asset",     subtype: "fixed_asset",    isSystem: false },

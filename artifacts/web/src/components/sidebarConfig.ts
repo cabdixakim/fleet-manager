@@ -61,12 +61,14 @@ export const sidebarConfig: SidebarGroup[] = [
       { label: "Periods",           path: "/periods",        icon: "calendar" },
       { label: "Petty Cash",        path: "/petty-cash",     icon: "wallet" },
       { label: "Bank Accounts",     path: "/bank-accounts",  icon: "building2" },
+      { label: "Opening Balances",  path: "/opening-balances", icon: "scale", roles: ["admin", "accounts"] },
     ],
   },
   {
     section: "Team",
     links: [
       { label: "Chat", path: "/chat", icon: "messageSquare", action: "open-chat" },
+      { label: "My Tasks", path: "/my-tasks", icon: "checkSquare" },
     ],
   },
   {

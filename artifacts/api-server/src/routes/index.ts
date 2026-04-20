@@ -38,6 +38,8 @@ import alertsRouter from "./alerts";
 import chatRouter from "./chat";
 import maintenanceRouter from "./maintenance";
 import assetsRouter from "./assets";
+import advancesRouter from "./advances";
+import openingBalancesRouter from "./openingBalances";
 
 const router: IRouter = Router();
 
@@ -81,5 +83,7 @@ router.use("/alerts", alertsRouter);
 router.use("/chat", chatRouter);
 router.use("/maintenance", maintenanceRouter);
 router.use("/assets", assetsRouter);
+router.use("/advances", advancesRouter);
+router.use("/opening-balances", openingBalancesRouter);
 
 export default router;

@@ -131,6 +131,8 @@ const TaskPopup = React.forwardRef<HTMLDivElement, {
   const qc = useQueryClient();
   const [note, setNote] = useState("");
   const [assignTo, setAssignTo] = useState<string>("");
+  const [priority, setPriority] = useState("normal");
+  const [dueDate, setDueDate] = useState("");
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ["tasks", recordType, recordId],
@@ -149,13 +151,15 @@ const TaskPopup = React.forwardRef<HTMLDivElement, {
       api("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recordType, recordId, recordLabel, assignedTo: Number(assignTo), note }),
+        body: JSON.stringify({ recordType, recordId, recordLabel, assignedTo: Number(assignTo), note, priority, dueDate: dueDate || undefined }),
       }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks", recordType, recordId] });
       qc.invalidateQueries({ queryKey: ["notifications-count"] });
       setNote("");
       setAssignTo("");
+      setPriority("normal");
+      setDueDate("");
     },
   });
 
@@ -253,6 +257,26 @@ const TaskPopup = React.forwardRef<HTMLDivElement, {
             ))}
           </SelectContent>
         </Select>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Select value={priority} onValueChange={setPriority}>
+            <SelectTrigger className="h-7 text-xs">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
+            </SelectContent>
+          </Select>
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            className="h-7 text-xs rounded-md border border-input bg-background px-2 text-foreground"
+            placeholder="Due date"
+          />
+        </div>
         <Textarea
           placeholder="What needs to be done?"
           value={note}

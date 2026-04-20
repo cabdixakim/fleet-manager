@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   driverPayrollTable,
   driverPayrollAllocationsTable,
+  driverAdvancesTable,
   driversTable,
   tripsTable,
   companyExpensesTable,
@@ -26,6 +27,8 @@ router.get("/", async (req, res, next) => {
         year: driverPayrollTable.year,
         monthlySalary: driverPayrollTable.monthlySalary,
         tripsCount: driverPayrollTable.tripsCount,
+        advancesDeducted: driverPayrollTable.advancesDeducted,
+        netPay: driverPayrollTable.netPay,
         createdAt: driverPayrollTable.createdAt,
       })
       .from(driverPayrollTable)
@@ -42,6 +45,8 @@ router.get("/", async (req, res, next) => {
       filtered.map((r) => ({
         ...r,
         monthlySalary: parseFloat(r.monthlySalary),
+        advancesDeducted: parseFloat(r.advancesDeducted ?? "0"),
+        netPay: parseFloat(r.netPay ?? "0"),
         amountPerTrip: r.tripsCount > 0 ? parseFloat(r.monthlySalary) / r.tripsCount : 0,
       }))
     );
@@ -57,7 +62,6 @@ router.post("/", async (req, res, next) => {
     const monthEndStr = `${year}-${String(month).padStart(2, "0")}-${String(monthEnd.getDate()).padStart(2, "0")}`;
     if (await blockIfClosed(res, monthStart, monthEndStr)) return;
 
-    // Company mode only — process all active drivers (standby/suspended/terminated are skipped)
     const activeDrivers = await db
       .select()
       .from(driversTable)
@@ -66,7 +70,6 @@ router.post("/", async (req, res, next) => {
     const results = [];
 
     for (const driver of activeDrivers) {
-      // Skip if already processed this month
       const existing = await db
         .select()
         .from(driverPayrollTable)
@@ -80,7 +83,19 @@ router.post("/", async (req, res, next) => {
       const salary = parseFloat(driver.monthlySalary);
       if (salary <= 0) continue;
 
-      // Count this driver's delivered trips in the month
+      // Sum pending advances for this driver
+      const pendingAdvances = await db
+        .select()
+        .from(driverAdvancesTable)
+        .where(and(
+          eq(driverAdvancesTable.driverId, driver.id),
+          eq(driverAdvancesTable.status, "pending")
+        ));
+
+      const totalAdvances = pendingAdvances.reduce((s, a) => s + parseFloat(a.amount), 0);
+      const netPay = Math.max(0, salary - totalAdvances);
+
+      // Count trips
       const tripsResult = await db
         .select({ count: sql<number>`count(*)` })
         .from(tripsTable)
@@ -96,11 +111,26 @@ router.post("/", async (req, res, next) => {
 
       const [payroll] = await db
         .insert(driverPayrollTable)
-        .values({ driverId: driver.id, month, year, monthlySalary: driver.monthlySalary, tripsCount })
+        .values({
+          driverId: driver.id,
+          month,
+          year,
+          monthlySalary: driver.monthlySalary,
+          tripsCount,
+          advancesDeducted: totalAdvances.toFixed(2),
+          netPay: netPay.toFixed(2),
+        })
         .returning();
 
+      // Mark advances as deducted
+      for (const advance of pendingAdvances) {
+        await db
+          .update(driverAdvancesTable)
+          .set({ status: "deducted", payrollId: payroll.id })
+          .where(eq(driverAdvancesTable.id, advance.id));
+      }
+
       if (tripsCount > 0) {
-        // Fetch trips to create per-trip allocations and company expense entries
         const trips = await db
           .select({ id: tripsTable.id })
           .from(tripsTable)
@@ -112,14 +142,12 @@ router.post("/", async (req, res, next) => {
           ));
 
         for (const trip of trips) {
-          // Cost allocation record (per-trip labour cost)
           await db.insert(driverPayrollAllocationsTable).values({
             payrollId: payroll.id,
             tripId: trip.id,
             amount: perTrip.toFixed(2),
           });
 
-          // Book as company staff expense so it appears in P&L
           await db.insert(companyExpensesTable).values({
             category: "staff",
             description: `Driver salary (trip #${trip.id}): ${driver.name} — ${month}/${year}`,
@@ -129,7 +157,6 @@ router.post("/", async (req, res, next) => {
           });
         }
       } else {
-        // Active driver, no trips this month — book full salary as overhead
         await db.insert(companyExpensesTable).values({
           category: "staff",
           description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
@@ -139,22 +166,29 @@ router.post("/", async (req, res, next) => {
         });
       }
 
-      // Auto-post to GL: Dr Staff Expense, Cr Accrued Salaries (2100)
+      // GL: Dr Staff Expense (gross), Cr Accrued Salaries (netPay), Cr Advances Payable / clearing (advances)
+      const glLines: any[] = [
+        { accountCode: "5002", debit: salary, description: `Driver salary ${driver.name}` },
+        { accountCode: "2100", credit: netPay, description: "Accrued Salaries" },
+      ];
+      if (totalAdvances > 0) {
+        glLines.push({ accountCode: "1300", credit: totalAdvances, description: `Advances deducted — ${driver.name}` });
+      }
+
       await postJournalEntry({
         description: `Payroll — ${driver.name} ${month}/${year}`,
         entryDate: new Date(year, month - 1, 1),
         referenceType: "payroll",
         referenceId: payroll.id,
-        lines: [
-          { accountCode: "5002", debit: salary, description: `Driver salary ${driver.name}` },
-          { accountCode: "2100", credit: salary, description: "Accrued Salaries" },
-        ],
+        lines: glLines,
       });
 
       results.push({
         ...payroll,
         driverName: driver.name,
         monthlySalary: salary,
+        advancesDeducted: totalAdvances,
+        netPay,
         amountPerTrip: perTrip,
       });
     }
@@ -177,6 +211,13 @@ router.delete("/:id", async (req, res, next) => {
       .select({ driverId: driverPayrollTable.driverId, month: driverPayrollTable.month, year: driverPayrollTable.year })
       .from(driverPayrollTable)
       .where(eq(driverPayrollTable.id, id));
+
+    // Re-open advances that were deducted by this payroll run
+    await db
+      .update(driverAdvancesTable)
+      .set({ status: "pending", payrollId: null })
+      .where(eq(driverAdvancesTable.payrollId, id));
+
     await db.delete(driverPayrollTable).where(eq(driverPayrollTable.id, id));
     const { logAudit } = await import("../lib/audit");
     await logAudit(req, { action: "delete", entity: "payroll", entityId: id, description: `Deleted payroll run #${id} (${entry?.month}/${entry?.year})` });

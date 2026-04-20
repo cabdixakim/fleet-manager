@@ -6,10 +6,12 @@ import { driversTable } from "./drivers";
 export const driverPayrollTable = pgTable("driver_payroll", {
   id: serial("id").primaryKey(),
   driverId: integer("driver_id").notNull().references(() => driversTable.id),
-  month: integer("month").notNull(), // 1-12
+  month: integer("month").notNull(),
   year: integer("year").notNull(),
   monthlySalary: numeric("monthly_salary", { precision: 10, scale: 2 }).notNull(),
   tripsCount: integer("trips_count").notNull().default(0),
+  advancesDeducted: numeric("advances_deducted", { precision: 10, scale: 2 }).notNull().default("0"),
+  netPay: numeric("net_pay", { precision: 10, scale: 2 }).notNull().default("0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
