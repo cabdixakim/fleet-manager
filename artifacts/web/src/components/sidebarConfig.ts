@@ -73,6 +73,12 @@ export const sidebarConfig: SidebarGroup[] = [
     ],
   },
   {
+    section: "Documents",
+    links: [
+      { label: "Document Vault", path: "/documents", icon: "fileText" },
+    ],
+  },
+  {
     section: "Compliance",
     roles: ["admin", "manager"],
     links: [

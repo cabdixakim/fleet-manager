@@ -45,6 +45,7 @@ import Assets from "@/pages/Assets";
 import MyTasks from "@/pages/MyTasks";
 import OpeningBalances from "@/pages/OpeningBalances";
 import InsuranceClaims from "@/pages/InsuranceClaims";
+import DocumentVault from "@/pages/Documents";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -155,6 +156,7 @@ function Router() {
               <Route path="/my-tasks" component={MyTasks} />
               <Route path="/opening-balances" component={OpeningBalances} />
               <Route path="/insurance-claims" component={InsuranceClaims} />
+              <Route path="/documents" component={DocumentVault} />
               <Route component={NotFound} />
             </Switch>
           </AuthGate>

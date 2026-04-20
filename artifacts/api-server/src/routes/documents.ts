@@ -1,26 +1,43 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { documentsTable, trucksTable, driversTable } from "@workspace/db/schema";
-import { eq, and, lte, gte } from "drizzle-orm";
+import { documentsTable, trucksTable, driversTable, tripsTable, batchesTable } from "@workspace/db/schema";
+import { eq, and, lte, gte, inArray, desc } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 async function enrichWithEntityNames(docs: any[]) {
   if (docs.length === 0) return docs;
   const truckIds = docs.filter((d) => d.entityType === "truck").map((d) => d.entityId);
   const driverIds = docs.filter((d) => d.entityType === "driver").map((d) => d.entityId);
+  const tripIds = docs.filter((d) => d.entityType === "trip").map((d) => d.entityId);
+  const batchIds = docs.filter((d) => d.entityType === "batch").map((d) => d.entityId);
   const truckMap: Record<number, string> = {};
   const driverMap: Record<number, string> = {};
+  const tripMap: Record<number, string> = {};
+  const batchMap: Record<number, string> = {};
   if (truckIds.length > 0) {
-    const trucks = await db.select({ id: trucksTable.id, plateNumber: trucksTable.plateNumber }).from(trucksTable);
-    trucks.forEach((t) => { truckMap[t.id] = t.plateNumber; });
+    const rows = await db.select({ id: trucksTable.id, plateNumber: trucksTable.plateNumber }).from(trucksTable).where(inArray(trucksTable.id, truckIds));
+    rows.forEach((r) => { truckMap[r.id] = r.plateNumber; });
   }
   if (driverIds.length > 0) {
-    const drivers = await db.select({ id: driversTable.id, name: driversTable.name }).from(driversTable);
-    drivers.forEach((d) => { driverMap[d.id] = d.name; });
+    const rows = await db.select({ id: driversTable.id, name: driversTable.name }).from(driversTable).where(inArray(driversTable.id, driverIds));
+    rows.forEach((r) => { driverMap[r.id] = r.name; });
+  }
+  if (tripIds.length > 0) {
+    const rows = await db.select({ id: tripsTable.id, product: tripsTable.product, createdAt: tripsTable.createdAt }).from(tripsTable).where(inArray(tripsTable.id, tripIds));
+    rows.forEach((r) => { tripMap[r.id] = `Trip #${r.id} — ${r.product ?? ""}`.trim(); });
+  }
+  if (batchIds.length > 0) {
+    const rows = await db.select({ id: batchesTable.id, name: batchesTable.name }).from(batchesTable).where(inArray(batchesTable.id, batchIds));
+    rows.forEach((r) => { batchMap[r.id] = r.name ?? `Batch #${r.id}`; });
   }
   return docs.map((d) => ({
     ...d,
-    entityName: d.entityType === "truck" ? (truckMap[d.entityId] ?? null) : (driverMap[d.entityId] ?? null),
+    entityName:
+      d.entityType === "truck"    ? (truckMap[d.entityId] ?? null) :
+      d.entityType === "driver"   ? (driverMap[d.entityId] ?? null) :
+      d.entityType === "trip"     ? (tripMap[d.entityId] ?? null) :
+      d.entityType === "batch"    ? (batchMap[d.entityId] ?? null) :
+      d.entityType === "general"  ? "General" : null,
   }));
 }
 
@@ -37,8 +54,8 @@ router.get("/", async (req, res, next) => {
       .select()
       .from(documentsTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(documentsTable.expiryDate);
-    res.json(docs);
+      .orderBy(desc(documentsTable.createdAt));
+    res.json(await enrichWithEntityNames(docs));
   } catch (e) { next(e); }
 });
 

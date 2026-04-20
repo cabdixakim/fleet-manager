@@ -47,6 +47,7 @@ const CLEARANCE_DOCS = ["T1", "TR8", "customs_declaration", "transit_permit", "h
 import { getRouteLabel } from "@/lib/routes";
 import { TaskTrigger } from "@/components/TaskPanel";
 import { TripDiscussion } from "@/components/TripDiscussion";
+import { DocumentsPanel } from "@/components/DocumentsPanel";
 
 function generateTripClientHtml(trip: any, company: any): string {
   const fin = trip.financials ?? {};
@@ -251,7 +252,7 @@ export default function TripDetail() {
       invalidate();
     } finally { setUnlinkingExpenseId(null); }
   };
-  const [rateOverrides, setRateOverrides] = useState<{ subRatePerMt: string; clientShortRateOverride: string; subShortRateOverride: string } | null>(null);
+  const [rateOverrides, setRateOverrides] = useState<{ subRatePerMt: string; clientShortRateOverride: string; subShortRateOverride: string; agentFeeOverride: string } | null>(null);
   const [savingRateOverrides, setSavingRateOverrides] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [clearanceBlock, setClearanceBlock] = useState<{ clearanceId: number; checkpoint: string; message: string } | null>(null);
@@ -366,6 +367,7 @@ export default function TripDetail() {
         subRatePerMt: rateOverrides.subRatePerMt.trim() !== "" ? parseFloat(rateOverrides.subRatePerMt) : null,
         clientShortRateOverride: rateOverrides.clientShortRateOverride.trim() !== "" ? parseFloat(rateOverrides.clientShortRateOverride) : null,
         subShortRateOverride: rateOverrides.subShortRateOverride.trim() !== "" ? parseFloat(rateOverrides.subShortRateOverride) : null,
+        agentFeeOverride: rateOverrides.agentFeeOverride.trim() !== "" ? parseFloat(rateOverrides.agentFeeOverride) : null,
       };
       await updateTrip({ id, data: payload });
       invalidate();
@@ -516,6 +518,7 @@ export default function TripDetail() {
     { id: "clearances", label: `Clearances (${trip.clearances?.length ?? 0})` },
     { id: "expenses", label: `Expenses (${trip.expenses?.length ?? 0})` },
     { id: "amendments", label: `Amendments (${trip.amendments?.length ?? 0})` },
+    { id: "documents", label: "Documents" },
     { id: "discussion", label: "Discussion" },
   ];
 
@@ -874,6 +877,7 @@ export default function TripDetail() {
                     subRatePerMt: trip.subRatePerMt != null ? String(trip.subRatePerMt) : "",
                     clientShortRateOverride: trip.clientShortRateOverride != null ? String(trip.clientShortRateOverride) : "",
                     subShortRateOverride: trip.subShortRateOverride != null ? String(trip.subShortRateOverride) : "",
+                    agentFeeOverride: trip.agentFeeOverride != null ? String(trip.agentFeeOverride) : "",
                   })}>
                     Edit
                   </Button>
@@ -916,6 +920,17 @@ export default function TripDetail() {
                       />
                     </div>
                   </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">Broker Fee Override ($/MT)</label>
+                      <p className="text-[10px] text-muted-foreground">Overrides batch-level broker/agent fee for this trip. Set 0 to waive.</p>
+                      <input
+                        type="number" step="0.01" min="0"
+                        placeholder={fin?.agentFeePerMt != null ? `${fin.agentFeePerMt} (batch default)` : "No batch broker fee"}
+                        value={rateOverrides.agentFeeOverride}
+                        onChange={(e) => setRateOverrides((p) => p && ({ ...p, agentFeeOverride: e.target.value }))}
+                        className="w-full h-9 px-3 text-sm border border-border rounded-md bg-background font-mono"
+                      />
+                    </div>
                   <p className="text-[10px] text-muted-foreground">Leave any field blank to use the default from client/sub records. Save with blank Sub Rate to revert to commission model.</p>
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleRateOverridesSave} disabled={savingRateOverrides}>{savingRateOverrides ? "Saving…" : "Save Rate Settings"}</Button>
@@ -940,6 +955,12 @@ export default function TripDetail() {
                     <p className="text-xs text-muted-foreground">Sub Short Rate Override ($/MT)</p>
                     <p className="font-mono font-semibold mt-0.5">
                       {trip.subShortRateOverride != null ? formatCurrency(parseFloat(String(trip.subShortRateOverride))) : <span className="text-muted-foreground font-normal">Default from sub</span>}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Broker Fee Override ($/MT)</p>
+                    <p className="font-mono font-semibold mt-0.5">
+                      {trip.agentFeeOverride != null ? formatCurrency(parseFloat(String(trip.agentFeeOverride))) : <span className="text-muted-foreground font-normal">Default from batch</span>}
                     </p>
                   </div>
                 </div>
@@ -1328,6 +1349,11 @@ export default function TripDetail() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Documents Tab ── */}
+        {activeTab === "documents" && (
+          <DocumentsPanel entityType="trip" entityId={parseInt(id)} entityName={`${trip.truckPlate} — ${trip.batchName}`} />
         )}
 
         {/* ── Discussion Tab ── */}

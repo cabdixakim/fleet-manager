@@ -85,6 +85,7 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
       subRatePerMt: tripsTable.subRatePerMt,
       clientShortRateOverride: tripsTable.clientShortRateOverride,
       subShortRateOverride: tripsTable.subShortRateOverride,
+      agentFeeOverride: tripsTable.agentFeeOverride,
       commissionRateSnapshot: tripsTable.commissionRateSnapshot,
       defaultSubRateSnapshot: tripsTable.defaultSubRateSnapshot,
       subShortRateSnapshot: tripsTable.subShortRateSnapshot,
@@ -247,7 +248,9 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
 
   // Revenue recognised — full calculation
   const grossRevenue = projectedGross;
-  const agentFeePerMtValue = batch.agentFeePerMt != null ? parseFloat(batch.agentFeePerMt) : 0;
+  const agentFeePerMtValue = trip.agentFeeOverride != null
+    ? parseFloat(trip.agentFeeOverride)
+    : (batch.agentFeePerMt != null ? parseFloat(batch.agentFeePerMt) : 0);
   const agentFeeTotal = loadedQty * agentFeePerMtValue;
   const effectiveBase = grossRevenue - agentFeeTotal;
 

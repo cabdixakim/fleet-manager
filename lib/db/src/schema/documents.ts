@@ -24,6 +24,33 @@ export const DRIVER_DOC_TYPES = [
   { value: "other",        label: "Other" },
 ] as const;
 
+export const TRIP_DOC_TYPES = [
+  { value: "delivery_note",    label: "Delivery Note" },
+  { value: "pod",              label: "Proof of Delivery (POD)" },
+  { value: "loading_order",    label: "Loading Order" },
+  { value: "weigh_bridge",     label: "Weigh Bridge Certificate" },
+  { value: "gate_pass",        label: "Gate Pass" },
+  { value: "customs_entry",    label: "Customs Entry / IM4" },
+  { value: "transit_bond",     label: "Transit Bond" },
+  { value: "other",            label: "Other" },
+] as const;
+
+export const BATCH_DOC_TYPES = [
+  { value: "loading_order",    label: "Loading Order" },
+  { value: "packing_list",     label: "Packing List" },
+  { value: "contract",         label: "Contract / Agreement" },
+  { value: "quota_allocation", label: "Quota Allocation" },
+  { value: "other",            label: "Other" },
+] as const;
+
+export const GENERAL_DOC_TYPES = [
+  { value: "insurance",        label: "Insurance Policy" },
+  { value: "contract",         label: "Contract / Agreement" },
+  { value: "correspondence",   label: "Correspondence" },
+  { value: "report",           label: "Report" },
+  { value: "other",            label: "Other" },
+] as const;
+
 export const documentsTable = pgTable("documents", {
   id: serial("id").primaryKey(),
   entityType: text("entity_type").notNull(), // "truck" | "driver"
