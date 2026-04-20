@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import {
   useGetBatch, useNominateTrucks, useGetBatchFinancials, useUpdateBatch,
-  useGetTrucks, useGetDrivers, useUpdateTrip, usePatchDriver,
+  useGetTrucks, useGetDrivers, useUpdateTrip, usePatchDriver, useGetAgents,
 } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -11,7 +11,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { exportToExcel } from "@/lib/export";
 import {
   Plus, Truck, ChevronLeft, Download, X, ChevronRight,
-  ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle,
+  ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle, SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -387,6 +387,7 @@ export default function BatchDetail() {
   const { data: financials, isLoading: finLoading } = useGetBatchFinancials(id);
   const { data: trucks = [] } = useGetTrucks();
   const { data: drivers = [] } = useGetDrivers();
+  const { data: agents = [] } = useGetAgents();
   const { data: company } = useQuery({
     queryKey: ["/api/company-settings"],
     queryFn: () => fetch("/api/company-settings", { credentials: "include" }).then((r) => r.json()),
@@ -405,6 +406,9 @@ export default function BatchDetail() {
   const [cancelDialog, setCancelDialog] = useState<{ tripId: number; plate: string } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [editDriverDialog, setEditDriverDialog] = useState<{ driverId: number; name: string; passportNumber: string; licenseNumber: string; phone: string } | null>(null);
+
+  const [tripRatesDialog, setTripRatesDialog] = useState<{ trip: any; subRatePerMt: string; clientShortRate: string; subShortRate: string } | null>(null);
+  const [savingRates, setSavingRates] = useState(false);
 
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [invoiceRef, setInvoiceRef] = useState("");
@@ -427,6 +431,36 @@ export default function BatchDetail() {
       .then((r) => r.ok ? r.json() : [])
       .then((data) => setBatchInvoices(data))
       .catch(() => {});
+  };
+
+  const openTripRates = (trip: any) => {
+    setTripRatesDialog({
+      trip,
+      subRatePerMt: trip.subRatePerMt != null ? String(trip.subRatePerMt) : "",
+      clientShortRate: trip.clientShortRateOverride != null ? String(trip.clientShortRateOverride) : "",
+      subShortRate: trip.subShortRateOverride != null ? String(trip.subShortRateOverride) : "",
+    });
+  };
+
+  const handleSaveRates = async () => {
+    if (!tripRatesDialog) return;
+    setSavingRates(true);
+    try {
+      await fetch(`/api/trips/${tripRatesDialog.trip.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          subRatePerMt: tripRatesDialog.subRatePerMt ? parseFloat(tripRatesDialog.subRatePerMt) : null,
+          clientShortRateOverride: tripRatesDialog.clientShortRate ? parseFloat(tripRatesDialog.clientShortRate) : null,
+          subShortRateOverride: tripRatesDialog.subShortRate ? parseFloat(tripRatesDialog.subShortRate) : null,
+        }),
+      });
+      setTripRatesDialog(null);
+      invalidate();
+    } finally {
+      setSavingRates(false);
+    }
   };
 
   // Load invoices for this batch on mount
@@ -648,7 +682,14 @@ export default function BatchDetail() {
     <Layout>
       <PageHeader
         title={batch.name || `Batch #${id}`}
-        subtitle={`${batch.clientName} · ${getRouteLabel(batch.route ?? "")} · ${formatCurrency(batch.ratePerMt)}/MT`}
+        subtitle={[
+          batch.clientName,
+          getRouteLabel(batch.route ?? ""),
+          `${formatCurrency(batch.ratePerMt)}/MT`,
+          batch.agentId
+            ? `via ${(agents as any[]).find((a: any) => a.id === batch.agentId)?.name ?? "Broker"} (${formatCurrency(batch.agentFeePerMt)}/MT fee)`
+            : null,
+        ].filter(Boolean).join(" · ")}
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => navigate("/batches")}>
@@ -866,6 +907,9 @@ export default function BatchDetail() {
                           <span>Cap: {formatNumber(trip.capacity)} MT</span>
                           {trip.loadedQty && <><span>·</span><span>Loaded: {formatNumber(trip.loadedQty)} MT</span></>}
                           {trip.deliveredQty && <><span>·</span><span>Delivered: {formatNumber(trip.deliveredQty)} MT</span></>}
+                          {(trip.subRatePerMt != null || trip.clientShortRateOverride != null || trip.subShortRateOverride != null) && (
+                            <><span>·</span><span className="text-amber-400 font-semibold">rates overridden</span></>
+                          )}
                         </div>
                       </div>
 
@@ -895,6 +939,15 @@ export default function BatchDetail() {
                             title="Cancel trip"
                           >
                             <X className="w-4 h-4" />
+                          </button>
+                        )}
+                        {!isCancelled && (
+                          <button
+                            onClick={() => openTripRates(trip)}
+                            className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
+                            title="Override rates for this trip"
+                          >
+                            <SlidersHorizontal className="w-4 h-4" />
                           </button>
                         )}
                         <button
@@ -1297,6 +1350,68 @@ export default function BatchDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDriverDialog(null)}>Cancel</Button>
             <Button onClick={handleSaveDriver} disabled={savingDriver}>{savingDriver ? "Saving..." : "Save"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Trip Rate Overrides Dialog ── */}
+      <Dialog open={!!tripRatesDialog} onOpenChange={(o) => { if (!o) setTripRatesDialog(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rate Overrides — {tripRatesDialog?.trip.truckPlate}</DialogTitle>
+          </DialogHeader>
+          {tripRatesDialog && (
+            <div className="space-y-4 py-1">
+              <div className="rounded-lg bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">
+                Batch rate: <span className="font-semibold text-foreground">{formatCurrency(batch?.ratePerMt)}/MT</span>
+                {batch?.agentId && (
+                  <> · Broker fee: <span className="font-semibold text-foreground">{formatCurrency(batch?.agentFeePerMt)}/MT</span></>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs">Sub Rate/MT (USD)</Label>
+                <p className="text-[11px] text-muted-foreground mb-1">Sets rate-differential model. Leave blank to use commission %.</p>
+                <Input
+                  type="number"
+                  step="0.0001"
+                  value={tripRatesDialog.subRatePerMt}
+                  onChange={(e) => setTripRatesDialog({ ...tripRatesDialog, subRatePerMt: e.target.value })}
+                  placeholder={`Default from sub profile`}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Client Short Rate/MT</Label>
+                  <p className="text-[11px] text-muted-foreground mb-1">Override client penalty rate.</p>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={tripRatesDialog.clientShortRate}
+                    onChange={(e) => setTripRatesDialog({ ...tripRatesDialog, clientShortRate: e.target.value })}
+                    placeholder="Default"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Sub Short Rate/MT</Label>
+                  <p className="text-[11px] text-muted-foreground mb-1">Override sub penalty rate.</p>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={tripRatesDialog.subShortRate}
+                    onChange={(e) => setTripRatesDialog({ ...tripRatesDialog, subShortRate: e.target.value })}
+                    placeholder="Default"
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Clear a field (leave blank) to revert to the default from the sub's profile or product settings.</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTripRatesDialog(null)}>Cancel</Button>
+            <Button onClick={handleSaveRates} disabled={savingRates}>{savingRates ? "Saving..." : "Save Overrides"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
