@@ -7,6 +7,7 @@ import {
   clientTransactionsTable,
   tripsTable,
   trucksTable,
+  agentsTable,
 } from "@workspace/db/schema";
 import { eq, desc, and, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { calculateTripFinancials } from "../lib/financials";
@@ -184,10 +185,13 @@ router.get("/:id", async (req, res, next) => {
         amendmentReason: invoicesTable.amendmentReason,
         originalGrossRevenue: invoicesTable.originalGrossRevenue,
         originalNetRevenue: invoicesTable.originalNetRevenue,
+        agentFeePerMt: batchesTable.agentFeePerMt,
+        agentName: agentsTable.name,
       })
       .from(invoicesTable)
       .leftJoin(batchesTable, eq(invoicesTable.batchId, batchesTable.id))
       .leftJoin(clientsTable, eq(invoicesTable.clientId, clientsTable.id))
+      .leftJoin(agentsTable, eq(batchesTable.agentId, agentsTable.id))
       .where(eq(invoicesTable.id, id));
 
     if (!invoice) return res.status(404).json({ error: "Not found" });
@@ -266,6 +270,8 @@ router.get("/:id", async (req, res, next) => {
       netRevenue: invoiceNetRevenue,
       originalGrossRevenue: invoice.originalGrossRevenue ? parseFloat(invoice.originalGrossRevenue) : null,
       originalNetRevenue: invoice.originalNetRevenue ? parseFloat(invoice.originalNetRevenue) : null,
+      agentName: invoice.agentName ?? null,
+      agentFeePerMt: invoice.agentFeePerMt ? parseFloat(invoice.agentFeePerMt) : null,
       lineItems,
       accountStatement: {
         grossRevenue: invoiceGross,

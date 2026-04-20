@@ -44,6 +44,7 @@ import Chat from "@/pages/Chat";
 import Assets from "@/pages/Assets";
 import MyTasks from "@/pages/MyTasks";
 import OpeningBalances from "@/pages/OpeningBalances";
+import InsuranceClaims from "@/pages/InsuranceClaims";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient({
@@ -153,6 +154,7 @@ function Router() {
               <Route path="/assets" component={Assets} />
               <Route path="/my-tasks" component={MyTasks} />
               <Route path="/opening-balances" component={OpeningBalances} />
+              <Route path="/insurance-claims" component={InsuranceClaims} />
               <Route component={NotFound} />
             </Switch>
           </AuthGate>

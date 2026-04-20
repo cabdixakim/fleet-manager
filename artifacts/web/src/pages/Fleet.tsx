@@ -726,6 +726,27 @@ export default function Fleet() {
                 <Label>Notes</Label>
                 <Input value={editTruck.notes ?? ""} onChange={(e) => setEditTruck({ ...editTruck, notes: e.target.value })} className="mt-1" />
               </div>
+              <div className="pt-2 border-t border-border">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Insurance</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Insurer</Label>
+                    <Input value={editTruck.insurerName ?? ""} onChange={(e) => setEditTruck({ ...editTruck, insurerName: e.target.value })} className="mt-1" placeholder="e.g. Hollard" />
+                  </div>
+                  <div>
+                    <Label>Policy Number</Label>
+                    <Input value={editTruck.policyNumber ?? ""} onChange={(e) => setEditTruck({ ...editTruck, policyNumber: e.target.value })} className="mt-1" placeholder="e.g. HI-2024-001" />
+                  </div>
+                  <div>
+                    <Label>Coverage (USD)</Label>
+                    <Input type="number" value={editTruck.coverageAmount ?? ""} onChange={(e) => setEditTruck({ ...editTruck, coverageAmount: e.target.value })} className="mt-1" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <Label>Expiry Date</Label>
+                    <Input type="date" value={editTruck.insuranceExpiry ?? ""} onChange={(e) => setEditTruck({ ...editTruck, insuranceExpiry: e.target.value })} className="mt-1" />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>

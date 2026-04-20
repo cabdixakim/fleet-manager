@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, boolean, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { subcontractorsTable } from "./subcontractors";
@@ -12,6 +12,14 @@ export const trucksTable = pgTable("trucks", {
   status: text("status").notNull().default("available"), // available, on_trip, maintenance, idle
   notes: text("notes"),
   currentLocation: text("current_location"),
+
+  // Insurance
+  insurerName: text("insurer_name"),
+  policyNumber: text("policy_number"),
+  coverageAmount: numeric("coverage_amount", { precision: 14, scale: 2 }),
+  premiumAmount: numeric("premium_amount", { precision: 14, scale: 2 }),
+  insuranceExpiry: text("insurance_expiry"), // ISO date string
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

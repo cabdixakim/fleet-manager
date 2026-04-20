@@ -194,6 +194,11 @@ router.get("/:id/detail", async (req, res, next) => {
         commissionRate: subcontractorsTable.commissionRate,
         status: trucksTable.status,
         notes: trucksTable.notes,
+        insurerName: trucksTable.insurerName,
+        policyNumber: trucksTable.policyNumber,
+        coverageAmount: trucksTable.coverageAmount,
+        premiumAmount: trucksTable.premiumAmount,
+        insuranceExpiry: trucksTable.insuranceExpiry,
         createdAt: trucksTable.createdAt,
       })
       .from(trucksTable)

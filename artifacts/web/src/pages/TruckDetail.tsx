@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { throwOnApiError, getErrorMessage } from "@/lib/apiError";
 import { useClosedPeriodConfirm } from "@/hooks/useClosedPeriodConfirm";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search, FileText, Wrench } from "lucide-react";
+import { ArrowLeft, ArrowRight, Truck, User, Plus, Trash2, Printer, Search, FileText, Wrench, ShieldCheck } from "lucide-react";
 import { DocumentsPanel } from "@/components/DocumentsPanel";
 import { format } from "date-fns";
 import { CorrectClosedEntryDialog, type CorrectionEntry } from "@/components/CorrectClosedEntryDialog";
@@ -54,6 +54,7 @@ type TruckDetailData = {
   truck: {
     id: number; plateNumber: string; trailerPlate: string | null; subcontractorId: number | null;
     companyOwned?: boolean; subcontractorName: string | null; commissionRate: string | null; status: string; notes: string | null; createdAt: string;
+    insurerName: string | null; policyNumber: string | null; coverageAmount: string | null; premiumAmount: string | null; insuranceExpiry: string | null;
   };
   driverAssignments: { id: number; driverId: number; driverName: string | null; assignedAt: string; unassignedAt: string | null }[];
   trips: {
@@ -508,6 +509,43 @@ export default function TruckDetail() {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Insurance info card */}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                <span className="text-sm font-semibold">Insurance</span>
+              </div>
+              <Link href="/insurance-claims">
+                <button className="text-xs text-primary hover:underline">View Claims →</button>
+              </Link>
+            </div>
+            {truck.insurerName || truck.policyNumber ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Insurer</p>
+                  <p className="font-medium">{truck.insurerName ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Policy</p>
+                  <p className="font-medium font-mono">{truck.policyNumber ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Coverage</p>
+                  <p className="font-medium font-mono">{truck.coverageAmount ? formatCurrency(parseFloat(truck.coverageAmount)) : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Expiry</p>
+                  <p className={cn("font-medium font-mono",
+                    truck.insuranceExpiry && truck.insuranceExpiry < new Date().toISOString().slice(0, 10) ? "text-red-400" : ""
+                  )}>{truck.insuranceExpiry ?? "—"}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No insurance data configured. Edit this truck in the Fleet list to add policy details.</p>
+            )}
           </div>
 
           {/* Period filter — lives above KPIs so they react instantly */}
