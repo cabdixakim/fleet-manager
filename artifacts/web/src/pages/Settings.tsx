@@ -162,7 +162,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <Layout>
-        <PageHeader title="Company Settings" subtitle="Configure your company profile and preferences" />
+        <PageHeader title="Company Settings" />
         <PageContent><div className="text-muted-foreground text-center py-16">Loading settings...</div></PageContent>
       </Layout>
     );
@@ -172,7 +172,7 @@ export default function SettingsPage() {
     <Layout>
       <PageHeader
         title="Company Settings"
-        subtitle="Configure your company profile and preferences"
+        subtitle="Company profile and preferences"
         actions={
           <Button onClick={handleSave} disabled={saving}>
             <Save className="w-4 h-4 mr-2" />
@@ -304,7 +304,6 @@ export default function SettingsPage() {
                   className="mt-1.5"
                   placeholder="0.00"
                 />
-                <p className="text-xs text-muted-foreground mt-1">The company's pre-existing cash/bank position before you started using this system. Used as the starting point for P&L reporting.</p>
               </div>
               <div>
                 <Label className="flex items-center gap-1.5"><DollarSign className="w-3 h-3" />T1 Zambia Entry Clearance Fee (USD)</Label>
@@ -317,7 +316,6 @@ export default function SettingsPage() {
                   className="mt-1.5"
                   placeholder="80.00"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Automatically added as a recoverable clearance expense when a trip enters Zambia (T1 document). Charged once per trip.</p>
               </div>
               <div>
                 <Label className="flex items-center gap-1.5"><Building2 className="w-3 h-3" />Active Clearance Agency</Label>
@@ -338,9 +336,6 @@ export default function SettingsPage() {
                     )}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  The clearing agency currently contracted. Each T1 clearance fee will be automatically charged to them as a supplier payable and settled monthly. Switching agencies does not affect past trip records.
-                </p>
               </div>
             </div>
           </div>
@@ -385,9 +380,6 @@ export default function SettingsPage() {
                     <SelectItem value="SPLIT">Split 50/50 between original and replacement</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Applied when a truck is swapped after loading. Can be overridden per incident when flagging. All amendments are auditable.
-                </p>
               </div>
             </div>
           </div>
@@ -417,9 +409,7 @@ export default function SettingsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Logo</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the company logo from the sidebar, headers, and all documents. The company name will be shown in its place.
-            </AlertDialogDescription>
+            <AlertDialogDescription>The logo will be removed from all documents and headers.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
