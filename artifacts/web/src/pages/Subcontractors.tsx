@@ -752,24 +752,20 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
                 <div>
                   <Label>Commission Rate (%)</Label>
                   <Input type="number" value={editForm.commissionRate} onChange={(e) => setEditForm({ ...editForm, commissionRate: e.target.value })} className="mt-1" />
-                  <p className="text-xs text-muted-foreground mt-1">Used when no sub rate is set</p>
                 </div>
                 <div>
                   <Label>Default Sub Rate ($/MT)</Label>
                   <Input type="number" step="0.01" value={(editForm as any).defaultSubRatePerMt ?? ""} onChange={(e) => setEditForm({ ...editForm, defaultSubRatePerMt: e.target.value } as any)} className="mt-1" placeholder="Leave blank for commission" />
-                  <p className="text-xs text-muted-foreground mt-1">If set, all trips use rate-differential model</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>AGO Short Charge Rate ($/MT)</Label>
                   <Input type="number" step="0.01" value={editForm.agoShortChargeRate} onChange={(e) => setEditForm({ ...editForm, agoShortChargeRate: e.target.value })} className="mt-1" placeholder="0.00" />
-                  <p className="text-xs text-muted-foreground mt-1">Charged to sub per MT short on AGO loads</p>
                 </div>
                 <div>
                   <Label>PMS Short Charge Rate ($/MT)</Label>
                   <Input type="number" step="0.01" value={editForm.pmsShortChargeRate} onChange={(e) => setEditForm({ ...editForm, pmsShortChargeRate: e.target.value })} className="mt-1" placeholder="0.00" />
-                  <p className="text-xs text-muted-foreground mt-1">Charged to sub per MT short on PMS loads</p>
                 </div>
               </div>
               <div>
@@ -835,7 +831,6 @@ function SubDetail({ id, onBack }: { id: number; onBack: () => void }) {
             <DialogTitle>Deactivate Subcontractor</DialogTitle>
             <DialogDescription>All data is preserved and can be reactivated.</DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">This will hide <strong>{sub.name}</strong> from the active list. All ledger data, trucks, and history are preserved.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDelete(false)}>Keep Active</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Deactivating..." : "Deactivate"}</Button>
@@ -965,12 +960,10 @@ export default function Subcontractors() {
               <div>
                 <Label>Commission Rate (%)</Label>
                 <Input type="number" value={form.commissionRate} onChange={(e) => setForm({ ...form, commissionRate: e.target.value })} className="mt-1" placeholder="5" />
-                <p className="text-xs text-muted-foreground mt-1">Used when no sub rate is set</p>
               </div>
               <div>
                 <Label>Default Sub Rate ($/MT)</Label>
                 <Input type="number" step="0.01" value={(form as any).defaultSubRatePerMt ?? ""} onChange={(e) => setForm({ ...form, defaultSubRatePerMt: e.target.value } as any)} className="mt-1" placeholder="Leave blank for commission" />
-                <p className="text-xs text-muted-foreground mt-1">If set, all trips use rate-differential model</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -986,7 +979,7 @@ export default function Subcontractors() {
             <div>
               <Label>Opening Balance (USD)</Label>
               <Input type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} className="mt-1" placeholder="0.00" />
-              <p className="text-xs text-muted-foreground mt-1">Enter any pre-existing balance (positive = you owe them, negative = they owe you). Editable until first period close.</p>
+              <p className="text-xs text-muted-foreground mt-1">Positive = you owe them · Negative = overpaid</p>
             </div>
           </div>
           <DialogFooter>

@@ -217,7 +217,6 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
       <AlertCircle className="w-10 h-10 text-muted-foreground/20" />
       <p className="font-semibold text-foreground">No data for this period</p>
-      <p className="text-sm text-muted-foreground max-w-xs">Record transactions, invoices, or expenses to populate this report.</p>
     </div>
   );
 }
@@ -367,7 +366,6 @@ export default function FinancialStatements() {
     <Layout>
       <PageHeader
         title="Financial Statements"
-        subtitle="Accounting reports directly from your General Ledger"
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">

@@ -136,7 +136,7 @@ export default function Periods() {
     <Layout>
       <PageHeader
         title="Accounting Periods"
-        subtitle="Manage financial periods. Closing a period locks all client and subcontractor opening balances."
+
         actions={
           canManage ? (
             <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-2" />New Period</Button>
@@ -150,7 +150,6 @@ export default function Periods() {
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <Calendar className="w-12 h-12 text-muted-foreground/30 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-1">No periods yet</h3>
-            <p className="text-muted-foreground text-sm max-w-sm mb-6">Create your first accounting period. When you close a period, all client and subcontractor opening balances will be locked for integrity.</p>
             {canManage && (
               <Button onClick={() => setShowCreate(true)}><Plus className="w-4 h-4 mr-2" />Create First Period</Button>
             )}
@@ -352,7 +351,7 @@ export default function Periods() {
             <DialogTitle>Reopen Period — {showReopen?.name}</DialogTitle>
             <DialogDescription>Admin-only action. This does NOT automatically unlock opening balances.</DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">Reopening the period changes its status back to open. Opening balances remain locked — use the Adjust OB function on individual clients or subcontractors to modify them.</p>
+          <p className="text-sm text-muted-foreground py-2">Opening balances remain locked after reopening.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowReopen(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleReopen} disabled={closing}>{closing ? "Reopening..." : "Reopen Period"}</Button>

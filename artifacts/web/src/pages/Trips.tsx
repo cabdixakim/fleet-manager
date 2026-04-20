@@ -265,7 +265,6 @@ export default function TripsPage() {
           <p className="text-xs text-muted-foreground text-center pb-2">
             Showing {trips.length} trip{trips.length !== 1 ? "s" : ""}
             {(search || statusFilter) && " (filtered)"}
-            {" · "} Auto-refreshes every 30 seconds
           </p>
         )}
       </PageContent>

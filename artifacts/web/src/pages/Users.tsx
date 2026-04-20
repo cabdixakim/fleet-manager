@@ -438,7 +438,6 @@ export default function UsersPage() {
               <p className="text-xs text-muted-foreground">{resetUser?.email}</p>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">Set a new password. They will need to use it on their next login.</p>
           <div>
             <Label>New Password</Label>
             <Input className="mt-1" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 6 characters" autoFocus />

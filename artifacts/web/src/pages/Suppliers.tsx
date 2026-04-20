@@ -65,7 +65,7 @@ export default function Suppliers() {
     <Layout>
       <PageHeader
         title="Suppliers"
-        subtitle="Manage fuel stations and credit vendors — track balances and record payments"
+        subtitle="Fuel stations and credit vendors"
         icon={<Building2 className="w-5 h-5" />}
         actions={
           <Button size="sm" onClick={() => setShowCreate(true)}>

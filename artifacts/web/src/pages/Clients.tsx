@@ -508,9 +508,6 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
                     )}
                   </div>
                 )}
-                {outstandingInvoices.length === 0 && (
-                  <p className="text-xs text-muted-foreground">No outstanding invoices — this will record as a general credit on the ledger.</p>
-                )}
               </div>
             )}
 
@@ -648,7 +645,6 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
             <DialogTitle>Deactivate Client</DialogTitle>
             <DialogDescription>This will hide this client from the active list. All data is preserved.</DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground py-2">This will hide <strong>{client.name}</strong> from the active clients list. All ledger data and history is preserved and the client can be reactivated at any time.</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDelete(false)}>Keep Active</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Deactivating..." : "Deactivate Client"}</Button>
@@ -813,7 +809,7 @@ export default function Clients() {
             <div>
               <Label>Opening Balance (USD)</Label>
               <Input type="number" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} className="mt-1" placeholder="0.00" />
-              <p className="text-xs text-muted-foreground mt-1">Enter the client's pre-existing balance (positive = they owe you, negative = you owe them). This can be edited until the first accounting period is closed.</p>
+              <p className="text-xs text-muted-foreground mt-1">Positive = they owe you · Negative = credit</p>
             </div>
           </div>
           <DialogFooter>

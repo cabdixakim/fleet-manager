@@ -138,7 +138,6 @@ export default function ChartOfAccounts() {
           <div className="bg-card border border-border rounded-2xl flex flex-col items-center justify-center py-20 text-center">
             <BookOpen className="w-12 h-12 text-muted-foreground/20 mb-4" />
             <p className="text-foreground font-semibold mb-1">No accounts yet</p>
-            <p className="text-sm text-muted-foreground mb-5">Load the default chart of accounts for a fuel transport company, or add accounts manually.</p>
             <Button onClick={() => seedAccounts()} disabled={seeding}>
               {seeding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
               Load Default Chart of Accounts

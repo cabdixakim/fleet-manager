@@ -426,7 +426,6 @@ export default function Clearances() {
             <div className="space-y-4 py-2">
               <div>
                 <Label className="text-sm font-medium">Clearance Document</Label>
-                <p className="text-xs text-muted-foreground mt-0.5 mb-2">Attach the physical T1 or TR8 document (PDF or photo)</p>
                 {editDocUrl ? (
                   <div className="flex items-center gap-2 p-3 bg-secondary/40 border border-border rounded-lg">
                     <Paperclip className="w-4 h-4 text-muted-foreground shrink-0" />

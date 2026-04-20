@@ -253,7 +253,6 @@ export default function Agents() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <UserCheck className="w-10 h-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm text-muted-foreground">No brokers yet</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Add brokers to track commissions and payouts</p>
             <Button size="sm" variant="outline" className="mt-4" onClick={() => setAddOpen(true)}>
               <Plus className="w-4 h-4 mr-1" /> Add First Broker
             </Button>

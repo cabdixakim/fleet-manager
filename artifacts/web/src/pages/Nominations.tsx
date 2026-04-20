@@ -433,9 +433,6 @@ export default function Nominations() {
                 <FileText className="w-8 h-8 text-muted-foreground/40" />
               </div>
               <h3 className="text-base font-semibold text-foreground mb-1">Select a batch</h3>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Choose a batch from the list to view truck details and export nomination documents.
-              </p>
             </div>
           )}
         </div>

@@ -258,7 +258,7 @@ export default function AuditLogPage() {
     <Layout>
       <PageHeader
         title="Audit Log"
-        subtitle="Complete record of all system activity and changes"
+        subtitle="System activity log"
       />
       <PageContent>
         {/* Filters */}

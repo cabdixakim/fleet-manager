@@ -202,7 +202,6 @@ export default function Finance() {
       {closedPeriodDialog}
       <PageHeader
         title="Expenses"
-        subtitle="Trip costs and company overhead — all in one place"
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => exportToExcel(filtered.map((e: any) => ({ Date: formatDate(e.expenseDate), Tier: e.tier, Type: e.costType, Batch: e.batchName ?? "", Truck: e.truckPlate ?? "", Subcontractor: e.subcontractorName ?? "", Description: e.description ?? "", Amount: e.amount, Currency: e.currency })), "expenses")}>
