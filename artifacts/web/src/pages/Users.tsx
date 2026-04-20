@@ -364,7 +364,7 @@ export default function UsersPage() {
           <DialogHeader><DialogTitle>Add User</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Full Name</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" /></div>
-            <div><Label>Email</Label><Input className="mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="your@company.com" /></div>
+            <div><Label>Email</Label><Input className="mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="" /></div>
             <div><Label>Password</Label><Input className="mt-1" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 6 characters" /></div>
             <div>
               <Label>Role</Label>
