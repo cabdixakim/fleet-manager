@@ -36,7 +36,7 @@ export const sidebarConfig: SidebarGroup[] = [
       { label: "Drivers",         path: "/drivers",        icon: "user" },
       { label: "Subcontractors",  path: "/subcontractors", icon: "users", fleetHide: "company" },
       { label: "Asset Register",   path: "/assets",             icon: "barChart2" },
-      { label: "Insurance Claims", path: "/insurance-claims",   icon: "shieldCheck" },
+      { label: "Claims",            path: "/insurance-claims",   icon: "shieldCheck" },
     ],
   },
   {

@@ -180,7 +180,7 @@ export default function InsuranceClaims() {
   return (
     <Layout>
       <PageHeader
-        title="Insurance Claims"
+        title="Claims"
         actions={
           <Button size="sm" className="gap-1.5" onClick={openCreate}>
             <Plus className="w-3.5 h-3.5" /> New Claim
@@ -233,7 +233,7 @@ export default function InsuranceClaims() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <ShieldCheck className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No claims found</p>
+              <p className="text-sm">No Optima Claims on record</p>
             </div>
           ) : (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -282,7 +282,7 @@ export default function InsuranceClaims() {
       <Dialog open={showDialog} onOpenChange={(o) => { if (!saving) setShowDialog(o); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Claim" : "New Insurance Claim"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit Claim" : "New Claim"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
             <div className="grid grid-cols-2 gap-3">
