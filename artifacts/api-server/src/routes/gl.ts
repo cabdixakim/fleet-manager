@@ -26,14 +26,16 @@ const DEFAULT_COA = [
   { code: "1501", name: "Accum. Depreciation — Vehicles", type: "asset",     subtype: "fixed_asset",    isSystem: false },
   { code: "1600", name: "Other Fixed Assets",             type: "asset",     subtype: "fixed_asset",    isSystem: false },
   // LIABILITIES
-  { code: "2000", name: "Accounts Payable",               type: "liability", subtype: "current_liability", isSystem: true },
-  { code: "2001", name: "Subcontractor Payables",         type: "liability", subtype: "current_liability", isSystem: false },
-  { code: "2100", name: "Accrued Salaries",               type: "liability", subtype: "current_liability", isSystem: false },
-  { code: "2200", name: "Tax Payable",                    type: "liability", subtype: "current_liability", isSystem: false },
-  { code: "2500", name: "Loans Payable",                  type: "liability", subtype: "long_term_liability", isSystem: false },
+  { code: "2000", name: "Accounts Payable",               type: "liability", subtype: "current_liability",    isSystem: true },
+  { code: "2001", name: "Subcontractor Payables",         type: "liability", subtype: "current_liability",    isSystem: false },
+  { code: "2100", name: "Accrued Salaries",               type: "liability", subtype: "current_liability",    isSystem: false },
+  { code: "2200", name: "Tax Payable",                    type: "liability", subtype: "current_liability",    isSystem: false },
+  { code: "2300", name: "Hire Purchase Payable",          type: "liability", subtype: "current_liability",    isSystem: false },
+  { code: "2500", name: "Loans Payable",                  type: "liability", subtype: "long_term_liability",  isSystem: false },
   // EQUITY
-  { code: "3001", name: "Owner's Capital",                type: "equity",    subtype: "equity",         isSystem: true },
-  { code: "3002", name: "Retained Earnings",              type: "equity",    subtype: "equity",         isSystem: true },
+  { code: "3000", name: "Opening Balance Equity",         type: "equity",    subtype: "equity",              isSystem: true },
+  { code: "3001", name: "Owner's Capital",                type: "equity",    subtype: "equity",              isSystem: true },
+  { code: "3002", name: "Retained Earnings",              type: "equity",    subtype: "equity",              isSystem: true },
   // REVENUE
   { code: "4001", name: "Freight Revenue",                type: "revenue",   subtype: "operating",      isSystem: true },
   { code: "4002", name: "Other Income",                   type: "revenue",   subtype: "other_income",   isSystem: false },
@@ -49,6 +51,7 @@ const DEFAULT_COA = [
   { code: "6003", name: "Legal & Professional Fees",      type: "expense",   subtype: "operating_expense", isSystem: false },
   { code: "6004", name: "Marketing & Advertising",        type: "expense",   subtype: "operating_expense", isSystem: false },
   { code: "6005", name: "Rent & Utilities",               type: "expense",   subtype: "operating_expense", isSystem: false },
+  { code: "6100", name: "Depreciation Expense",           type: "expense",   subtype: "operating_expense", isSystem: false },
 ];
 
 // ─── Chart of Accounts ───────────────────────────────────────────────────────

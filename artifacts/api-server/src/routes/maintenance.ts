@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { truckMaintenanceTable, trucksTable } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { postJournalEntry, deleteJournalEntriesForReference } from "../lib/glPosting";
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.post("/trucks/:truckId", async (req, res, next) => {
     if (!date || !type || !description) {
       return res.status(400).json({ error: "date, type and description are required" });
     }
+
     const [row] = await db
       .insert(truckMaintenanceTable)
       .values({
@@ -40,6 +42,23 @@ router.post("/trucks/:truckId", async (req, res, next) => {
         nextServiceDate: nextServiceDate ?? null,
       })
       .returning();
+
+    // GL: DR 5005 Vehicle Maintenance / CR 2000 Accounts Payable
+    // Only post if cost is provided and in USD (or a meaningful amount)
+    if (cost && parseFloat(cost) > 0) {
+      const costUsd = parseFloat(cost);
+      postJournalEntry({
+        description: `${type.charAt(0).toUpperCase() + type.slice(1).replace("_", " ")} — ${description}`,
+        entryDate: new Date(date),
+        referenceType: "maintenance",
+        referenceId: row.id,
+        lines: [
+          { accountCode: "5005", debit: costUsd, description: `${description} (${currency ?? "USD"})` },
+          { accountCode: "2000", credit: costUsd, description: mechanic ?? "Maintenance payable" },
+        ],
+      }).catch(() => {});
+    }
+
     res.status(201).json(row);
   } catch (err) { next(err); }
 });
@@ -48,6 +67,8 @@ router.post("/trucks/:truckId", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    // Reverse GL entry if it exists
+    await deleteJournalEntriesForReference("maintenance", id);
     await db.delete(truckMaintenanceTable).where(eq(truckMaintenanceTable.id, id));
     res.json({ ok: true });
   } catch (err) { next(err); }
