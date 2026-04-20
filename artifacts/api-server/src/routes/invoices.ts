@@ -8,7 +8,7 @@ import {
   tripsTable,
   trucksTable,
 } from "@workspace/db/schema";
-import { eq, desc, and, inArray, isNotNull, isNull } from "drizzle-orm";
+import { eq, desc, and, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { calculateTripFinancials } from "../lib/financials";
 import { logAudit } from "../lib/audit";
 import { postJournalEntry, postReversalEntry, deleteJournalEntriesForReference, resolveBankGlCode } from "../lib/glPosting";
@@ -447,10 +447,20 @@ router.patch("/:id/status", async (req, res, next) => {
     }
 
     // Auto-post to GL when paid: Dr Bank (specific or default), Cr Accounts Receivable
+    // Use netDue (netRevenue minus advances/payments already recorded) to avoid double-counting
     if (status === "paid") {
       const { bankAccountId } = req.body;
-      const amount = parseFloat(invoice.netRevenue ?? invoice.grossRevenue ?? "0");
-      if (amount > 0) {
+      const netRevenue = parseFloat(invoice.netRevenue ?? invoice.grossRevenue ?? "0");
+      const [alreadyReceived] = await db
+        .select({ total: sql<string>`coalesce(sum(amount), '0')` })
+        .from(clientTransactionsTable)
+        .where(and(
+          eq(clientTransactionsTable.invoiceId, id),
+          sql`type IN ('payment', 'advance')`,
+        ));
+      const received = parseFloat(alreadyReceived?.total ?? "0");
+      const netDue = Math.max(0, netRevenue - received);
+      if (netDue > 0.005) {
         const bankGlCode = await resolveBankGlCode("bank_transfer", bankAccountId ?? null);
         await postJournalEntry({
           description: `Payment received — ${invoice.invoiceNumber}`,
@@ -458,8 +468,8 @@ router.patch("/:id/status", async (req, res, next) => {
           referenceType: "invoice_payment",
           referenceId: invoice.id,
           lines: [
-            { accountCode: bankGlCode, debit: amount, description: `Payment — ${invoice.invoiceNumber}` },
-            { accountCode: "1100", credit: amount, description: "Clear AR" },
+            { accountCode: bankGlCode, debit: netDue, description: `Payment — ${invoice.invoiceNumber}` },
+            { accountCode: "1100", credit: netDue, description: "Clear AR" },
           ],
         });
       }

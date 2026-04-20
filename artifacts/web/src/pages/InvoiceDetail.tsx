@@ -5,7 +5,7 @@ import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Printer, FilePen, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Printer, FilePen, AlertTriangle, CheckCircle2, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -227,10 +227,19 @@ export default function InvoiceDetail() {
   const [amendError, setAmendError] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  // Payment dialog state
+  // Mark-as-paid dialog state (status change shortcut)
   const [showPayDialog, setShowPayDialog] = useState(false);
   const [payDate, setPayDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [payBankAccountId, setPayBankAccountId] = useState("");
+
+  // Record Payment dialog state (partial / full payment against invoice)
+  const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const [recordPayAmount, setRecordPayAmount] = useState("");
+  const [recordPayDate, setRecordPayDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [recordPayRef, setRecordPayRef] = useState("");
+  const [recordPayBankId, setRecordPayBankId] = useState("");
+  const [recordingPayment, setRecordingPayment] = useState(false);
+  const [recordPayError, setRecordPayError] = useState("");
 
   const { data: bankAccounts = [] } = useQuery<any[]>({
     queryKey: ["/api/bank-accounts"],
@@ -326,6 +335,50 @@ export default function InvoiceDetail() {
     }
   };
 
+  const openRecordPayment = () => {
+    const netDue = (invoice as any)?.accountStatement?.netDue ?? 0;
+    setRecordPayAmount(netDue > 0 ? netDue.toFixed(2) : "");
+    setRecordPayDate(format(new Date(), "yyyy-MM-dd"));
+    setRecordPayRef("");
+    setRecordPayBankId("");
+    setRecordPayError("");
+    setShowRecordPayment(true);
+  };
+
+  const handleRecordPayment = async () => {
+    const amount = parseFloat(recordPayAmount);
+    if (!amount || amount <= 0) { setRecordPayError("Enter a valid amount."); return; }
+    setRecordPayError("");
+    setRecordingPayment(true);
+    try {
+      const inv = invoice as any;
+      const res = await fetch(`/api/clients/${inv.clientId}/transactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          type: "payment",
+          amount: amount.toFixed(2),
+          transactionDate: recordPayDate,
+          reference: recordPayRef || undefined,
+          batchId: inv.batchId,
+          invoiceId: id,
+          description: `Payment against ${inv.invoiceNumber}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setRecordPayError(data.error ?? "Payment failed."); return; }
+      setShowRecordPayment(false);
+      qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      qc.invalidateQueries({ queryKey: [`/api/clients/${inv.clientId}/transactions`] });
+    } catch (e: any) {
+      setRecordPayError(e.message ?? "Payment failed.");
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
+
   const handlePrint = () => {
     if (!invoice) return;
     const w = window.open("", "_blank");
@@ -389,6 +442,11 @@ export default function InvoiceDetail() {
               ))}
             </SelectContent>
           </Select>
+          {!["paid", "cancelled"].includes(inv.status ?? "") && (
+            <Button size="sm" onClick={openRecordPayment}>
+              <DollarSign className="w-4 h-4 mr-1.5" /> Record Payment
+            </Button>
+          )}
           {canAmend && (
             <Button variant="outline" size="sm" onClick={openAmendDialog}>
               <FilePen className="w-4 h-4 mr-1.5" /> Amend
@@ -788,6 +846,59 @@ export default function InvoiceDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>Keep It</Button>
             <Button variant="destructive" onClick={handleConfirmCancel}>Yes, Cancel Invoice</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Payment Dialog */}
+      <Dialog open={showRecordPayment} onOpenChange={(o) => { if (!o) setShowRecordPayment(false); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>{(invoice as any)?.invoiceNumber} · {(invoice as any)?.clientName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {(invoice as any)?.accountStatement?.netDue > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-secondary/40 px-3 py-2">
+                <span className="text-xs text-muted-foreground">Balance due</span>
+                <span className="text-sm font-semibold">{formatCurrency((invoice as any).accountStatement.netDue)}</span>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs">Amount (USD) *</Label>
+              <Input type="number" step="0.01" value={recordPayAmount} onChange={(e) => setRecordPayAmount(e.target.value)} className="mt-1" placeholder="0.00" autoFocus />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Date</Label>
+                <Input type="date" value={recordPayDate} onChange={(e) => setRecordPayDate(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Reference</Label>
+                <Input value={recordPayRef} onChange={(e) => setRecordPayRef(e.target.value)} className="mt-1" placeholder="e.g. TT-123" />
+              </div>
+            </div>
+            {(bankAccounts as any[]).filter((b: any) => !b.isDefault).length > 0 && (
+              <div>
+                <Label className="text-xs">Bank Account</Label>
+                <Select value={recordPayBankId} onValueChange={setRecordPayBankId}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Default bank" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Default bank</SelectItem>
+                    {(bankAccounts as any[]).filter((b: any) => !b.isDefault).map((b: any) => (
+                      <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {recordPayError && <p className="text-xs text-destructive">{recordPayError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRecordPayment(false)}>Cancel</Button>
+            <Button onClick={handleRecordPayment} disabled={recordingPayment || !recordPayAmount}>
+              {recordingPayment ? "Saving..." : "Record Payment"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -409,6 +409,7 @@ export default function BatchDetail() {
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [invoiceRef, setInvoiceRef] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
   const [selectedTripIds, setSelectedTripIds] = useState<number[]>([]);
   const [raisingInvoice, setRaisingInvoice] = useState(false);
   const [invoiceError, setInvoiceError] = useState("");
@@ -556,6 +557,7 @@ export default function BatchDetail() {
     setSelectedTripIds(deliveredTripIds);
     setInvoiceRef("");
     setInvoiceDate(new Date().toISOString().split("T")[0]);
+    setInvoiceDueDate("");
     setInvoiceError("");
     setShowInvoiceDialog(true);
   };
@@ -575,6 +577,7 @@ export default function BatchDetail() {
         body: JSON.stringify({
           invoiceReference: invoiceRef || undefined,
           invoiceDate: invoiceDate || undefined,
+          dueDate: invoiceDueDate || undefined,
           tripIds: selectedTripIds,
         }),
       });
@@ -1145,14 +1148,14 @@ export default function BatchDetail() {
               <span>Once raised, this batch is locked as <strong>Invoiced</strong> and cannot be reverted while the invoice is active. To redo an invoice, cancel it first — this will unlock the batch and clear the trip stamps.</span>
             </div>
             {/* Invoice details */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label className="text-xs">Invoice Reference <span className="text-muted-foreground">(optional)</span></Label>
                 <Input
                   value={invoiceRef}
                   onChange={(e) => setInvoiceRef(e.target.value)}
                   className="mt-1"
-                  placeholder="e.g. INV-001"
+                  placeholder="Auto: INV-0001"
                 />
               </div>
               <div>
@@ -1161,6 +1164,15 @@ export default function BatchDetail() {
                   type="date"
                   value={invoiceDate}
                   onChange={(e) => setInvoiceDate(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Due Date</Label>
+                <Input
+                  type="date"
+                  value={invoiceDueDate}
+                  onChange={(e) => setInvoiceDueDate(e.target.value)}
                   className="mt-1"
                 />
               </div>

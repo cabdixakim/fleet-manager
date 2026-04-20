@@ -18,6 +18,7 @@ export const invoicesTable = pgTable("invoices", {
   status: text("status").notNull().default("draft"), // draft, sent, paid, overdue, cancelled
   issuedDate: timestamp("issued_date"),
   dueDate: timestamp("due_date"),
+  paidDate: timestamp("paid_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   // Amendment tracking

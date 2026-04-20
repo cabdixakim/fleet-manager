@@ -446,29 +446,25 @@ router.post("/:id/raise-invoice", async (req, res, next) => {
       return res.status(400).json({ error: "Invoice amount is zero. Check that trips have loaded/delivered quantities." });
     }
 
-    // Generate invoice number: use user-supplied reference or auto-generate
-    const invoiceNumber = invoiceReference?.trim()
-      ? invoiceReference.trim()
-      : `INV-${batch.name}-${Date.now()}`;
-
-    // Check for duplicate invoice reference (including cancelled ones)
+    // Check for duplicate user-supplied reference
     if (invoiceReference?.trim()) {
       const [existing] = await db
-        .select({ id: invoicesTable.id, status: invoicesTable.status })
+        .select({ id: invoicesTable.id })
         .from(invoicesTable)
-        .where(eq(invoicesTable.invoiceNumber, invoiceNumber));
+        .where(eq(invoicesTable.invoiceNumber, invoiceReference.trim()));
       if (existing) {
         return res.status(400).json({
-          error: `Reference "${invoiceNumber}" is already in use. Please choose a different one.`,
+          error: `Reference "${invoiceReference.trim()}" is already in use. Please choose a different one.`,
         });
       }
     }
 
     const txDate = invoiceDate ? new Date(invoiceDate) : new Date();
+    const dueDateParsed = req.body.dueDate ? new Date(req.body.dueDate) : null;
 
-    // Create formal invoice record (for the invoice view page with trip line items)
+    // Insert with a placeholder number first to get the auto-increment ID
     const [invoice] = await db.insert(invoicesTable).values({
-      invoiceNumber,
+      invoiceNumber: "__PENDING__",
       batchId: id,
       clientId: batch.clientId,
       totalLoadedQty: totalLoaded.toFixed(3),
@@ -479,7 +475,17 @@ router.post("/:id/raise-invoice", async (req, res, next) => {
       netRevenue: netRevenue.toFixed(2),
       status: "sent",
       issuedDate: txDate,
+      dueDate: dueDateParsed,
     }).returning();
+
+    // Assign final invoice number: user-supplied or sequential INV-XXXX
+    const finalInvoiceNumber = invoiceReference?.trim() ?? `INV-${String(invoice.id).padStart(4, "0")}`;
+    const [updatedInvoice] = await db
+      .update(invoicesTable)
+      .set({ invoiceNumber: finalInvoiceNumber })
+      .where(eq(invoicesTable.id, invoice.id))
+      .returning();
+    Object.assign(invoice, updatedInvoice);
 
     // Create accounting entry in client ledger for balance tracking
     // Use netRevenue (gross minus client short charge credit) so that the ledger reflects
