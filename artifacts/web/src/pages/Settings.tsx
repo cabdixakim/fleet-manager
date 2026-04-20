@@ -25,7 +25,6 @@ export default function SettingsPage() {
     currency: "USD",
     taxId: "",
     website: "",
-    openingBalance: "0",
     revenueAttributionPolicy: "ORIGINAL",
     t1ClearanceFeeUsd: "80.00",
     activeClearanceAgencyId: "",
@@ -61,7 +60,6 @@ export default function SettingsPage() {
           currency: data.currency ?? "USD",
           taxId: data.taxId ?? "",
           website: data.website ?? "",
-          openingBalance: String(data.openingBalance ?? "0"),
           revenueAttributionPolicy: data.revenueAttributionPolicy ?? "ORIGINAL",
           t1ClearanceFeeUsd: String(data.t1ClearanceFeeUsd ?? "80.00"),
           activeClearanceAgencyId: data.activeClearanceAgencyId != null ? String(data.activeClearanceAgencyId) : "",
@@ -87,7 +85,6 @@ export default function SettingsPage() {
         credentials: "include",
         body: JSON.stringify({
           ...form,
-          openingBalance: parseFloat(form.openingBalance),
           activeClearanceAgencyId: form.activeClearanceAgencyId ? parseInt(form.activeClearanceAgencyId) : null,
         }),
       });
@@ -125,7 +122,7 @@ export default function SettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...form, logoUrl: dataUrl, openingBalance: parseFloat(form.openingBalance) }),
+        body: JSON.stringify({ ...form, logoUrl: dataUrl }),
       });
       qc.invalidateQueries({ queryKey: ["company-settings-sidebar"] });
       qc.invalidateQueries({ queryKey: ["company-settings-header"] });
@@ -152,7 +149,7 @@ export default function SettingsPage() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ ...form, logoUrl: "", openingBalance: parseFloat(form.openingBalance) }),
+      body: JSON.stringify({ ...form, logoUrl: "" }),
     });
     qc.invalidateQueries({ queryKey: ["company-settings-sidebar"] });
     qc.invalidateQueries({ queryKey: ["company-settings-header"] });
@@ -294,16 +291,6 @@ export default function SettingsPage() {
                   <Label className="flex items-center gap-1.5"><Hash className="w-3 h-3" />Tax ID / TPIN</Label>
                   <Input value={form.taxId} onChange={(e) => setForm({ ...form, taxId: e.target.value })} className="mt-1.5" placeholder="e.g. 123-456-789" />
                 </div>
-              </div>
-              <div>
-                <Label className="flex items-center gap-1.5"><DollarSign className="w-3 h-3" />Company Opening Balance (USD)</Label>
-                <Input
-                  type="number"
-                  value={form.openingBalance}
-                  onChange={(e) => setForm({ ...form, openingBalance: e.target.value })}
-                  className="mt-1.5"
-                  placeholder="0.00"
-                />
               </div>
               <div>
                 <Label className="flex items-center gap-1.5"><DollarSign className="w-3 h-3" />T1 Zambia Entry Clearance Fee (USD)</Label>
