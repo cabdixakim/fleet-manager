@@ -120,6 +120,27 @@ export default function UsersPage() {
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
   const [resetUser, setResetUser] = useState<UserRecord | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showNewPassConfirm, setShowNewPassConfirm] = useState(false);
+  const [resetDonePassword, setResetDonePassword] = useState<string | null>(null);
+  const [copiedResetPass, setCopiedResetPass] = useState(false);
+
+  const copyResetPassword = () => {
+    if (!resetDonePassword) return;
+    navigator.clipboard.writeText(resetDonePassword);
+    setCopiedResetPass(true);
+    setTimeout(() => setCopiedResetPass(false), 2000);
+  };
+
+  const closeResetDialog = () => {
+    setResetUser(null);
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    setShowNewPass(false);
+    setShowNewPassConfirm(false);
+    setResetDonePassword(null);
+  };
   const [lockUser, setLockUser] = useState<UserRecord | null>(null);
   const [form, setForm] = useState<UserForm>(defaultForm());
 
@@ -179,7 +200,17 @@ export default function UsersPage() {
   const updateUser = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<UserForm> }) =>
       fetch(`/api/users/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setEditUser(null); setResetUser(null); setLockUser(null); setForm(defaultForm()); setNewPassword(""); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setEditUser(null); setLockUser(null); setForm(defaultForm()); },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ id, password }: { id: number; password: string }) => {
+      const r = await fetch(`/api/users/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ password }) });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? "Failed to reset password");
+      return json;
+    },
+    onSuccess: (_data, variables) => { qc.invalidateQueries({ queryKey: ["users"] }); setResetDonePassword(variables.password); },
   });
 
   const deleteUserMutation = useMutation({
@@ -533,31 +564,92 @@ export default function UsersPage() {
       </Dialog>
 
       {/* Reset Password Dialog */}
-      <Dialog open={!!resetUser} onOpenChange={(o) => !o && setResetUser(null)}>
+      <Dialog open={!!resetUser} onOpenChange={(o) => { if (!o) closeResetDialog(); }}>
         <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle>Reset Password</DialogTitle></DialogHeader>
-          <div className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2.5 mb-1">
-            <UserAvatar name={resetUser?.name ?? ""} isActive={true} size="sm" />
-            <div>
-              <p className="text-sm font-medium">{resetUser?.name}</p>
-              <p className="text-xs text-muted-foreground">{resetUser?.email}</p>
-            </div>
-          </div>
-          <div>
-            <Label>New Password</Label>
-            <Input className="mt-1" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 6 characters" autoFocus />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetUser(null)}>Cancel</Button>
-            <Button
-              className="bg-amber-500 hover:bg-amber-600 text-black"
-              onClick={() => resetUser && updateUser.mutate({ id: resetUser.id, data: { password: newPassword } })}
-              disabled={updateUser.isPending || newPassword.length < 6}
-            >
-              <KeyRound className="w-3.5 h-3.5 mr-1.5" />
-              {updateUser.isPending ? "Resetting..." : "Reset Password"}
-            </Button>
-          </DialogFooter>
+          {resetDonePassword ? (
+            <>
+              <DialogHeader><DialogTitle>Password Reset</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-muted-foreground">Share the new credentials with the user. The password will not be shown again.</p>
+                <div className="rounded-md border bg-muted/40 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Email</span>
+                    <span className="text-sm font-medium">{resetUser?.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Password</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono font-semibold">{resetDonePassword}</span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={copyResetPassword}>
+                        {copiedResetPass ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={closeResetDialog}>Done</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader><DialogTitle>Reset Password</DialogTitle></DialogHeader>
+              <div className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2.5">
+                <UserAvatar name={resetUser?.name ?? ""} isActive={true} size="sm" />
+                <div>
+                  <p className="text-sm font-medium">{resetUser?.name}</p>
+                  <p className="text-xs text-muted-foreground">{resetUser?.email}</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label>New Password</Label>
+                  <div className="relative mt-1">
+                    <Input type={showNewPass ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 8 characters" className="pr-9" autoFocus />
+                    <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowNewPass((p) => !p)}>
+                      {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {newPassword && (
+                    <ul className="mt-2 space-y-0.5">
+                      {passRules.map((r) => (
+                        <li key={r.label} className={`flex items-center gap-1.5 text-xs ${r.ok(newPassword) ? "text-green-500" : "text-muted-foreground"}`}>
+                          <Check className={`w-3 h-3 ${r.ok(newPassword) ? "opacity-100" : "opacity-20"}`} />
+                          {r.label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <Label>Confirm New Password</Label>
+                  <div className="relative mt-1">
+                    <Input type={showNewPassConfirm ? "text" : "password"} value={newPasswordConfirm} onChange={(e) => setNewPasswordConfirm(e.target.value)} placeholder="Re-enter password" className="pr-9" />
+                    <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowNewPassConfirm((p) => !p)}>
+                      {showNewPassConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {newPasswordConfirm && newPassword !== newPasswordConfirm && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                  )}
+                </div>
+              </div>
+              {resetPasswordMutation.isError && (
+                <p className="text-sm text-red-500">{(resetPasswordMutation.error as Error).message}</p>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={closeResetDialog}>Cancel</Button>
+                <Button
+                  className="bg-amber-500 hover:bg-amber-600 text-black"
+                  onClick={() => resetUser && resetPasswordMutation.mutate({ id: resetUser.id, password: newPassword })}
+                  disabled={resetPasswordMutation.isPending || !passStrong(newPassword) || newPassword !== newPasswordConfirm}
+                >
+                  <KeyRound className="w-3.5 h-3.5 mr-1.5" />
+                  {resetPasswordMutation.isPending ? "Resetting..." : "Reset Password"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
