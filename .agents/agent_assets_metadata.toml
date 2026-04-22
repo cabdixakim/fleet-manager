@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "Dc6kQWvQQh2b9UYYeZQ24"
+uri = "file://docs/user-guide.md"
+type = "text"
+title = "Optima Transport — Complete User Guide"
