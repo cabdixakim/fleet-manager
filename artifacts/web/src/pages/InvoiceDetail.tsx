@@ -227,6 +227,11 @@ export default function InvoiceDetail() {
   const [amendError, setAmendError] = useState("");
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
+  // Mark-as-paid dialog state
+  const [showPayDialog, setShowPayDialog] = useState(false);
+  const [payDate, setPayDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [payBankAccountId, setPayBankAccountId] = useState("");
+
   // Record Payment dialog state (partial / full payment against invoice)
   const [showRecordPayment, setShowRecordPayment] = useState(false);
   const [recordPayAmount, setRecordPayAmount] = useState("");
@@ -243,19 +248,31 @@ export default function InvoiceDetail() {
 
   const handleStatusChange = async (status: string) => {
     if (status === "cancelled") { setShowCancelConfirm(true); return; }
+    if (status === "paid") { setPayDate(format(new Date(), "yyyy-MM-dd")); setPayBankAccountId(""); setShowPayDialog(true); return; }
     setUpdatingStatus(true);
     try {
-      const body: Record<string, unknown> = { status };
-      if (status === "paid") {
-        body.paidDate = format(new Date(), "yyyy-MM-dd");
-        const firstBank = (bankAccounts as any[])[0];
-        if (firstBank) body.bankAccountId = firstBank.id;
-      }
       await fetch(`/api/invoices/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ status }),
+      });
+      qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
+      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    setShowPayDialog(false);
+    setUpdatingStatus(true);
+    try {
+      await fetch(`/api/invoices/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "paid", paidDate: payDate, bankAccountId: payBankAccountId ? parseInt(payBankAccountId) : undefined }),
       });
       qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
       qc.invalidateQueries({ queryKey: ["/api/invoices"] });
@@ -775,6 +792,38 @@ export default function InvoiceDetail() {
             <Button onClick={handleAmendSubmit} disabled={submittingAmend || !amendReason.trim()}>
               <FilePen className="w-4 h-4 mr-1.5" />
               {submittingAmend ? "Saving..." : "Save Amendment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mark as Paid dialog */}
+      <Dialog open={showPayDialog} onOpenChange={setShowPayDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Payment Date *</Label>
+              <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label>Received Into Bank Account *</Label>
+              <Select value={payBankAccountId} onValueChange={setPayBankAccountId}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select bank account" /></SelectTrigger>
+                <SelectContent>
+                  {(bankAccounts as any[]).map((b: any) => (
+                    <SelectItem key={b.id} value={String(b.id)}>{b.accountName} ({b.bankName})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayDialog(false)}>Cancel</Button>
+            <Button onClick={handleConfirmPayment} disabled={!payBankAccountId || updatingStatus}>
+              {updatingStatus ? "Saving..." : "Confirm Payment"}
             </Button>
           </DialogFooter>
         </DialogContent>
