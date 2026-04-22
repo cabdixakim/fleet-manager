@@ -6,3 +6,9 @@ id = "Dc6kQWvQQh2b9UYYeZQ24"
 uri = "file://docs/user-guide.md"
 type = "text"
 title = "Optima Transport — Complete User Guide"
+
+[[outputs]]
+id = "xTh3hY4lNPN38-TUQABbP"
+uri = "file://docs/Optima-Transport-User-Guide.pdf"
+type = "pdf"
+title = "Optima Transport — Complete User Guide (PDF)"
