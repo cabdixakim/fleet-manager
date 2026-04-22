@@ -280,7 +280,7 @@ export default function CompanyPolicies() {
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2 space-y-1">
                 <Label>Insurer Name</Label>
-                <Input value={form.insurerName} onChange={(e) => setForm((f) => ({ ...f, insurerName: e.target.value }))} placeholder="e.g. Hollard Insurance Zambia" />
+                <Input value={form.insurerName} onChange={(e) => setForm((f) => ({ ...f, insurerName: e.target.value }))} placeholder="e.g. Optima Insurance" />
               </div>
               <div className="space-y-1">
                 <Label>Policy Number</Label>
