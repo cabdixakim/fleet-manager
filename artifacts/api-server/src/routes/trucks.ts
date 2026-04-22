@@ -130,26 +130,38 @@ router.get("/:id", async (req, res, next) => {
 router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const [before] = await db.select({ subcontractorId: trucksTable.subcontractorId }).from(trucksTable).where(eq(trucksTable.id, id));
+    const [before] = await db.select({ subcontractorId: trucksTable.subcontractorId, companyOwned: trucksTable.companyOwned }).from(trucksTable).where(eq(trucksTable.id, id));
     const [truck] = await db.update(trucksTable).set(req.body).where(eq(trucksTable.id, id)).returning();
     if (!truck) return res.status(404).json({ error: "Not found" });
+
     const isRetire = req.body.status === "retired";
-    const isSubSwap = req.body.subcontractorId != null && before?.subcontractorId !== req.body.subcontractorId;
+    const ownershipChanged = req.body.companyOwned !== undefined && before?.companyOwned !== req.body.companyOwned;
+    const isSubSwap = !ownershipChanged && req.body.subcontractorId != null && before?.subcontractorId !== req.body.subcontractorId;
+
     let description = isRetire
       ? `Truck ${truck.plateNumber} retired — removed from active fleet`
       : `Updated truck ${truck.plateNumber}`;
-    if (isSubSwap) {
+    let action: string = isRetire ? "status_change" : "update";
+    let metadata: Record<string, any> = req.body.status ? { status: req.body.status } : {};
+
+    if (ownershipChanged) {
+      action = "ownership_transfer";
+      if (truck.companyOwned) {
+        description = `Truck ${truck.plateNumber} transferred from subcontractor to Company Fleet`;
+      } else {
+        const [newSub] = truck.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId)) : [null];
+        description = `Truck ${truck.plateNumber} transferred from Company Fleet to ${newSub?.name ?? "subcontractor"}`;
+      }
+      metadata = { from: before?.companyOwned ? "company" : "subcontractor", to: truck.companyOwned ? "company" : "subcontractor", newSubcontractorId: truck.subcontractorId };
+    } else if (isSubSwap) {
+      action = "reassign";
       const [oldSub] = before?.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, before.subcontractorId)) : [null];
       const [newSub] = truck.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId)) : [null];
       description = `Truck ${truck.plateNumber} reassigned from ${oldSub?.name ?? "unknown"} to ${newSub?.name ?? "unknown"}`;
+      metadata = { fromSubcontractorId: before?.subcontractorId, toSubcontractorId: truck.subcontractorId };
     }
-    await logAudit(req, {
-      action: isRetire ? "status_change" : isSubSwap ? "reassign" : "update",
-      entity: "truck",
-      entityId: id,
-      description,
-      metadata: { ...(req.body.status ? { status: req.body.status } : {}), ...(isSubSwap ? { fromSubcontractorId: before?.subcontractorId, toSubcontractorId: truck.subcontractorId } : {}) },
-    });
+
+    await logAudit(req, { action, entity: "truck", entityId: id, description, metadata });
     const [sub] = truck.subcontractorId ? await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId)) : [null];
     res.json({ ...truck, subcontractorName: sub?.name ?? null });
   } catch (e) { next(e); }

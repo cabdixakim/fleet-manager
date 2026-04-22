@@ -12,7 +12,7 @@ import { formatDistanceToNow, differenceInDays } from "date-fns";
 import {
   Plus, Download, Search, Truck, Pencil, Trash2, User,
   Clock, X, History, Building2, MapPin, ArrowRight,
-  CheckCircle, Loader2,
+  CheckCircle, Loader2, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -338,7 +338,9 @@ export default function Fleet() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTruck, setEditTruck] = useState<any | null>(null);
   const [originalSubId, setOriginalSubId] = useState<number | null>(null);
+  const [originalCompanyOwned, setOriginalCompanyOwned] = useState(false);
   const [confirmSubSwap, setConfirmSubSwap] = useState(false);
+  const [confirmOwnershipTransfer, setConfirmOwnershipTransfer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
   const [showDriverDialog, setShowDriverDialog] = useState<{ truck: any } | null>(null);
   const [savingLocationId, setSavingLocationId] = useState<number | null>(null);
@@ -404,12 +406,14 @@ export default function Fleet() {
 
   const doUpdate = async () => {
     if (!editTruck) return;
+    const isCompanyNow = !!editTruck.companyOwned;
     await updateTruck({
       id: editTruck.id,
       data: {
         plateNumber: editTruck.plateNumber,
         trailerPlate: editTruck.trailerPlate,
-        subcontractorId: editTruck.subcontractorId,
+        companyOwned: isCompanyNow,
+        subcontractorId: isCompanyNow ? null : (editTruck.subcontractorId ?? null),
         status: editTruck.status as any,
         notes: editTruck.notes,
         currentLocation: editTruck.currentLocation ?? null,
@@ -417,12 +421,16 @@ export default function Fleet() {
     });
     qc.invalidateQueries({ queryKey: ["/api/trucks"] });
     setConfirmSubSwap(false);
+    setConfirmOwnershipTransfer(false);
     setEditTruck(null);
   };
 
   const handleUpdate = () => {
     if (!editTruck) return;
-    if (editTruck.subcontractorId !== originalSubId) setConfirmSubSwap(true);
+    const ownershipChanged = !!editTruck.companyOwned !== originalCompanyOwned;
+    const subChanged = !editTruck.companyOwned && editTruck.subcontractorId !== originalSubId;
+    if (ownershipChanged) setConfirmOwnershipTransfer(true);
+    else if (subChanged) setConfirmSubSwap(true);
     else doUpdate();
   };
 
@@ -568,7 +576,7 @@ export default function Fleet() {
                 key={t.id}
                 truck={t}
                 driverName={getCurrentDriverName(t.id)}
-                onEdit={() => { setEditTruck(t); setOriginalSubId(t.subcontractorId); }}
+                onEdit={() => { setEditTruck(t); setOriginalSubId(t.subcontractorId); setOriginalCompanyOwned(!!t.companyOwned); }}
                 onRetire={() => setConfirmDelete(t)}
                 onDriverHistory={() => setShowDriverDialog({ truck: t })}
                 onLocationSave={handleLocationSave}
@@ -679,25 +687,36 @@ export default function Fleet() {
                   <Input value={editTruck.trailerPlate ?? ""} onChange={(e) => setEditTruck({ ...editTruck, trailerPlate: e.target.value })} className="mt-1" />
                 </div>
               </div>
-              {editTruck.companyOwned ? (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-primary text-sm">
-                  <Building2 className="w-4 h-4 shrink-0" />
-                  <span className="font-medium">Company Fleet truck — no commission applied</span>
+              <div>
+                <Label>Ownership</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button type="button"
+                    onClick={() => setEditTruck({ ...editTruck, companyOwned: false })}
+                    className={cn("flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all", !editTruck.companyOwned ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-muted-foreground/50")}>
+                    <Users className="w-3.5 h-3.5" />
+                    Subcontractor
+                  </button>
+                  <button type="button"
+                    onClick={() => setEditTruck({ ...editTruck, companyOwned: true })}
+                    className={cn("flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all", editTruck.companyOwned ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-muted-foreground/50")}>
+                    <Building2 className="w-3.5 h-3.5" />
+                    Company Fleet
+                  </button>
                 </div>
-              ) : (
-                <div>
-                  <Label>Subcontractor</Label>
-                  <Select value={String(editTruck.subcontractorId ?? "")} onValueChange={(v) => setEditTruck({ ...editTruck, subcontractorId: parseInt(v) })}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
-                    <SelectContent>
-                      {(subs as any[]).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {editTruck.status === "on_trip" && (
-                    <p className="text-xs text-amber-500 mt-1">This truck is on a trip. Reassignment takes effect from the next nomination.</p>
-                  )}
-                </div>
-              )}
+                {!editTruck.companyOwned && (
+                  <div className="mt-2">
+                    <Select value={String(editTruck.subcontractorId ?? "")} onValueChange={(v) => setEditTruck({ ...editTruck, subcontractorId: parseInt(v) })}>
+                      <SelectTrigger><SelectValue placeholder="Select subcontractor" /></SelectTrigger>
+                      <SelectContent>
+                        {(subs as any[]).map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {editTruck.status === "on_trip" && (
+                      <p className="text-xs text-amber-500 mt-1">This truck is on a trip. Transfer takes effect from the next nomination.</p>
+                    )}
+                  </div>
+                )}
+              </div>
               <div>
                 <Label>Status</Label>
                 <Select value={editTruck.status} onValueChange={(v) => setEditTruck({ ...editTruck, status: v })}>
@@ -768,6 +787,33 @@ export default function Fleet() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setConfirmSubSwap(false)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={doUpdate}>Confirm Reassignment</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Ownership transfer confirmation */}
+      <AlertDialog open={confirmOwnershipTransfer} onOpenChange={setConfirmOwnershipTransfer}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer Ownership?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  You are moving <span className="font-semibold text-foreground">{editTruck?.plateNumber}</span> from{" "}
+                  <span className="font-semibold text-foreground">{originalCompanyOwned ? "Company Fleet" : "Subcontractor"}</span>{" "}
+                  to{" "}
+                  <span className="font-semibold text-foreground">{editTruck?.companyOwned ? "Company Fleet" : "Subcontractor"}</span>.
+                </p>
+                <p>All past trip records keep their original ownership for accurate historical financials. This transfer affects future nominations only.</p>
+                {editTruck?.status === "on_trip" && (
+                  <p className="text-amber-500 font-medium">This truck is currently on a trip. The transfer will take effect from the next nomination.</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmOwnershipTransfer(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={doUpdate}>Confirm Transfer</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
