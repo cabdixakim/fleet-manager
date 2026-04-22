@@ -43,6 +43,10 @@ router.post("/", async (req, res, next) => {
     }
     const { name, email, password, role } = req.body;
     if (!name || !email || !password) return res.status(400).json({ error: "Name, email and password required" });
+    const strongPass = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPass.test(password)) {
+      return res.status(400).json({ error: "Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character." });
+    }
     if (RESERVED_EMAILS.includes(email?.toLowerCase())) {
       return res.status(400).json({ error: `The email address '${email}' is reserved for system use.` });
     }

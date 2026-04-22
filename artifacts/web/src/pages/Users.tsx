@@ -19,7 +19,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   UserPlus, Pencil, Trash2, Clock, KeyRound, Lock, LockOpen,
-  ShieldCheck, MoreVertical, User, Crown,
+  ShieldCheck, MoreVertical, User, Crown, Eye, EyeOff, Copy, Check,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -129,6 +129,38 @@ export default function UsersPage() {
   });
 
   const [createError, setCreateError] = useState("");
+  const [confirmPass, setConfirmPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [createdUserPassword, setCreatedUserPassword] = useState<string | null>(null);
+  const [copiedPass, setCopiedPass] = useState(false);
+
+  const passRules = [
+    { label: "At least 8 characters", ok: (p: string) => p.length >= 8 },
+    { label: "Uppercase letter",       ok: (p: string) => /[A-Z]/.test(p) },
+    { label: "Lowercase letter",       ok: (p: string) => /[a-z]/.test(p) },
+    { label: "Number",                 ok: (p: string) => /\d/.test(p) },
+    { label: "Special character",      ok: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ];
+  const passStrong = (p: string) => passRules.every((r) => r.ok(p));
+
+  const copyPassword = () => {
+    if (!createdUserPassword) return;
+    navigator.clipboard.writeText(createdUserPassword);
+    setCopiedPass(true);
+    setTimeout(() => setCopiedPass(false), 2000);
+  };
+
+  const resetAddDialog = () => {
+    setAddOpen(false);
+    setCreateError("");
+    setConfirmPass("");
+    setShowPass(false);
+    setShowConfirmPass(false);
+    setCreatedUserPassword(null);
+    setForm(defaultForm());
+  };
+
   const createUser = useMutation({
     mutationFn: async (data: UserForm) => {
       const r = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
@@ -136,7 +168,11 @@ export default function UsersPage() {
       if (!r.ok) throw new Error(json.error ?? "Failed to create user");
       return json;
     },
-    onSuccess: () => { setCreateError(""); qc.invalidateQueries({ queryKey: ["users"] }); setAddOpen(false); setForm(defaultForm()); },
+    onSuccess: (_data, variables) => {
+      setCreateError("");
+      setCreatedUserPassword(variables.password);
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
     onError: (e: Error) => setCreateError(e.message),
   });
 
@@ -365,28 +401,90 @@ export default function UsersPage() {
       </PageContent>
 
       {/* Add User Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) resetAddDialog(); }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add User</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Full Name</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" /></div>
-            <div><Label>Email</Label><Input className="mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="" /></div>
-            <div><Label>Password</Label><Input className="mt-1" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 6 characters" /></div>
-            <div>
-              <Label>Role</Label>
-              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>{CREATABLE_ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_META[r]?.label ?? r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-          {createError && <p className="text-sm text-red-500">{createError}</p>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setAddOpen(false); setCreateError(""); }}>Cancel</Button>
-            <Button onClick={() => createUser.mutate(form)} disabled={createUser.isPending}>
-              {createUser.isPending ? "Creating..." : "Create User"}
-            </Button>
-          </DialogFooter>
+          {createdUserPassword ? (
+            <>
+              <DialogHeader><DialogTitle>User Created</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-muted-foreground">Share these credentials with the new user. The password will not be shown again.</p>
+                <div className="rounded-md border bg-muted/40 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Email</span>
+                    <span className="text-sm font-medium">{form.email}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Password</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-mono font-semibold">{createdUserPassword}</span>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={copyPassword}>
+                        {copiedPass ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={resetAddDialog}>Done</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader><DialogTitle>Add User</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div><Label>Full Name</Label><Input className="mt-1" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" /></div>
+                <div><Label>Email</Label><Input className="mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="" /></div>
+                <div>
+                  <Label>Password</Label>
+                  <div className="relative mt-1">
+                    <Input type={showPass ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" className="pr-9" />
+                    <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPass((p) => !p)}>
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {form.password && (
+                    <ul className="mt-2 space-y-0.5">
+                      {passRules.map((r) => (
+                        <li key={r.label} className={`flex items-center gap-1.5 text-xs ${r.ok(form.password) ? "text-green-500" : "text-muted-foreground"}`}>
+                          <Check className={`w-3 h-3 ${r.ok(form.password) ? "opacity-100" : "opacity-20"}`} />
+                          {r.label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <Label>Confirm Password</Label>
+                  <div className="relative mt-1">
+                    <Input type={showConfirmPass ? "text" : "password"} value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} placeholder="Re-enter password" className="pr-9" />
+                    <button type="button" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowConfirmPass((p) => !p)}>
+                      {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {confirmPass && form.password !== confirmPass && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Role</Label>
+                  <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>{CREATABLE_ROLES.map((r) => <SelectItem key={r} value={r}>{ROLE_META[r]?.label ?? r}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {createError && <p className="text-sm text-red-500 mt-1">{createError}</p>}
+              <DialogFooter>
+                <Button variant="outline" onClick={resetAddDialog}>Cancel</Button>
+                <Button
+                  onClick={() => createUser.mutate(form)}
+                  disabled={createUser.isPending || !passStrong(form.password) || form.password !== confirmPass}
+                >
+                  {createUser.isPending ? "Creating..." : "Create User"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
