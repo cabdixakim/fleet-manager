@@ -47,6 +47,7 @@ import Assets from "@/pages/Assets";
 import MyTasks from "@/pages/MyTasks";
 import OpeningBalances from "@/pages/OpeningBalances";
 import InsuranceClaims from "@/pages/InsuranceClaims";
+import CompanyPolicies from "@/pages/CompanyPolicies";
 import DocumentVault from "@/pages/Documents";
 import LanesPage from "@/pages/Lanes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -167,6 +168,7 @@ function Router() {
               <Route path="/my-tasks" component={MyTasks} />
               <Route path="/opening-balances" component={OpeningBalances} />
               <Route path="/insurance-claims" component={InsuranceClaims} />
+              <Route path="/company-insurance-policies" component={CompanyPolicies} />
               <Route path="/documents" component={DocumentVault} />
               <Route path="/lanes" component={LanesPage} />
               <Route component={NotFound} />

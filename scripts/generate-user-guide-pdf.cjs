@@ -322,8 +322,59 @@ body('Navigate to Finance → Chart of Accounts to view and manage your account 
 h2('Financial Periods');
 body('Navigate to Finance → Periods. Each calendar month is a period that can be open or closed. Closing a period locks all historical GL entries in that month — they cannot be edited or deleted after closing. This prevents accidental changes to finalised accounts.');
 
-// ─── PART 9: COMPLIANCE & DOCUMENTS ─────────────────────────────────────────
-h1('Part 9 — Compliance and Documents');
+// ─── PART 9: INSURANCE MANAGEMENT ────────────────────────────────────────────
+h1('Part 9 — Insurance Management');
+
+body('Optima Transport tracks two levels of insurance: company-wide policies (the master contracts held with your insurer) and individual claims filed against those policies. The system links each claim to its governing policy automatically based on the claim type.');
+
+h2('Company Insurance Policies');
+body('Navigate to Fleet → Insurance Policies. Set up the master insurance agreements your company holds. There are three policy types:');
+doc._tableRow = 0;
+tableRow(['Policy Type', 'What It Covers'], true);
+tableRow(['Vehicle Fleet', 'Physical damage, total loss, and theft of your own trucks and trailers (Hollard fleet policy, etc.)']);
+tableRow(['Cargo Transit (Open Cover)', 'All cargo-in-transit losses across all loads. An open-cover policy applies automatically to every shipment without listing each truck individually.']);
+tableRow(['Third-Party Liability', 'Damage or injury caused to third parties in road incidents. Often a statutory requirement for cross-border haulage.']);
+doc.moveDown(0.5);
+
+body('For each policy record:');
+bullet([
+  'Policy Type — select from the three types above',
+  'Insurer Name — e.g. Hollard Insurance, Old Mutual, Jubilee Insurance',
+  'Policy Number — the reference on your policy schedule',
+  'Sum Insured — the maximum cover amount in your currency',
+  'Premium — annual or monthly premium amount and frequency',
+  'Effective Date and Expiry Date — used for tracking renewal deadlines',
+  'Notes — attach any internal reference, broker name, or conditions',
+]);
+body('Policies can be marked Active or Inactive. Only active policies appear in the claim form\'s auto-suggest.');
+
+h2('Insurance Claims');
+body('Navigate to Fleet → Claims. Log every claim your company has filed or intends to file.');
+body('When creating a new claim, the system uses the claim type to automatically suggest the right linked policy:');
+doc._tableRow = 0;
+tableRow(['Claim Type', 'Auto-linked Policy Type'], true);
+tableRow(['Cargo Loss', 'Cargo Transit (Open Cover)']);
+tableRow(['Accident', 'Vehicle Fleet']);
+tableRow(['Theft', 'Vehicle Fleet']);
+tableRow(['Third-Party', 'Third-Party Liability']);
+tableRow(['Other', 'No auto-suggestion — select manually or leave unlinked']);
+doc.moveDown(0.5);
+
+body('When a matching active policy is found, the insurer name and policy number are auto-filled into the claim form. You can still override these fields manually if a claim involves a different underwriter or a one-off arrangement.');
+body('Key claim fields:');
+bullet([
+  'Linked Policy — select or override the auto-suggested policy. Linking a claim to a policy lets you see total claims exposure per policy.',
+  'Truck — which vehicle was involved (optional for cargo-only losses)',
+  'Trip — which load was affected (optional)',
+  'Incident Date, Filed Date, Settled Date — tracks the full claim lifecycle',
+  'Amount Claimed vs Amount Settled — shows shortfall; system tracks both figures for reporting',
+  'Status — Draft → Filed → Under Review → Settled (or Rejected)',
+  'Description and Notes — internal record of what happened',
+]);
+body('Claim information (insurer, policy number) is snapshotted at creation. If you later change the linked policy or the policy details, historical claim records are unaffected — the original insurer and policy number are preserved for accuracy.');
+
+// ─── PART 10: COMPLIANCE & DOCUMENTS ─────────────────────────────────────────
+h1('Part 10 — Compliance and Documents');
 
 h2('Document Vault');
 body('Navigate to Documents. Upload and store any file against a truck, driver, or trip:');
@@ -337,8 +388,8 @@ bullet(['Zambia Entry — T1 document, auto-created when trip reaches At Zambia 
 h2('Audit Log');
 body('Navigate to Settings → Audit Log. Every action in the system (who created, edited, or deleted what, and when) is permanently recorded. Useful for accountability, dispute resolution, and compliance audits.');
 
-// ─── PART 10: USERS ──────────────────────────────────────────────────────────
-h1('Part 10 — Users and Access Control');
+// ─── PART 11: USERS ──────────────────────────────────────────────────────────
+h1('Part 11 — Users and Access Control');
 
 h2('User Roles');
 doc._tableRow = 0;
@@ -359,8 +410,8 @@ body('From the Users list, open the dropdown menu next to any user and select Re
 h2('Locking Accounts');
 body('From the Users dropdown, select Lock Account to immediately prevent a user from logging in. Active sessions expire. Unlock at any time from the same menu. Use this when a staff member leaves or a device is compromised.');
 
-// ─── PART 11: GL REFERENCE ────────────────────────────────────────────────────
-h1('Part 11 — What Hits the General Ledger');
+// ─── PART 12: GL REFERENCE ────────────────────────────────────────────────────
+h1('Part 12 — What Hits the General Ledger');
 body('Every financial event in the system auto-posts a double-entry journal entry. Nothing needs to be posted manually for standard operations.');
 
 doc._tableRow = 0;

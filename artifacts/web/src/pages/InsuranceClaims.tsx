@@ -10,8 +10,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, cn } from "@/lib/utils";
-import { Plus, Pencil, Trash2, ShieldCheck, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, ShieldCheck, ChevronDown, Sparkles, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
 
 interface Claim {
   id: number;
@@ -34,6 +35,25 @@ interface Claim {
 
 interface Truck { id: number; plateNumber: string; }
 
+interface CompanyPolicy {
+  id: number;
+  policyType: string;
+  policyTypeLabel: string;
+  insurerName: string;
+  policyNumber: string;
+  isActive: boolean;
+  expiryDate: string | null;
+}
+
+// Maps claim type → the company policy type that covers it
+const CLAIM_TO_POLICY_TYPE: Record<string, string> = {
+  cargo_loss:   "cargo_transit",
+  accident:     "vehicle_fleet",
+  theft:        "vehicle_fleet",
+  third_party:  "third_party",
+  other:        "",
+};
+
 const CLAIM_TYPE_LABEL: Record<string, string> = {
   cargo_loss: "Cargo Loss", accident: "Accident", theft: "Theft",
   third_party: "Third Party", other: "Other",
@@ -55,6 +75,7 @@ const TODAY = format(new Date(), "yyyy-MM-dd");
 
 const EMPTY_FORM = {
   truckId: "", tripId: "", claimType: "accident", status: "draft",
+  companyPolicyId: "",
   insurerName: "", policyNumber: "",
   amountClaimed: "", amountSettled: "",
   incidentDate: TODAY, filedDate: "", settledDate: "",
@@ -66,6 +87,7 @@ type FilterStatus = "all" | string;
 export default function InsuranceClaims() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
 
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [filterType, setFilterType] = useState<FilterStatus>("all");
@@ -86,6 +108,30 @@ export default function InsuranceClaims() {
     queryFn: () => fetch("/api/trucks", { credentials: "include" }).then((r) => r.json()),
   });
 
+  const { data: companyPolicies = [] } = useQuery<CompanyPolicy[]>({
+    queryKey: ["/api/company-insurance-policies"],
+    queryFn: () => fetch("/api/company-insurance-policies", { credentials: "include" }).then((r) => r.json()),
+  });
+
+  // Given a claim type, find the best matching active company policy
+  function suggestPolicy(claimType: string): CompanyPolicy | null {
+    const targetType = CLAIM_TO_POLICY_TYPE[claimType];
+    if (!targetType) return null;
+    return (companyPolicies as CompanyPolicy[]).find(
+      (p) => p.policyType === targetType && p.isActive
+    ) ?? null;
+  }
+
+  function applyPolicy(policy: CompanyPolicy | null, currentForm: typeof EMPTY_FORM) {
+    if (!policy) return { ...currentForm, companyPolicyId: "" };
+    return {
+      ...currentForm,
+      companyPolicyId: String(policy.id),
+      insurerName: policy.insurerName,
+      policyNumber: policy.policyNumber,
+    };
+  }
+
   const filtered = useMemo(() => claims.filter((c) => {
     if (filterStatus !== "all" && c.status !== filterStatus) return false;
     if (filterType !== "all" && c.claimType !== filterType) return false;
@@ -97,7 +143,9 @@ export default function InsuranceClaims() {
 
   function openCreate() {
     setEditing(null);
-    setForm({ ...EMPTY_FORM });
+    const base = { ...EMPTY_FORM };
+    const suggested = suggestPolicy(base.claimType);
+    setForm(applyPolicy(suggested, base));
     setShowDialog(true);
   }
 
@@ -108,6 +156,7 @@ export default function InsuranceClaims() {
       tripId: c.tripId?.toString() ?? "",
       claimType: c.claimType,
       status: c.status,
+      companyPolicyId: (c as any).companyPolicyId?.toString() ?? "",
       insurerName: c.insurerName ?? "",
       policyNumber: c.policyNumber ?? "",
       amountClaimed: c.amountClaimed?.toString() ?? "",
@@ -121,6 +170,27 @@ export default function InsuranceClaims() {
     setShowDialog(true);
   }
 
+  function handleClaimTypeChange(newType: string) {
+    const suggested = suggestPolicy(newType);
+    setForm((p) => applyPolicy(suggested, { ...p, claimType: newType }));
+  }
+
+  function handlePolicySelect(policyIdStr: string) {
+    if (policyIdStr === "none" || !policyIdStr) {
+      setForm((p) => ({ ...p, companyPolicyId: "", insurerName: "", policyNumber: "" }));
+      return;
+    }
+    const policy = (companyPolicies as CompanyPolicy[]).find((p) => String(p.id) === policyIdStr);
+    if (policy) {
+      setForm((p) => ({
+        ...p,
+        companyPolicyId: policyIdStr,
+        insurerName: policy.insurerName,
+        policyNumber: policy.policyNumber,
+      }));
+    }
+  }
+
   async function handleSave() {
     if (!form.claimType) { toast({ title: "Claim type required", variant: "destructive" }); return; }
     setSaving(true);
@@ -128,6 +198,7 @@ export default function InsuranceClaims() {
       const payload: Record<string, unknown> = {
         claimType: form.claimType,
         status: form.status,
+        companyPolicyId: form.companyPolicyId ? parseInt(form.companyPolicyId) : null,
         insurerName: form.insurerName || null,
         policyNumber: form.policyNumber || null,
         amountClaimed: form.amountClaimed ? form.amountClaimed : null,
@@ -288,7 +359,7 @@ export default function InsuranceClaims() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Claim Type</Label>
-                <Select value={form.claimType} onValueChange={(v) => setForm((p) => ({ ...p, claimType: v }))}>
+                <Select value={form.claimType} onValueChange={handleClaimTypeChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Object.entries(CLAIM_TYPE_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -306,6 +377,51 @@ export default function InsuranceClaims() {
               </div>
             </div>
 
+            {/* Smart policy linker */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label>Insurance Policy</Label>
+                {(companyPolicies as CompanyPolicy[]).length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowDialog(false); navigate("/company-insurance-policies"); }}
+                    className="text-xs text-primary flex items-center gap-1 hover:underline"
+                  >
+                    <ExternalLink className="w-3 h-3" /> Add company policies
+                  </button>
+                )}
+              </div>
+              {(companyPolicies as CompanyPolicy[]).length > 0 ? (
+                <>
+                  <Select value={form.companyPolicyId || "none"} onValueChange={handlePolicySelect}>
+                    <SelectTrigger><SelectValue placeholder="Select policy…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No linked policy / manual entry</SelectItem>
+                      {(companyPolicies as CompanyPolicy[]).map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.policyTypeLabel} — {p.insurerName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {form.companyPolicyId && (
+                    <p className="text-xs text-emerald-500 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Insurer and policy number auto-filled from linked policy
+                    </p>
+                  )}
+                  {!form.companyPolicyId && CLAIM_TO_POLICY_TYPE[form.claimType] && (
+                    <p className="text-xs text-amber-500">
+                      No matching {form.claimType === "cargo_loss" ? "cargo" : form.claimType === "third_party" ? "third-party" : "fleet vehicle"} policy found. You can enter insurer details manually below, or add the policy first.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground py-1.5 px-3 rounded-lg border border-dashed border-border">
+                  No company policies configured yet — enter insurer details manually, or set up your policies first.
+                </p>
+              )}
+            </div>
+
             <div className="space-y-1">
               <Label>Truck</Label>
               <Select value={form.truckId || "none"} onValueChange={(v) => setForm((p) => ({ ...p, truckId: v === "none" ? "" : v }))}>
@@ -319,11 +435,11 @@ export default function InsuranceClaims() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Insurer</Label>
+                <Label>Insurer {form.companyPolicyId ? <span className="text-xs text-muted-foreground">(from policy)</span> : null}</Label>
                 <Input value={form.insurerName} onChange={f("insurerName")} placeholder="e.g. Hollard Insurance" />
               </div>
               <div className="space-y-1">
-                <Label>Policy Number</Label>
+                <Label>Policy Number {form.companyPolicyId ? <span className="text-xs text-muted-foreground">(from policy)</span> : null}</Label>
                 <Input value={form.policyNumber} onChange={f("policyNumber")} placeholder="e.g. HI-2024-001" />
               </div>
             </div>
