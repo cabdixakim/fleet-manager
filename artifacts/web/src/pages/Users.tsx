@@ -128,10 +128,16 @@ export default function UsersPage() {
     queryFn: () => fetch("/api/users", { credentials: "include" }).then((r) => r.json()),
   });
 
+  const [createError, setCreateError] = useState("");
   const createUser = useMutation({
-    mutationFn: (data: UserForm) =>
-      fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) }).then((r) => r.json()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["users"] }); setAddOpen(false); setForm(defaultForm()); },
+    mutationFn: async (data: UserForm) => {
+      const r = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data) });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json.error ?? "Failed to create user");
+      return json;
+    },
+    onSuccess: () => { setCreateError(""); qc.invalidateQueries({ queryKey: ["users"] }); setAddOpen(false); setForm(defaultForm()); },
+    onError: (e: Error) => setCreateError(e.message),
   });
 
   const updateUser = useMutation({
@@ -374,8 +380,9 @@ export default function UsersPage() {
               </Select>
             </div>
           </div>
+          {createError && <p className="text-sm text-red-500">{createError}</p>}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setCreateError(""); }}>Cancel</Button>
             <Button onClick={() => createUser.mutate(form)} disabled={createUser.isPending}>
               {createUser.isPending ? "Creating..." : "Create User"}
             </Button>
