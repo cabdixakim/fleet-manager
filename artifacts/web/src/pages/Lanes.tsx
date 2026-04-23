@@ -136,7 +136,7 @@ export default function Lanes() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-2 max-w-2xl">
+          <div className="space-y-2 max-w-2xl mx-auto">
             {lanes.map((lane) => (
               <div
                 key={lane.id}

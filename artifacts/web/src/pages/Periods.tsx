@@ -155,7 +155,7 @@ export default function Periods() {
             )}
           </div>
         ) : (
-          <div className="space-y-6 max-w-3xl">
+          <div className="space-y-6 max-w-4xl mx-auto">
             {openPeriods.length > 0 && (
               <div>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Open Periods</h3>

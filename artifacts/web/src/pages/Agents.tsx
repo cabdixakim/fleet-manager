@@ -258,7 +258,7 @@ export default function Agents() {
             </Button>
           </div>
         ) : (
-          <div className="space-y-2 max-w-2xl">
+          <div className="space-y-2 max-w-2xl mx-auto">
             {agents.map((agent: any) => (
               <BrokerCard key={agent.id} agent={agent} />
             ))}

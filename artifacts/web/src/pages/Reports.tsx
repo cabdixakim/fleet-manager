@@ -395,7 +395,7 @@ export default function Reports() {
                     ...(netShort !== 0 ? [{ label: "Short Charge Income (Net)", sub: `${formatCurrency(subShort)} from subs${clientShort > 0 ? ` − ${formatCurrency(clientShort)} to clients` : ""}`, amount: netShort }] : []),
                   ];
                   return (
-                    <div className="bg-card border border-border rounded-xl overflow-hidden max-w-2xl">
+                    <div className="bg-card border border-border rounded-xl overflow-hidden max-w-2xl mx-auto">
                       {/* Document header */}
                       <div className="text-center py-5 border-b border-border/60">
                         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">Optima Transport LLC</p>

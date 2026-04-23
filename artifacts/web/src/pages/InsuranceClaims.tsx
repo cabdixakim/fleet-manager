@@ -259,7 +259,7 @@ export default function InsuranceClaims() {
         }
       />
       <PageContent>
-        <div className="space-y-5 max-w-5xl">
+        <div className="space-y-5 max-w-5xl mx-auto">
           {/* Summary strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[

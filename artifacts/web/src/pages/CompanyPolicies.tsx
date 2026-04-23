@@ -167,7 +167,7 @@ export default function CompanyPolicies() {
         }
       />
       <PageContent>
-        <div className="max-w-4xl space-y-3">
+        <div className="max-w-4xl space-y-3 mx-auto">
           {isLoading ? (
             <div className="text-sm text-muted-foreground py-8 text-center">Loading...</div>
           ) : policies.length === 0 ? (

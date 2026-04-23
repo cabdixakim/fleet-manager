@@ -190,7 +190,7 @@ export default function MyTasks() {
             <p className="text-sm text-muted-foreground">You have no tasks assigned to you right now.</p>
           </div>
         ) : (
-          <div className="max-w-2xl space-y-6">
+          <div className="max-w-2xl space-y-6 mx-auto">
             {overdue.length > 0 && (
               <Section title="Overdue" tasks={overdue} icon={AlertTriangle}
                 onComplete={(id) => completeTask.mutate(id)} onReopen={(id) => reopenTask.mutate(id)} />

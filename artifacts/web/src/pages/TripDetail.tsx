@@ -1358,7 +1358,7 @@ export default function TripDetail() {
 
         {/* ── Discussion Tab ── */}
         {activeTab === "discussion" && (
-          <div className="max-w-2xl">
+          <div className="max-w-3xl mx-auto">
             <TripDiscussion tripId={parseInt(id)} />
           </div>
         )}

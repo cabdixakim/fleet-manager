@@ -348,7 +348,7 @@ export default function SubcontractorStatement() {
         ) : !statement ? (
           <div className="text-center py-16 text-muted-foreground">Failed to load statement.</div>
         ) : (
-          <div className="space-y-6 max-w-5xl">
+          <div className="space-y-6 max-w-5xl mx-auto">
             {/* Tabs */}
             <div className="flex border-b border-border gap-1">
               {(["statement", "expenses"] as const).map((tab) => (

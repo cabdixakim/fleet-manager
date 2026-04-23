@@ -473,7 +473,7 @@ export default function FinancialStatements() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "balance" && (
           bsLoading ? <LoadingState /> : !bs ? <EmptyState /> : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
               {/* ASSETS */}
               <ReportSheet onExport={handleExport} onPrint={() => window.print()} maxW="full">
                 <StatementHeader title="Assets" period={`As of ${fmtDisplayDate(to)}`} />

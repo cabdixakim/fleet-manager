@@ -178,7 +178,7 @@ export default function SettingsPage() {
         }
       />
       <PageContent>
-        <div className="max-w-2xl space-y-6 pb-10">
+        <div className="max-w-2xl space-y-6 pb-10 mx-auto">
 
           {/* Company Identity */}
           <div className="bg-card border border-border rounded-xl p-6">

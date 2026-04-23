@@ -95,7 +95,7 @@ export default function OpeningBalances() {
         subtitle="Starting balances when going live on this system"
       />
       <PageContent>
-        <div className="max-w-xl space-y-5">
+        <div className="max-w-xl space-y-5 mx-auto">
 
           {/* As-of date */}
           <div className="bg-card border border-border rounded-xl p-5">

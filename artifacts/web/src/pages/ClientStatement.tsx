@@ -301,7 +301,7 @@ export default function ClientStatement() {
         ) : !statement ? (
           <div className="text-center py-16 text-muted-foreground">Failed to load statement.</div>
         ) : (
-          <div className="space-y-6 max-w-5xl">
+          <div className="space-y-6 max-w-5xl mx-auto">
             {/* KPI cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
