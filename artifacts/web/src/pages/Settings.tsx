@@ -79,18 +79,21 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await fetch("/api/company-settings", {
+      const payload = {
+        ...form,
+        activeClearanceAgencyId: form.activeClearanceAgencyId ? parseInt(form.activeClearanceAgencyId) : null,
+      };
+      const res = await fetch("/api/company-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          ...form,
-          activeClearanceAgencyId: form.activeClearanceAgencyId ? parseInt(form.activeClearanceAgencyId) : null,
-        }),
+        body: JSON.stringify(payload),
       });
-      qc.invalidateQueries({ queryKey: ["company-settings-sidebar"] });
-      qc.invalidateQueries({ queryKey: ["company-settings-header"] });
-      qc.invalidateQueries({ queryKey: ["company-settings-fleet-mode"] });
+      const saved = await res.json();
+      qc.setQueryData(["company-settings-sidebar"], saved);
+      qc.setQueryData(["company-settings-header"], saved);
+      qc.setQueryData(["company-settings-fleet-mode"], saved);
+      qc.setQueryData(["/api/company-settings"], saved);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } finally {
