@@ -306,7 +306,7 @@ export default function Lanes() {
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">#{i + 1}</span>
                           <Input
-                            placeholder="Checkpoint name (e.g. Chirundu Border)"
+                            placeholder="e.g. Tunduma Border"
                             value={cp.name}
                             onChange={e => updateCheckpoint(i, { name: e.target.value })}
                             className="flex-1 h-8 text-sm"
