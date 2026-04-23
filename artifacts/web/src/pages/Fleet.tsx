@@ -136,7 +136,7 @@ function UtilizationBar({ trucks }: { trucks: any[] }) {
   );
 }
 
-function TruckCard({
+function TruckRow({
   truck,
   driverName,
   onEdit,
@@ -163,7 +163,8 @@ function TruckCard({
     ? derivedLocation(truck.activeTrip.tripStatus, truck.activeTrip.route)
     : truck.currentLocation || null;
 
-  const handleLocClick = () => {
+  const handleLocClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isOnTrip) return;
     setLocValue(truck.currentLocation ?? "");
     setEditingLoc(true);
@@ -178,155 +179,131 @@ function TruckCard({
   };
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden hover:border-primary/30 transition-colors group">
-      <div
-        className="p-4 cursor-pointer"
-        onClick={() => navigate(`/fleet/${truck.id}`)}
-      >
-        <div className="flex items-start gap-3">
-          {/* Status dot */}
-          <div className="mt-1.5 shrink-0">
-            <div className={cn("w-2.5 h-2.5 rounded-full", STATUS_DOT[truck.status] ?? "bg-muted-foreground")} />
+    <tr
+      className="border-b border-border hover:bg-secondary/40 cursor-pointer transition-colors group"
+      onClick={() => navigate(`/fleet/${truck.id}`)}
+    >
+      {/* Status dot */}
+      <td className="pl-4 pr-2 py-3 w-6">
+        <div className={cn("w-2 h-2 rounded-full", STATUS_DOT[truck.status] ?? "bg-muted-foreground")} />
+      </td>
+
+      {/* Plate + Trailer */}
+      <td className="px-2 py-3 min-w-[120px]">
+        <span className="font-mono font-semibold text-sm text-foreground">{truck.plateNumber}</span>
+        {truck.trailerPlate && (
+          <span className="block text-[11px] text-muted-foreground font-mono">{truck.trailerPlate}</span>
+        )}
+      </td>
+
+      {/* Status badge */}
+      <td className="px-2 py-3 w-28">
+        <span className={cn(
+          "text-[10px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap",
+          STATUS_COLOR[truck.status] ?? "bg-muted text-muted-foreground border-border"
+        )}>
+          {STATUS_LABEL[truck.status] ?? truck.status}
+        </span>
+        {isOnTrip && truck.activeTrip && (
+          <span className={cn(
+            "block mt-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded w-fit",
+            TRIP_STATUS_COLOR[truck.activeTrip.tripStatus] ?? "bg-muted text-muted-foreground"
+          )}>
+            {TRIP_STATUS_LABEL[truck.activeTrip.tripStatus] ?? truck.activeTrip.tripStatus}
+          </span>
+        )}
+      </td>
+
+      {/* Ownership */}
+      <td className="px-2 py-3 text-xs text-muted-foreground max-w-[120px]">
+        {truck.companyOwned ? (
+          <span className="flex items-center gap-1 text-primary/70">
+            <Building2 className="w-3 h-3 shrink-0" />Company
+          </span>
+        ) : (
+          <span className="truncate block">{truck.subcontractorName ?? "—"}</span>
+        )}
+      </td>
+
+      {/* Driver */}
+      <td className="px-2 py-3 w-36" onClick={(e) => e.stopPropagation()}>
+        <button
+          className={cn(
+            "flex items-center gap-1 text-xs hover:text-primary transition-colors",
+            !driverName && "text-amber-400 hover:text-amber-300"
+          )}
+          onClick={(e) => { e.stopPropagation(); onDriverHistory(); }}
+        >
+          <User className="w-3 h-3 shrink-0" />
+          <span className="truncate">{driverName ?? "Assign driver"}</span>
+        </button>
+      </td>
+
+      {/* Location */}
+      <td className="px-2 py-3 text-xs text-muted-foreground max-w-[160px]" onClick={(e) => e.stopPropagation()}>
+        {isOnTrip ? (
+          <span className="text-primary font-medium flex items-center gap-1">
+            <MapPin className="w-3 h-3 shrink-0" />{location}
+          </span>
+        ) : editingLoc ? (
+          <div className="flex items-center gap-1">
+            <input
+              ref={locInputRef}
+              value={locValue}
+              onChange={(e) => setLocValue(e.target.value)}
+              onBlur={handleLocSave}
+              onKeyDown={(e) => { if (e.key === "Enter") handleLocSave(); if (e.key === "Escape") setEditingLoc(false); }}
+              className="text-xs bg-secondary/60 border border-primary/40 rounded px-2 py-0.5 outline-none text-foreground w-full max-w-36"
+              placeholder="Location…"
+            />
+            {savingLocationId === truck.id && <Loader2 className="w-3 h-3 animate-spin shrink-0" />}
           </div>
+        ) : (
+          <button onClick={handleLocClick} className="flex items-center gap-1 hover:text-foreground transition-colors text-left w-full" title="Click to update">
+            <MapPin className="w-3 h-3 shrink-0" />
+            <span className="truncate">{location ?? <span className="italic text-muted-foreground/40">—</span>}</span>
+          </button>
+        )}
+      </td>
 
-          {/* Main content */}
-          <div className="flex-1 min-w-0 space-y-2">
-            {/* Row 1: plate + status + actions */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-foreground font-mono text-sm tracking-wide">{truck.plateNumber}</span>
-              {truck.trailerPlate && (
-                <span className="text-xs text-muted-foreground font-mono">/ {truck.trailerPlate}</span>
-              )}
-              <span className={cn(
-                "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                STATUS_COLOR[truck.status] ?? "bg-muted text-muted-foreground border-border"
-              )}>
-                {STATUS_LABEL[truck.status] ?? truck.status}
-              </span>
-              <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={onDriverHistory}
-                  title="Driver history"
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                >
-                  <History className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={onEdit}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                {truck.status !== "retired" && (
-                  <button
-                    onClick={onRetire}
-                    title="Retire truck"
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
+      {/* Last delivery */}
+      <td className="px-2 py-3 text-xs text-muted-foreground w-28 whitespace-nowrap">
+        {truck.status !== "retired" && (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3 shrink-0" />{daysSinceDelivery(truck.lastDeliveredAt)}
+          </span>
+        )}
+      </td>
 
-            {/* Row 2: location */}
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <MapPin className={cn("w-3 h-3 shrink-0", isOnTrip ? "text-primary" : "text-muted-foreground")} />
-              {isOnTrip ? (
-                <span className="text-xs text-primary font-medium">{location}</span>
-              ) : editingLoc ? (
-                <div className="flex items-center gap-1 flex-1">
-                  <input
-                    ref={locInputRef}
-                    value={locValue}
-                    onChange={(e) => setLocValue(e.target.value)}
-                    onBlur={handleLocSave}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleLocSave(); if (e.key === "Escape") { setEditingLoc(false); } }}
-                    className="text-xs bg-secondary/60 border border-primary/40 rounded px-2 py-0.5 outline-none text-foreground flex-1 min-w-0 max-w-48"
-                    placeholder="e.g. Ndola Depot, Lusaka Yard..."
-                  />
-                  {savingLocationId === truck.id && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground shrink-0" />}
-                </div>
-              ) : location ? (
-                <button
-                  onClick={handleLocClick}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors text-left"
-                  title="Click to update location"
-                >
-                  {location}
-                </button>
-              ) : (
-                <button
-                  onClick={handleLocClick}
-                  className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors italic"
-                >
-                  Set current location…
-                </button>
-              )}
-            </div>
+      {/* Active trip link */}
+      <td className="px-2 py-3 text-xs w-24" onClick={(e) => e.stopPropagation()}>
+        {isOnTrip && truck.activeTrip && (
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/batches/${truck.activeTrip.batchId}`); }}
+            className="flex items-center gap-0.5 text-[11px] text-primary hover:underline whitespace-nowrap"
+          >
+            {getRouteShort(truck.activeTrip.route) || truck.activeTrip.batchName} <ArrowRight className="w-3 h-3" />
+          </button>
+        )}
+      </td>
 
-            {/* Row 3: active trip info (only when on_trip) */}
-            {isOnTrip && truck.activeTrip && (
-              <div
-                className="flex items-center gap-2 flex-wrap"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <span className="text-xs text-muted-foreground truncate max-w-[160px]">{truck.activeTrip.batchName}</span>
-                {truck.activeTrip.route && (
-                  <>
-                    <span className="text-muted-foreground/40 text-xs">·</span>
-                    <span className="text-xs text-muted-foreground">{getRouteShort(truck.activeTrip.route)}</span>
-                  </>
-                )}
-                <span className={cn(
-                  "text-[10px] font-semibold px-1.5 py-0.5 rounded",
-                  TRIP_STATUS_COLOR[truck.activeTrip.tripStatus] ?? "bg-muted text-muted-foreground"
-                )}>
-                  {TRIP_STATUS_LABEL[truck.activeTrip.tripStatus] ?? truck.activeTrip.tripStatus}
-                </span>
-                <button
-                  onClick={() => navigate(`/batches/${truck.activeTrip.batchId}`)}
-                  className="flex items-center gap-0.5 text-[10px] text-primary hover:underline shrink-0"
-                >
-                  View Batch <ArrowRight className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Row 4: driver + last delivery */}
-            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap" onClick={(e) => e.stopPropagation()}>
-              {truck.companyOwned ? (
-                <span className="flex items-center gap-1 text-primary/60">
-                  <Building2 className="w-3 h-3" />Company Fleet
-                </span>
-              ) : (
-                <span className="truncate max-w-[120px]">{truck.subcontractorName ?? "No subcontractor"}</span>
-              )}
-              <span className="text-muted-foreground/30">·</span>
-              <button
-                className={cn(
-                  "flex items-center gap-1 hover:text-primary transition-colors",
-                  !driverName && "text-amber-400 hover:text-amber-300"
-                )}
-                onClick={(e) => { e.stopPropagation(); onDriverHistory(); }}
-              >
-                <User className="w-3 h-3" />
-                {driverName ?? "Assign driver"}
-              </button>
-              {truck.status !== "retired" && (
-                <>
-                  <span className="text-muted-foreground/30">·</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {daysSinceDelivery(truck.lastDeliveredAt)}
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
+      {/* Actions */}
+      <td className="px-2 pr-3 py-3 w-20" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={(e) => { e.stopPropagation(); onDriverHistory(); }} title="Assign driver" className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <History className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Edit" className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+          {truck.status !== "retired" && (
+            <button onClick={(e) => { e.stopPropagation(); onRetire(); }} title="Retire" className="p-1.5 rounded text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
@@ -555,10 +532,10 @@ export default function Fleet() {
           </div>
         </div>
 
-        {/* Truck list */}
+        {/* Truck table */}
         {isLoading ? (
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => <div key={i} className="h-28 bg-secondary/30 animate-pulse rounded-xl" />)}
+          <div className="space-y-1">
+            {[...Array(8)].map((_, i) => <div key={i} className="h-10 bg-secondary/30 animate-pulse rounded" />)}
           </div>
         ) : filtered.length === 0 ? (
           <div className="bg-card border border-border rounded-2xl flex flex-col items-center justify-center py-16 text-center">
@@ -571,19 +548,36 @@ export default function Fleet() {
             )}
           </div>
         ) : (
-          <div className="space-y-2">
-            {filtered.map((t: any) => (
-              <TruckCard
-                key={t.id}
-                truck={t}
-                driverName={getCurrentDriverName(t.id)}
-                onEdit={() => { setEditTruck(t); setOriginalSubId(t.subcontractorId); setOriginalCompanyOwned(!!t.companyOwned); }}
-                onRetire={() => setConfirmDelete(t)}
-                onDriverHistory={() => setShowDriverDialog({ truck: t })}
-                onLocationSave={handleLocationSave}
-                savingLocationId={savingLocationId}
-              />
-            ))}
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-secondary/40">
+                  <th className="pl-4 pr-2 py-2 w-6" />
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Truck</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Status</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Owner</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Driver</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Location</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Last Trip</th>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Trip</th>
+                  <th className="px-2 pr-3 py-2 w-20" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t: any) => (
+                  <TruckRow
+                    key={t.id}
+                    truck={t}
+                    driverName={getCurrentDriverName(t.id)}
+                    onEdit={() => { setEditTruck(t); setOriginalSubId(t.subcontractorId); setOriginalCompanyOwned(!!t.companyOwned); }}
+                    onRetire={() => setConfirmDelete(t)}
+                    onDriverHistory={() => setShowDriverDialog({ truck: t })}
+                    onLocationSave={handleLocationSave}
+                    savingLocationId={savingLocationId}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </PageContent>
