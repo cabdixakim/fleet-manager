@@ -326,7 +326,7 @@ router.post("/:id/nominate", async (req, res, next) => {
 
     // Pre-fetch batch route → lane checkpoints once (all nominations share the same batch)
     const [batchRow] = await db.select({ route: batchesTable.route }).from(batchesTable).where(eq(batchesTable.id, batchId));
-    let laneCheckpoints: Array<{ seq: number; name: string; country: string | null; documentType: string | null; feeUsd: number | null; clearanceRequired: boolean }> = [];
+    let laneCheckpoints: Array<{ seq: number; name: string; country: string | null; documentType: string | null; feeUsd: number | null; clearanceRequired: boolean; clearanceAgencyId: number | null }> = [];
     if (batchRow?.route) {
       const [lane] = await db.select({ checkpoints: lanesTable.checkpoints }).from(lanesTable).where(eq(lanesTable.value, batchRow.route));
       if (lane?.checkpoints?.length) {
@@ -355,6 +355,7 @@ router.post("/:id/nominate", async (req, res, next) => {
               documentType: cp.documentType ?? null,
               feeUsd: cp.feeUsd != null ? cp.feeUsd.toString() : null,
               clearanceRequired: cp.clearanceRequired,
+              clearanceAgencyId: cp.clearanceAgencyId ?? null,
             }))
           );
         }

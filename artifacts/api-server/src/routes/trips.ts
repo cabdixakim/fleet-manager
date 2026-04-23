@@ -446,9 +446,13 @@ router.put("/:id", async (req, res, next) => {
                   eq(tripExpensesTable.description, feeDesc),
                 ));
               if (existingFee.length === 0) {
-                const [cs] = await db.select({ agencyId: companySettingsTable.activeClearanceAgencyId })
-                  .from(companySettingsTable).limit(1);
-                const agencyId = cs?.agencyId ?? null;
+                // Agency priority: checkpoint-level → global active clearance agency → cash
+                let agencyId: number | null = (cp as any).clearanceAgencyId ?? null;
+                if (!agencyId) {
+                  const [cs] = await db.select({ agencyId: companySettingsTable.activeClearanceAgencyId })
+                    .from(companySettingsTable).limit(1);
+                  agencyId = cs?.agencyId ?? null;
+                }
                 const paymentMethod = agencyId ? "fuel_credit" : "cash";
                 const [newFee] = await db.insert(tripExpensesTable).values({
                   tripId: id,

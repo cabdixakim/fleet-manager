@@ -14,6 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pencil, Trash2, Plus, Route, GripVertical, X, ChevronDown, ChevronUp } from "lucide-react";
 
 interface LaneCheckpoint {
@@ -23,6 +24,7 @@ interface LaneCheckpoint {
   documentType: string | null;
   feeUsd: number | null;
   clearanceRequired: boolean;
+  clearanceAgencyId: number | null;
 }
 
 interface Lane {
@@ -36,7 +38,7 @@ interface Lane {
   checkpoints: LaneCheckpoint[];
 }
 
-const emptyCheckpoint = (): LaneCheckpoint => ({ seq: 0, name: "", country: "", documentType: null, feeUsd: null, clearanceRequired: false });
+const emptyCheckpoint = (): LaneCheckpoint => ({ seq: 0, name: "", country: "", documentType: null, feeUsd: null, clearanceRequired: false, clearanceAgencyId: null });
 const emptyForm = { label: "", short: "", chart: "" };
 
 function slugPreview(label: string) {
@@ -63,6 +65,11 @@ export default function Lanes() {
     queryKey: ["/api/lanes/all"],
     queryFn: () => fetch("/api/lanes/all", { credentials: "include" }).then(r => r.json()),
     onSuccess: (data) => initLanes(data.filter(l => l.isActive)),
+  });
+
+  const { data: suppliers = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/suppliers"],
+    queryFn: () => fetch("/api/suppliers", { credentials: "include" }).then(r => r.json()),
   });
 
   const addMutation = useMutation({
@@ -346,8 +353,23 @@ export default function Lanes() {
                             />
                           </div>
                         </div>
-                        {cp.clearanceRequired && !cp.documentType && (
-                          <p className="text-[10px] text-amber-500">Set a Doc Type so the clearance record is labelled correctly (e.g. T1, TR8).</p>
+                        {cp.clearanceRequired && (
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Clearance Agency <span className="text-muted-foreground/60">(optional — overrides global setting)</span></Label>
+                            <Select
+                              value={cp.clearanceAgencyId != null ? String(cp.clearanceAgencyId) : "none"}
+                              onValueChange={v => updateCheckpoint(i, { clearanceAgencyId: v === "none" ? null : parseInt(v) })}
+                            >
+                              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Use global active agency" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Use global active agency</SelectItem>
+                                {suppliers.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {!cp.documentType && (
+                              <p className="text-[10px] text-amber-500">Set a Doc Type so the clearance record is labelled correctly (e.g. T1, TR8).</p>
+                            )}
+                          </div>
                         )}
                       </div>
                     ))}

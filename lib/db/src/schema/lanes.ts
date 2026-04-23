@@ -9,6 +9,7 @@ export interface LaneCheckpoint {
   documentType: string | null;
   feeUsd: number | null;
   clearanceRequired: boolean;
+  clearanceAgencyId: number | null;
 }
 
 export const lanesTable = pgTable("lanes", {
