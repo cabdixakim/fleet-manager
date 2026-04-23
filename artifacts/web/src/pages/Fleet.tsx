@@ -416,7 +416,7 @@ export default function Fleet() {
     if (!showDriverDialog) return;
     await engageDriver({ truckId: showDriverDialog.truck.id, driverId });
     qc.invalidateQueries({ queryKey: ["/api/truck-driver-engagements", showDriverDialog.truck.id] });
-    qc.invalidateQueries({ queryKey: ["/api/truck-driver-engagements-all-current"] });
+    qc.invalidateQueries({ queryKey: ["/api/truck-driver-engagements/all-current"] });
     qc.invalidateQueries({ queryKey: ["/api/trucks"] });
   };
 

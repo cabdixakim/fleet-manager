@@ -65,9 +65,9 @@ export function useGetDrivers() {
 
 export function useGetAllCurrentTruckDriverAssignments() {
   return useQuery({
-    queryKey: ["/api/truck-driver-engagements-all-current"],
+    queryKey: ["/api/truck-driver-engagements/all-current"],
     queryFn: async () => {
-      const res = await fetch(`/api/truck-driver-engagements-all-current`);
+      const res = await fetch(`/api/truck-driver-engagements/all-current`);
       return res.json();
     },
   });

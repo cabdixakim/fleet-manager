@@ -70,7 +70,6 @@ router.use("/users", usersRouter);
 router.use("/setup", setupRouter);
 router.use("/audit-logs", auditLogsRouter);
 router.use("/truck-driver-engagements", truckDriverAssignmentsRouter);
-router.use("/truck-driver-engagements-all-current", truckDriverAssignmentsRouter);
 router.use("/periods", periodsRouter);
 router.use("/nominations", nominationsRouter);
 router.use("/agents", agentsRouter);
