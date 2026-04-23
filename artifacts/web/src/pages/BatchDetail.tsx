@@ -30,7 +30,9 @@ const BATCH_STAGE_LABELS: Record<string, string> = {
   invoiced: "Invoiced",
 };
 
-const TRIP_NEXT_STATUS: Record<string, { status: string; label: string; needsQty?: "loaded" | "delivered" }> = {
+type TripNextResult = { status: string; label: string; needsQty?: "loaded" | "delivered" };
+
+const LEGACY_TRIP_NEXT: Record<string, TripNextResult> = {
   nominated:       { status: "loading",        label: "Begin Loading" },
   loading:         { status: "loaded",          label: "Mark Loaded",   needsQty: "loaded" },
   loaded:          { status: "in_transit",      label: "Dispatch" },
@@ -39,16 +41,54 @@ const TRIP_NEXT_STATUS: Record<string, { status: string; label: string; needsQty
   at_drc_entry:    { status: "delivered",      label: "Mark Delivered", needsQty: "delivered" },
 };
 
+function getTripNext(trip: any): TripNextResult | undefined {
+  const cps: Array<{ seq: number; name: string }> = trip.tripCheckpoints ?? [];
+  if (cps.length === 0) return LEGACY_TRIP_NEXT[trip.status];
+  const order = [
+    "nominated", "loading", "loaded", "in_transit",
+    ...cps.map((c) => `at_checkpoint_${c.seq}`),
+    "delivered",
+  ];
+  const idx = order.indexOf(trip.status);
+  // If current status isn't in dynamic order (e.g. legacy at_zambia_entry on a trip that now has checkpoints),
+  // fall back to legacy map so the trip can still be advanced
+  if (idx === -1) return LEGACY_TRIP_NEXT[trip.status];
+  if (idx >= order.length - 1) return undefined;
+  const nextStatus = order[idx + 1];
+  // Map standard transitions that need qty prompt
+  if (nextStatus === "loaded") return { status: "loaded", label: "Mark Loaded", needsQty: "loaded" };
+  if (nextStatus === "delivered") return { status: "delivered", label: "Mark Delivered", needsQty: "delivered" };
+  // Dynamic checkpoint labels
+  if (nextStatus.startsWith("at_checkpoint_")) {
+    const seq = parseInt(nextStatus.split("_").pop()!);
+    const cp = cps.find((c) => c.seq === seq);
+    return { status: nextStatus, label: `At ${cp?.name ?? `Checkpoint ${seq}`}` };
+  }
+  const labels: Record<string, string> = { loading: "Begin Loading", in_transit: "Dispatch" };
+  return { status: nextStatus, label: labels[nextStatus] ?? nextStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) };
+}
+
+function getTripStatusLabel(trip: any): string {
+  const cps: Array<{ seq: number; name: string }> = trip.tripCheckpoints ?? [];
+  const s: string = trip.status;
+  const match = s.match(/^at_checkpoint_(\d+)$/);
+  if (match && cps.length > 0) {
+    const seq = parseInt(match[1]);
+    const cp = cps.find((c) => c.seq === seq);
+    return `At ${cp?.name ?? `Checkpoint ${seq}`}`;
+  }
+  const STATIC: Record<string, string> = {
+    nominated: "Nominated", loading: "Loading", loaded: "Loaded", in_transit: "In Transit",
+    at_zambia_entry: "At Zambia", at_drc_entry: "At DRC",
+    delivered: "Delivered", cancelled: "Cancelled", amended_out: "Amended Out",
+  };
+  return STATIC[s] ?? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const TRIP_STATUS_LABEL: Record<string, string> = {
-  nominated: "Nominated",
-  loading: "Loading",
-  loaded: "Loaded",
-  in_transit: "In Transit",
-  at_zambia_entry: "At Zambia",
-  at_drc_entry: "At DRC",
-  delivered: "Delivered",
-  cancelled: "Cancelled",
-  amended_out: "Amended Out",
+  nominated: "Nominated", loading: "Loading", loaded: "Loaded", in_transit: "In Transit",
+  at_zambia_entry: "At Zambia", at_drc_entry: "At DRC",
+  delivered: "Delivered", cancelled: "Cancelled", amended_out: "Amended Out",
 };
 
 const BATCH_ADVANCE: Record<string, { status: string; label: string; description: string }> = {
@@ -537,7 +577,7 @@ export default function BatchDetail() {
   }, [id]);
 
   const handleTripAdvance = (trip: any) => {
-    const next = TRIP_NEXT_STATUS[trip.status];
+    const next = getTripNext(trip);
     if (!next) return;
     if (next.needsQty) {
       setQty("");
@@ -872,7 +912,7 @@ export default function BatchDetail() {
             ) : (
               <div className="space-y-2">
                 {[...activeTrips, ...cancelledTrips].map((trip: any) => {
-                  const next = TRIP_NEXT_STATUS[trip.status];
+                  const next = getTripNext(trip);
                   const isCancelled = ["cancelled", "amended_out"].includes(trip.status);
                   return (
                     <div
@@ -929,8 +969,8 @@ export default function BatchDetail() {
                       </div>
 
                       {/* Status pill */}
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${TRIP_STATUS_COLOR[trip.status] ?? "bg-muted text-muted-foreground"}`}>
-                        {TRIP_STATUS_LABEL[trip.status] ?? trip.status}
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${trip.status.startsWith("at_checkpoint_") ? "bg-orange-500/20 text-orange-400" : TRIP_STATUS_COLOR[trip.status] ?? "bg-muted text-muted-foreground"}`}>
+                        {getTripStatusLabel(trip)}
                       </span>
 
                       {/* Actions */}

@@ -107,6 +107,17 @@ router.get("/:id", async (req, res, next) => {
 
     const activeTrips = trips.filter((t) => !["cancelled", "amended_out"].includes(t.status)).length;
 
+    // Fetch all checkpoints for these trips in one query
+    const tripIds = trips.map((t) => t.id);
+    const allCheckpoints = tripIds.length > 0
+      ? await db.select().from(tripCheckpointsTable).where(inArray(tripCheckpointsTable.tripId, tripIds)).orderBy(tripCheckpointsTable.seq)
+      : [];
+    const checkpointsByTrip = new Map<number, typeof allCheckpoints>();
+    for (const cp of allCheckpoints) {
+      if (!checkpointsByTrip.has(cp.tripId)) checkpointsByTrip.set(cp.tripId, []);
+      checkpointsByTrip.get(cp.tripId)!.push(cp);
+    }
+
     res.json({
       ...batch,
       ratePerMt: parseFloat(batch.ratePerMt),
@@ -123,6 +134,15 @@ router.get("/:id", async (req, res, next) => {
         fuel1: t.fuel1 ? parseFloat(t.fuel1) : null,
         fuel2: t.fuel2 ? parseFloat(t.fuel2) : null,
         fuel3: t.fuel3 ? parseFloat(t.fuel3) : null,
+        tripCheckpoints: (checkpointsByTrip.get(t.id) ?? []).map((c) => ({
+          seq: c.seq,
+          name: c.name,
+          country: c.country,
+          documentType: c.documentType,
+          feeUsd: c.feeUsd ? parseFloat(c.feeUsd) : null,
+          clearanceRequired: c.clearanceRequired,
+          clearanceAgencyId: c.clearanceAgencyId,
+        })),
       })),
     });
   } catch (e) { next(e); }
