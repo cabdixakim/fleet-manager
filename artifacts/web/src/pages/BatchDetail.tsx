@@ -482,6 +482,9 @@ export default function BatchDetail() {
   const handleNominate = async () => {
     const valid = nominations.filter((n) => n.truckId && n.capacity);
     if (!valid.length) return;
+    // batchProduct is the product already locked for this batch (from existing trips).
+    // Always use it when present so the form state default of "AGO" never sneaks through.
+    const resolvedProduct = batchProduct;
     try {
       await nominate({
         id,
@@ -489,14 +492,14 @@ export default function BatchDetail() {
           nominations: valid.map((n) => ({
             truckId: parseInt(n.truckId),
             driverId: n.driverId ? parseInt(n.driverId) : undefined,
-            product: n.product as "AGO" | "PMS",
+            product: (resolvedProduct ?? n.product) as "AGO" | "PMS",
             capacity: parseFloat(n.capacity),
           })),
         },
       });
       invalidate();
       setShowNominate(false);
-      setNominations([{ truckId: "", driverId: "", product: "AGO", capacity: "" }]);
+      setNominations([{ truckId: "", driverId: "", product: resolvedProduct ?? "AGO", capacity: "" }]);
     } catch (err: any) {
       const msg = err?.data?.error ?? err?.message ?? "Nomination failed. Please try again.";
       toast({ variant: "destructive", title: "Cannot nominate", description: msg });
@@ -726,7 +729,7 @@ export default function BatchDetail() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" onClick={() => setShowNominate(true)}>
+            <Button size="sm" onClick={() => { setNominations([{ truckId: "", driverId: "", product: batchProduct ?? "AGO", capacity: "" }]); setShowNominate(true); }}>
               <Plus className="w-4 h-4 mr-2" />Add Trucks
             </Button>
           </>
@@ -862,7 +865,7 @@ export default function BatchDetail() {
                 <Truck className="w-12 h-12 text-muted-foreground/30 mb-4" />
                 <p className="text-muted-foreground font-medium">No trucks nominated yet</p>
                 <p className="text-sm text-muted-foreground/60 mt-1 mb-4">Add trucks to this batch to start the operation</p>
-                <Button size="sm" onClick={() => setShowNominate(true)}>
+                <Button size="sm" onClick={() => { setNominations([{ truckId: "", driverId: "", product: batchProduct ?? "AGO", capacity: "" }]); setShowNominate(true); }}>
                   <Plus className="w-4 h-4 mr-2" />Nominate Trucks
                 </Button>
               </div>
