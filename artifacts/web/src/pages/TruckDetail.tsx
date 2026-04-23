@@ -268,6 +268,12 @@ export default function TruckDetail() {
   const filteredExpTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const filteredTripNet = filteredTrips.reduce((s, t) => s + t.netContribution, 0);
   const filteredNetContribution = filteredTripNet - filteredExpTotal;
+  const filteredTripShorts = filteredTrips
+    .filter((t) => !["cancelled", "amended_out"].includes(t.status))
+    .reduce((s, t) => {
+      if (t.loadedQty != null && t.deliveredQty != null) return s + Math.max(0, t.loadedQty - t.deliveredQty);
+      return s;
+    }, 0);
 
   const isPeriodActive = !!(dateFrom || dateTo);
 
@@ -371,7 +377,7 @@ export default function TruckDetail() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b-2 border-gray-400">
-                    {["Date", "Batch", "Route", "Product", "Status", "Loaded (MT)", "Delivered (MT)", "Gross", "Trip Exp.", "Net Contrib."].map((h) => (
+                    {["Date", "Batch", "Route", "Product", "Status", "Loaded (MT)", "Delivered (MT)", "Shorts (MT)", "Gross", "Trip Exp.", "Net Contrib."].map((h) => (
                       <th key={h} className="py-1.5 pr-3 text-left font-semibold text-gray-700 last:text-right">{h}</th>
                     ))}
                   </tr>
@@ -387,6 +393,11 @@ export default function TruckDetail() {
                       <td className="py-1.5 pr-3 capitalize">{t.status.replace(/_/g, " ")}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.loadedQty != null ? t.loadedQty : "—"}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.deliveredQty != null ? t.deliveredQty : "—"}</td>
+                      <td className="py-1.5 pr-3 font-mono">
+                        {t.loadedQty != null && t.deliveredQty != null
+                          ? (() => { const s = Math.max(0, t.loadedQty - t.deliveredQty); return s > 0 ? s : "—"; })()
+                          : "—"}
+                      </td>
                       <td className="py-1.5 pr-3 font-mono">{formatCurrency(t.grossRevenue)}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.tripExpenses > 0 ? formatCurrency(t.tripExpenses) : "—"}</td>
                       <td className="py-1.5 font-mono font-semibold text-right">{formatCurrency(t.netContribution)}</td>
@@ -396,6 +407,7 @@ export default function TruckDetail() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-400 font-bold">
                     <td className="py-2 pr-3" colSpan={7}>Totals ({filteredTrips.filter((t) => !["cancelled","amended_out"].includes(t.status)).length} active)</td>
+                    <td className="py-2 pr-3 font-mono">{filteredTripShorts > 0 ? `${filteredTripShorts} MT` : "—"}</td>
                     <td className="py-2 pr-3 font-mono">{formatCurrency(filteredTripRevenue)}</td>
                     <td className="py-2 pr-3 font-mono">{formatCurrency(filteredTripExp)}</td>
                     <td className="py-2 font-mono text-right">{formatCurrency(filteredTripNet)}</td>
@@ -645,6 +657,7 @@ export default function TruckDetail() {
                           <th className="px-4 py-3 text-left">Status</th>
                           <th className="px-4 py-3 text-right">Loaded</th>
                           <th className="px-4 py-3 text-right">Delivered</th>
+                          <th className="px-4 py-3 text-right">Shorts</th>
                           <th className="px-4 py-3 text-right">Gross</th>
                           <th className="px-4 py-3 text-right">Trip Exp.</th>
                           <th className="px-4 py-3 text-right">Net Contrib.</th>
@@ -666,6 +679,11 @@ export default function TruckDetail() {
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{t.loadedQty != null ? `${t.loadedQty} MT` : "—"}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{t.deliveredQty != null ? `${t.deliveredQty} MT` : "—"}</td>
+                            <td className="px-4 py-3 text-right font-mono text-xs">
+                              {t.loadedQty != null && t.deliveredQty != null
+                                ? (() => { const s = Math.max(0, t.loadedQty - t.deliveredQty); return s > 0 ? <span className="text-amber-400">{s} MT</span> : <span className="text-muted-foreground/40">—</span>; })()
+                                : <span className="text-muted-foreground/40">—</span>}
+                            </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{formatCurrency(t.grossRevenue)}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs text-red-400">
                               {t.tripExpenses > 0 ? formatCurrency(t.tripExpenses) : <span className="text-muted-foreground/40">—</span>}
@@ -680,6 +698,9 @@ export default function TruckDetail() {
                         <tr className="border-t border-border bg-muted/10 font-semibold text-xs">
                           <td className="px-4 py-3" colSpan={7}>
                             Totals ({filteredTrips.filter((t) => !["cancelled","amended_out"].includes(t.status)).length} active)
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-amber-400">
+                            {filteredTripShorts > 0 ? `${filteredTripShorts} MT` : <span className="text-muted-foreground/40">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-green-400">{formatCurrency(filteredTripRevenue)}</td>
                           <td className="px-4 py-3 text-right font-mono text-red-400">{formatCurrency(filteredTripExp)}</td>
