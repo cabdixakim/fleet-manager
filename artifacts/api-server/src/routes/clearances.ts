@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { clearancesTable, tripsTable, trucksTable, batchesTable } from "@workspace/db/schema";
+import { clearancesTable, tripsTable, trucksTable, batchesTable, tripCheckpointsTable } from "@workspace/db/schema";
 import { eq, inArray } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
@@ -8,7 +8,8 @@ const router = Router();
 
 router.get("/board", async (_req, res, next) => {
   try {
-    const activeTrips = await db
+    // Fetch all trips that are in any active state (include dynamic at_checkpoint_N via status prefix)
+    const allActiveTrips = await db
       .select({
         id: tripsTable.id,
         status: tripsTable.status,
@@ -17,17 +18,47 @@ router.get("/board", async (_req, res, next) => {
       })
       .from(tripsTable)
       .leftJoin(trucksTable, eq(tripsTable.truckId, trucksTable.id))
-      .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
-      .where(inArray(tripsTable.status, ["loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry"]));
+      .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id));
+
+    const activeTrips = allActiveTrips.filter((t) => {
+      const legacyActive = ["loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry"].includes(t.status);
+      const dynamicActive = /^at_checkpoint_\d+$/.test(t.status) ||
+        ["loading", "loaded", "in_transit"].includes(t.status);
+      return legacyActive || dynamicActive;
+    });
 
     const board = await Promise.all(
       activeTrips.map(async (t) => {
-        const clearances = await db.select().from(clearancesTable).where(eq(clearancesTable.tripId, t.id));
+        const [clearances, checkpoints] = await Promise.all([
+          db.select().from(clearancesTable).where(eq(clearancesTable.tripId, t.id)),
+          db.select().from(tripCheckpointsTable).where(eq(tripCheckpointsTable.tripId, t.id)).orderBy(tripCheckpointsTable.seq),
+        ]);
+
+        let checkpointGroups: Array<{ key: string; label: string; country: string | null; docs: typeof clearances }>;
+
+        if (checkpoints.length > 0) {
+          // Dynamic: group by checkpoint_N keys
+          checkpointGroups = checkpoints.map((cp) => ({
+            key: `checkpoint_${cp.seq}`,
+            label: `${cp.name}${cp.documentType ? ` (${cp.documentType})` : ""}`,
+            country: cp.country,
+            docs: clearances.filter((c) => c.checkpoint === `checkpoint_${cp.seq}`),
+          }));
+        } else {
+          // Legacy fallback: hardcoded Zambia/DRC grouping
+          checkpointGroups = [
+            { key: "zambia_entry", label: "Zambia Entry (T1)", country: "ZM", docs: clearances.filter((c) => c.checkpoint === "zambia_entry") },
+            { key: "drc_entry", label: "DRC Entry (TR8)", country: "CD", docs: clearances.filter((c) => c.checkpoint === "drc_entry") },
+          ];
+        }
+
         return {
           tripId: t.id,
           truckPlate: t.truckPlate,
           batchName: t.batchName,
           tripStatus: t.status,
+          checkpointGroups,
+          // Backward-compat keys so existing consumers don't break
           zambiaEntry: clearances.filter((c) => c.checkpoint === "zambia_entry"),
           drcEntry: clearances.filter((c) => c.checkpoint === "drc_entry"),
         };

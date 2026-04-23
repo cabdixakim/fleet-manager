@@ -192,6 +192,33 @@ export default function TripDetail() {
   const { user } = useAuth();
   const { settings: companySettings } = useCompanySettings();
   const { toast } = useToast();
+
+  // Dynamic checkpoint helpers — derived from trip.tripCheckpoints if present, else legacy fallback
+  const tripCheckpointList: Array<{ seq: number; name: string; country: string | null; documentType: string | null; feeUsd: number | null; clearanceRequired: boolean }> =
+    (trip as any)?.tripCheckpoints ?? [];
+  const useDynamic = tripCheckpointList.length > 0;
+  const effectiveStatusOrder: string[] = useDynamic
+    ? ["nominated", "loading", "loaded", "in_transit",
+       ...tripCheckpointList.map((c) => `at_checkpoint_${c.seq}`),
+       "delivered", "completed"]
+    : TRIP_STATUS_ORDER;
+  const effectiveStatuses: string[] = useDynamic
+    ? [...effectiveStatusOrder.filter((s) => s !== "completed"), "cancelled"]
+    : TRIP_STATUSES;
+  // Helpers for status gating
+  const statusIdx = (s: string) => effectiveStatusOrder.indexOf(s);
+  const isInTransitOrBeyond = (s: string) => statusIdx(s) >= statusIdx("loaded") && s !== "cancelled";
+  const isActiveInTransit = (s: string) => statusIdx(s) >= statusIdx("loading") && statusIdx(s) <= statusIdx(effectiveStatusOrder[effectiveStatusOrder.indexOf("delivered") - 1] ?? "delivered");
+  // Human-readable label for a status value
+  function statusLabel(s: string) {
+    const match = s.match(/^at_checkpoint_(\d+)$/);
+    if (match) {
+      const seq = parseInt(match[1]);
+      const cp = tripCheckpointList.find((c) => c.seq === seq);
+      if (cp) return `At ${cp.name}`;
+    }
+    return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
   const [confirmRemoveClearanceId, setConfirmRemoveClearanceId] = useState<number | null>(null);
 
   const [activeTab, setActiveTab] = useState<"details" | "financials" | "clearances" | "expenses" | "amendments" | "discussion">("details");
@@ -339,8 +366,8 @@ export default function TripDetail() {
 
   const handleStatusUpdate = async () => {
     if (!trip) return;
-    const fromIdx = TRIP_STATUS_ORDER.indexOf(trip.status);
-    const toIdx = TRIP_STATUS_ORDER.indexOf(statusUpdate.status);
+    const fromIdx = effectiveStatusOrder.indexOf(trip.status);
+    const toIdx = effectiveStatusOrder.indexOf(statusUpdate.status);
     const isBackward = fromIdx !== -1 && toIdx !== -1 && toIdx < fromIdx;
     if (isBackward) {
       setRevertDialog({ open: true, pendingStatus: statusUpdate.status });
@@ -490,7 +517,7 @@ export default function TripDetail() {
   };
 
   // Helper: is trip amendable after loaded?
-  const isAmendableAfterLoaded = trip && ["loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered"].includes(trip.status);
+  const isAmendableAfterLoaded = trip && isInTransitOrBeyond(trip.status) && trip.status !== "delivered";
   // Helper: get policy label
   function getPolicyLabel(policy: string) {
     switch (policy) {
@@ -543,17 +570,17 @@ export default function TripDetail() {
             )}
             {/* Desktop-only action buttons */}
             <div className="hidden md:flex items-center gap-2">
-              {["loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry"].includes(trip.status) && !(trip as any).incidentFlag && (
+              {isActiveInTransit(trip.status) && !(trip as any).incidentFlag && (
                 <Button variant="destructive" size="sm" onClick={() => { setIncidentDescription(""); setShowIncident(true); }}>
                   <AlertTriangle className="w-4 h-4 mr-1.5" />Flag Incident
                 </Button>
               )}
-              {!(trip.status === "loaded" || trip.status === "in_transit" || trip.status === "at_zambia_entry" || trip.status === "at_drc_entry" || trip.status === "delivered" || trip.status === "cancelled") && (
+              {!isInTransitOrBeyond(trip.status) && trip.status !== "cancelled" && (
                 <Button variant="destructive" size="sm" onClick={() => { setAmendForm({ ...amendForm, amendmentType: "cancellation" }); setShowAmend(true); }}>Cancel Trip</Button>
               )}
               {trip.status !== "cancelled" && (
                 <Button variant="outline" size="sm" onClick={() => setShowAmend(true)}
-                  disabled={trip.status === "loaded" || trip.status === "in_transit" || trip.status === "at_zambia_entry" || trip.status === "at_drc_entry" || trip.status === "delivered" || trip.status === "cancelled"}
+                  disabled={isInTransitOrBeyond(trip.status) || trip.status === "cancelled"}
                 >Amend Trip</Button>
               )}
               <Button variant="outline" size="sm" onClick={() => { setReassignBatchId(""); setReassignError(""); setShowReassignDialog(true); }}>
@@ -569,17 +596,17 @@ export default function TripDetail() {
                   <Button variant="outline" size="sm"><MoreVertical className="w-4 h-4" /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {["loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry"].includes(trip.status) && !(trip as any).incidentFlag && (
+                  {isActiveInTransit(trip.status) && !(trip as any).incidentFlag && (
                     <DropdownMenuItem onSelect={() => { setIncidentDescription(""); setShowIncident(true); }} className="text-destructive">
                       <AlertTriangle className="w-4 h-4 mr-2" />Flag Incident
                     </DropdownMenuItem>
                   )}
-                  {trip.status !== "cancelled" && !(trip.status === "loaded" || trip.status === "in_transit" || trip.status === "at_zambia_entry" || trip.status === "at_drc_entry" || trip.status === "delivered") && (
+                  {trip.status !== "cancelled" && !isInTransitOrBeyond(trip.status) && (
                     <DropdownMenuItem onSelect={() => { setAmendForm({ ...amendForm, amendmentType: "cancellation" }); setShowAmend(true); }} className="text-destructive">
                       Cancel Trip
                     </DropdownMenuItem>
                   )}
-                  {trip.status !== "cancelled" && !(trip.status === "loaded" || trip.status === "in_transit" || trip.status === "at_zambia_entry" || trip.status === "at_drc_entry" || trip.status === "delivered") && (
+                  {trip.status !== "cancelled" && !isInTransitOrBeyond(trip.status) && (
                     <DropdownMenuItem onSelect={() => setShowAmend(true)}>
                       Amend Trip
                     </DropdownMenuItem>
@@ -761,10 +788,10 @@ export default function TripDetail() {
                   <div><Label className="text-xs">Status</Label>
                     <Select value={statusUpdate.status} onValueChange={(v) => setStatusUpdate({ ...statusUpdate, status: v })}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>{TRIP_STATUSES.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</SelectItem>)}</SelectContent>
+                      <SelectContent>{effectiveStatuses.map((s) => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  {["loading", "loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered"].includes(statusUpdate.status) && (
+                  {(isInTransitOrBeyond(statusUpdate.status) || statusUpdate.status === "delivered") && (
                     <div><Label className="text-xs">Loaded Quantity (MT)</Label>
                       <Input type="number" value={statusUpdate.loadedQty} onChange={(e) => setStatusUpdate({ ...statusUpdate, loadedQty: e.target.value })} className="mt-1" />
                     </div>
@@ -1053,14 +1080,20 @@ export default function TripDetail() {
                 <button onClick={() => setClearanceBlock(null)} className="text-amber-500 hover:text-amber-700 shrink-0"><X className="w-4 h-4" /></button>
               </div>
             )}
-            {["zambia_entry", "drc_entry"].map((checkpoint) => {
+            {(useDynamic
+              ? tripCheckpointList.map((cp) => ({ key: `checkpoint_${cp.seq}`, label: `${cp.name}${cp.documentType ? ` (${cp.documentType})` : ""}`, country: cp.country }))
+              : [
+                  { key: "zambia_entry", label: "🇿🇲 Zambia Entry (T1)", country: "ZM" },
+                  { key: "drc_entry", label: "🇨🇩 DRC Entry (TR8)", country: "CD" },
+                ]
+            ).map(({ key: checkpoint, label: checkpointLabel }) => {
               const docs = trip.clearances?.filter((c) => c.checkpoint === checkpoint) ?? [];
               const isBlockedCheckpoint = clearanceBlock?.checkpoint === checkpoint;
               return (
                 <div key={checkpoint} className={`bg-card border rounded-xl overflow-hidden transition-all ${isBlockedCheckpoint ? "border-amber-400 dark:border-amber-600 shadow-amber-200 dark:shadow-amber-900/40 shadow-md" : "border-border"}`}>
                   <div className={`px-5 py-3 border-b flex items-center justify-between gap-2 ${isBlockedCheckpoint ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-700" : "bg-secondary/30 border-border"}`}>
                     <h3 className="font-semibold text-sm text-foreground">
-                      {checkpoint === "zambia_entry" ? "🇿🇲 Zambia Entry (T1)" : "🇨🇩 DRC Entry (TR8)"}
+                      {checkpointLabel}
                     </h3>
                     {isBlockedCheckpoint && <span className="text-xs font-bold text-amber-600 dark:text-amber-400 animate-pulse">APPROVAL REQUIRED</span>}
                   </div>
@@ -1480,8 +1513,18 @@ export default function TripDetail() {
               <Select value={clearanceForm.checkpoint} onValueChange={(v) => setClearanceForm({ ...clearanceForm, checkpoint: v })}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="zambia_entry">Zambia Entry (T1)</SelectItem>
-                  <SelectItem value="drc_entry">DRC Entry (TR8)</SelectItem>
+                  {useDynamic ? (
+                    tripCheckpointList.map((cp) => (
+                      <SelectItem key={cp.seq} value={`checkpoint_${cp.seq}`}>
+                        {cp.name}{cp.documentType ? ` (${cp.documentType})` : ""}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <>
+                      <SelectItem value="zambia_entry">Zambia Entry (T1)</SelectItem>
+                      <SelectItem value="drc_entry">DRC Entry (TR8)</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

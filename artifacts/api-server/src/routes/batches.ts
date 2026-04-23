@@ -12,6 +12,8 @@ import {
   tripExpensesTable,
   driverPayrollAllocationsTable,
   subcontractorTransactionsTable,
+  lanesTable,
+  tripCheckpointsTable,
 } from "@workspace/db/schema";
 import { eq, and, sql, count, inArray, isNull, not } from "drizzle-orm";
 import { calculateTripFinancials, snapTripRates } from "../lib/financials";
@@ -320,6 +322,16 @@ router.post("/:id/nominate", async (req, res, next) => {
       }
     }
 
+    // Pre-fetch batch route → lane checkpoints once (all nominations share the same batch)
+    const [batchRow] = await db.select({ route: batchesTable.route }).from(batchesTable).where(eq(batchesTable.id, batchId));
+    let laneCheckpoints: Array<{ seq: number; name: string; country: string | null; documentType: string | null; feeUsd: number | null; clearanceRequired: boolean }> = [];
+    if (batchRow?.route) {
+      const [lane] = await db.select({ checkpoints: lanesTable.checkpoints }).from(lanesTable).where(eq(lanesTable.value, batchRow.route));
+      if (lane?.checkpoints?.length) {
+        laneCheckpoints = lane.checkpoints as typeof laneCheckpoints;
+      }
+    }
+
     const created = await Promise.all(
       nominations.map(async (n) => {
         // Snap rates before inserting so they're baked in from day one
@@ -330,6 +342,20 @@ router.post("/:id/nominate", async (req, res, next) => {
           .insert(tripsTable)
           .values({ batchId, truckId: n.truckId, driverId: n.driverId ?? null, product: n.product, capacity: n.capacity.toString(), status: "nominated", subcontractorId: truck?.subcontractorId ?? null, ...rateSnap })
           .returning();
+        // Snapshot lane checkpoints into trip_checkpoints so future status advances are lane-driven
+        if (laneCheckpoints.length > 0) {
+          await db.insert(tripCheckpointsTable).values(
+            laneCheckpoints.map((cp) => ({
+              tripId: trip.id,
+              seq: cp.seq,
+              name: cp.name,
+              country: cp.country ?? null,
+              documentType: cp.documentType ?? null,
+              feeUsd: cp.feeUsd != null ? cp.feeUsd.toString() : null,
+              clearanceRequired: cp.clearanceRequired,
+            }))
+          );
+        }
         await db.update(trucksTable).set({ status: "on_trip" }).where(eq(trucksTable.id, n.truckId));
         const [driver] = n.driverId ? await db.select({ name: driversTable.name }).from(driversTable).where(eq(driversTable.id, n.driverId)) : [null];
         const [sub] = await db.select({ name: subcontractorsTable.name }).from(subcontractorsTable).where(eq(subcontractorsTable.id, truck.subcontractorId));

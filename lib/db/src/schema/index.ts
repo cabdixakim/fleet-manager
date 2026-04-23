@@ -37,3 +37,4 @@ export * from "./assets";
 export * from "./driverAdvances";
 export * from "./companyInsurancePolicies";
 export * from "./insuranceClaims";
+export * from "./tripCheckpoints";

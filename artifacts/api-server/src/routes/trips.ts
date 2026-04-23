@@ -14,7 +14,9 @@ import {
   companySettingsTable,
   agentTransactionsTable,
   suppliersTable,
+  tripCheckpointsTable,
 } from "@workspace/db/schema";
+import type { TripCheckpoint } from "@workspace/db/schema";
 import { eq, desc, and, inArray, sql } from "drizzle-orm";
 import { calculateTripFinancials, snapTripRates } from "../lib/financials";
 import { logAudit } from "../lib/audit";
@@ -130,11 +132,12 @@ async function buildTripDetail(tripId: number) {
 
   if (!trip) return null;
 
-  const [expenses, clearances, amendments, deliveryNote] = await Promise.all([
+  const [expenses, clearances, amendments, deliveryNote, tripCheckpoints] = await Promise.all([
     db.select().from(tripExpensesTable).where(eq(tripExpensesTable.tripId, tripId)).orderBy(tripExpensesTable.createdAt),
     db.select().from(clearancesTable).where(eq(clearancesTable.tripId, tripId)).orderBy(clearancesTable.createdAt),
     db.select().from(tripAmendmentsTable).where(eq(tripAmendmentsTable.tripId, tripId)).orderBy(desc(tripAmendmentsTable.amendedAt)),
     db.select().from(deliveryNotesTable).where(eq(deliveryNotesTable.tripId, tripId)).then((r) => r[0] ?? null),
+    db.select().from(tripCheckpointsTable).where(eq(tripCheckpointsTable.tripId, tripId)).orderBy(tripCheckpointsTable.seq),
   ]);
 
   const financials = await calculateTripFinancials(tripId);
@@ -154,6 +157,10 @@ async function buildTripDetail(tripId: number) {
     amendments,
     deliveryNote,
     financials,
+    tripCheckpoints: tripCheckpoints.map((c) => ({
+      ...c,
+      feeUsd: c.feeUsd ? parseFloat(c.feeUsd) : null,
+    })),
   };
 }
 
@@ -170,11 +177,28 @@ router.put("/:id", async (req, res, next) => {
     const id = parseInt(req.params.id);
     const [before] = await db.select().from(tripsTable).where(eq(tripsTable.id, id));
 
+    // Load this trip's checkpoint config (empty = legacy trip, use hardcoded logic)
+    const tripCheckpoints = await db
+      .select()
+      .from(tripCheckpointsTable)
+      .where(eq(tripCheckpointsTable.tripId, id))
+      .orderBy(tripCheckpointsTable.seq);
+    const useDynamicCheckpoints = tripCheckpoints.length > 0;
+
+    // Build the effective status order: dynamic (checkpoint-aware) or legacy hardcoded
+    const checkpointStatuses = tripCheckpoints.map((c) => `at_checkpoint_${c.seq}`);
+    const dynamicStatusOrder = [
+      "nominated", "loading", "loaded", "in_transit",
+      ...checkpointStatuses,
+      "delivered", "completed",
+    ];
+    const effectiveStatusOrder = useDynamicCheckpoints ? dynamicStatusOrder : TRIP_STATUS_ORDER;
+
     // Backward-move guard
     const newStatus: string | undefined = req.body.status;
     if (newStatus && before && newStatus !== before.status) {
-      const fromIdx = TRIP_STATUS_ORDER.indexOf(before.status);
-      const toIdx = TRIP_STATUS_ORDER.indexOf(newStatus);
+      const fromIdx = effectiveStatusOrder.indexOf(before.status);
+      const toIdx = effectiveStatusOrder.indexOf(newStatus);
       const isBackward = fromIdx !== -1 && toIdx !== -1 && toIdx < fromIdx;
       if (isBackward) {
         const revertReason: string | undefined = req.body.revertReason;
@@ -191,67 +215,102 @@ router.put("/:id", async (req, res, next) => {
           return res.status(403).json({ error: `Reversing a trip from '${before.status}' status requires manager or admin access.` });
         }
       } else {
-        // Clearance gate: T1 must be approved before ENTERING at_zambia_entry (from in_transit)
-        if (before.status === "in_transit" && newStatus === "at_zambia_entry") {
-          const [t1] = await db
-            .select()
-            .from(clearancesTable)
-            .where(
-              and(
-                eq(clearancesTable.tripId, id),
-                eq(clearancesTable.checkpoint, "zambia_entry"),
-                eq(clearancesTable.documentType, "T1"),
-              ),
-            );
-          if (!t1 || t1.status !== "approved") {
-            // Auto-create a T1 record if missing so the user can act on it immediately
-            let clearanceId: number | null = t1?.id ?? null;
-            if (!t1) {
-              const [created] = await db.insert(clearancesTable).values({
-                tripId: id, checkpoint: "zambia_entry", documentType: "T1",
-                status: "requested", requestedAt: new Date(),
-              }).returning();
-              clearanceId = created?.id ?? null;
+        if (useDynamicCheckpoints) {
+          // ── Dynamic clearance gate: check approval before entering each checkpoint ──
+          const toMatch = newStatus.match(/^at_checkpoint_(\d+)$/);
+          if (toMatch) {
+            const seq = parseInt(toMatch[1]);
+            const cp = tripCheckpoints.find((c) => c.seq === seq);
+            if (cp?.clearanceRequired && cp.documentType) {
+              const [existing] = await db
+                .select()
+                .from(clearancesTable)
+                .where(
+                  and(
+                    eq(clearancesTable.tripId, id),
+                    eq(clearancesTable.checkpoint, `checkpoint_${seq}`),
+                    eq(clearancesTable.documentType, cp.documentType),
+                  ),
+                );
+              if (!existing || existing.status !== "approved") {
+                let clearanceId: number | null = existing?.id ?? null;
+                if (!existing) {
+                  const [created] = await db.insert(clearancesTable).values({
+                    tripId: id,
+                    checkpoint: `checkpoint_${seq}`,
+                    documentType: cp.documentType,
+                    status: "requested",
+                    requestedAt: new Date(),
+                  }).returning();
+                  clearanceId = created?.id ?? null;
+                }
+                return res.status(409).json({
+                  blocked: true,
+                  clearanceId,
+                  checkpoint: `checkpoint_${seq}`,
+                  error: `${cp.documentType} clearance must be approved before entering ${cp.name}.`,
+                });
+              }
             }
-            return res.status(409).json({
-              blocked: true,
-              clearanceId,
-              checkpoint: "zambia_entry",
-              error: "T1 clearance must be approved before entering Zambia.",
-            });
           }
-        }
-        // Clearance gate: TR8 must be approved before ENTERING at_drc_entry (from at_zambia_entry)
-        // Also fires as a fallback when LEAVING at_drc_entry (→ delivered) for backward compat
-        const isDrcTransition =
-          (before.status === "at_zambia_entry" && newStatus === "at_drc_entry") ||
-          (before.status === "at_drc_entry");
-        if (isDrcTransition) {
-          const [tr8] = await db
-            .select()
-            .from(clearancesTable)
-            .where(
-              and(
-                eq(clearancesTable.tripId, id),
-                eq(clearancesTable.checkpoint, "drc_entry"),
-                eq(clearancesTable.documentType, "TR8"),
-              ),
-            );
-          if (!tr8 || tr8.status !== "approved") {
-            let clearanceId: number | null = tr8?.id ?? null;
-            if (!tr8) {
-              const [created] = await db.insert(clearancesTable).values({
-                tripId: id, checkpoint: "drc_entry", documentType: "TR8",
-                status: "requested", requestedAt: new Date(),
-              }).returning();
-              clearanceId = created?.id ?? null;
+        } else {
+          // ── Legacy hardcoded gates (backward compat for old trips) ──
+          // T1 must be approved before at_zambia_entry
+          if (before.status === "in_transit" && newStatus === "at_zambia_entry") {
+            const [t1] = await db
+              .select()
+              .from(clearancesTable)
+              .where(
+                and(
+                  eq(clearancesTable.tripId, id),
+                  eq(clearancesTable.checkpoint, "zambia_entry"),
+                  eq(clearancesTable.documentType, "T1"),
+                ),
+              );
+            if (!t1 || t1.status !== "approved") {
+              let clearanceId: number | null = t1?.id ?? null;
+              if (!t1) {
+                const [created] = await db.insert(clearancesTable).values({
+                  tripId: id, checkpoint: "zambia_entry", documentType: "T1",
+                  status: "requested", requestedAt: new Date(),
+                }).returning();
+                clearanceId = created?.id ?? null;
+              }
+              return res.status(409).json({
+                blocked: true, clearanceId, checkpoint: "zambia_entry",
+                error: "T1 clearance must be approved before entering Zambia.",
+              });
             }
-            return res.status(409).json({
-              blocked: true,
-              clearanceId,
-              checkpoint: "drc_entry",
-              error: "TR8 clearance must be approved before advancing past DRC Entry.",
-            });
+          }
+          // TR8 must be approved before at_drc_entry
+          const isDrcTransition =
+            (before.status === "at_zambia_entry" && newStatus === "at_drc_entry") ||
+            (before.status === "at_drc_entry");
+          if (isDrcTransition) {
+            const [tr8] = await db
+              .select()
+              .from(clearancesTable)
+              .where(
+                and(
+                  eq(clearancesTable.tripId, id),
+                  eq(clearancesTable.checkpoint, "drc_entry"),
+                  eq(clearancesTable.documentType, "TR8"),
+                ),
+              );
+            if (!tr8 || tr8.status !== "approved") {
+              let clearanceId: number | null = tr8?.id ?? null;
+              if (!tr8) {
+                const [created] = await db.insert(clearancesTable).values({
+                  tripId: id, checkpoint: "drc_entry", documentType: "TR8",
+                  status: "requested", requestedAt: new Date(),
+                }).returning();
+                clearanceId = created?.id ?? null;
+              }
+              return res.status(409).json({
+                blocked: true, clearanceId, checkpoint: "drc_entry",
+                error: "TR8 clearance must be approved before advancing past DRC Entry.",
+              });
+            }
           }
         }
       }
@@ -355,65 +414,119 @@ router.put("/:id", async (req, res, next) => {
 
     // Auto-create clearance documents + fees when reaching border checkpoints
     if (isStatusChange) {
-      if (trip.status === "at_zambia_entry") {
-        // Create T1 clearance if not already present (may already exist from the gate check)
-        const existing = await db.select({ id: clearancesTable.id }).from(clearancesTable)
-          .where(and(eq(clearancesTable.tripId, id), eq(clearancesTable.checkpoint, "zambia_entry"), inArray(clearancesTable.documentType, ["T1"])));
-        if (existing.length === 0) {
-          await db.insert(clearancesTable).values({
-            tripId: id, checkpoint: "zambia_entry", documentType: "T1",
-            status: "requested", requestedAt: new Date(),
-          });
-        }
-        // Auto-add T1 fee exactly once — use configurable amount + active clearance agency from company settings
-        const existingFee = await db.select({ id: tripExpensesTable.id }).from(tripExpensesTable)
-          .where(and(eq(tripExpensesTable.tripId, id), eq(tripExpensesTable.costType, "clearance_fee")));
-        if (existingFee.length === 0) {
-          const [cs] = await db.select({
-            fee: companySettingsTable.t1ClearanceFeeUsd,
-            agencyId: companySettingsTable.activeClearanceAgencyId,
-          }).from(companySettingsTable).limit(1);
-          const agencyId = cs?.agencyId ?? null;
-          const feeAmount = parseFloat(cs?.fee ?? "80.00");
-          const paymentMethod = agencyId ? "fuel_credit" : "cash";
-          const [newFee] = await db.insert(tripExpensesTable).values({
-            tripId: id,
-            costType: "clearance_fee",
-            amount: feeAmount.toFixed(2),
-            description: "T1 Zambia Entry Clearance Fee",
-            paymentMethod,
-            supplierId: agencyId,
-          }).returning();
-          // Post GL: Dr Clearance Expense (5004) / Cr Supplier Payables (2050) or Cash (1002)
-          const creditCode = agencyId ? "2050" : "1002";
-          await postJournalEntry({
-            description: "T1 Zambia Entry Clearance Fee",
-            entryDate: new Date(),
-            referenceType: "trip_expense",
-            referenceId: newFee.id,
-            lines: [
-              { accountCode: "5004", debit: feeAmount, description: "T1 Clearance Fee" },
-              { accountCode: creditCode, credit: feeAmount, description: agencyId ? "Cr Supplier Payables" : "Cr Cash" },
-            ],
-          });
-          // Increment supplier balance if linked to an agency
-          if (agencyId) {
-            await db.update(suppliersTable)
-              .set({ balance: sql`${suppliersTable.balance} + ${feeAmount.toFixed(2)}` })
-              .where(eq(suppliersTable.id, agencyId));
+      if (useDynamicCheckpoints) {
+        // ── Dynamic: driven entirely by the trip's checkpoint config ──
+        const cpMatch = trip.status.match(/^at_checkpoint_(\d+)$/);
+        if (cpMatch) {
+          const seq = parseInt(cpMatch[1]);
+          const cp = tripCheckpoints.find((c) => c.seq === seq);
+          if (cp) {
+            // Auto-create clearance doc if a documentType is configured
+            if (cp.documentType) {
+              const existingClear = await db.select({ id: clearancesTable.id }).from(clearancesTable)
+                .where(and(eq(clearancesTable.tripId, id), eq(clearancesTable.checkpoint, `checkpoint_${seq}`)));
+              if (existingClear.length === 0) {
+                await db.insert(clearancesTable).values({
+                  tripId: id, checkpoint: `checkpoint_${seq}`, documentType: cp.documentType,
+                  status: "requested", requestedAt: new Date(),
+                });
+              }
+            }
+            // Auto-create clearance fee if feeUsd is configured
+            if (cp.feeUsd) {
+              const feeAmount = parseFloat(cp.feeUsd);
+              const feeDesc = `${cp.name} Clearance Fee`;
+              const existingFee = await db.select({ id: tripExpensesTable.id }).from(tripExpensesTable)
+                .where(and(
+                  eq(tripExpensesTable.tripId, id),
+                  eq(tripExpensesTable.costType, "clearance_fee"),
+                  eq(tripExpensesTable.description, feeDesc),
+                ));
+              if (existingFee.length === 0) {
+                const [cs] = await db.select({ agencyId: companySettingsTable.activeClearanceAgencyId })
+                  .from(companySettingsTable).limit(1);
+                const agencyId = cs?.agencyId ?? null;
+                const paymentMethod = agencyId ? "fuel_credit" : "cash";
+                const [newFee] = await db.insert(tripExpensesTable).values({
+                  tripId: id,
+                  costType: "clearance_fee",
+                  amount: feeAmount.toFixed(2),
+                  description: feeDesc,
+                  paymentMethod,
+                  supplierId: agencyId,
+                }).returning();
+                const creditCode = agencyId ? "2050" : "1002";
+                await postJournalEntry({
+                  description: feeDesc,
+                  entryDate: new Date(),
+                  referenceType: "trip_expense",
+                  referenceId: newFee.id,
+                  lines: [
+                    { accountCode: "5004", debit: feeAmount, description: `${cp.name} Clearance Fee` },
+                    { accountCode: creditCode, credit: feeAmount, description: agencyId ? "Cr Supplier Payables" : "Cr Cash" },
+                  ],
+                });
+                if (agencyId) {
+                  await db.update(suppliersTable)
+                    .set({ balance: sql`${suppliersTable.balance} + ${feeAmount.toFixed(2)}` })
+                    .where(eq(suppliersTable.id, agencyId));
+                }
+              }
+            }
           }
         }
-      }
-
-      if (trip.status === "at_drc_entry") {
-        // Create TR8 clearance if not already present
-        const existing = await db.select({ id: clearancesTable.id }).from(clearancesTable)
-          .where(and(eq(clearancesTable.tripId, id), eq(clearancesTable.checkpoint, "drc_entry"), inArray(clearancesTable.documentType, ["TR8"])));
-        if (existing.length === 0) {
-          await db.insert(clearancesTable).values({
-            tripId: id, checkpoint: "drc_entry", documentType: "TR8",
-            status: "requested", requestedAt: new Date(),
-          });
+      } else {
+        // ── Legacy hardcoded auto-creation (backward compat for old trips) ──
+        if (trip.status === "at_zambia_entry") {
+          const existing = await db.select({ id: clearancesTable.id }).from(clearancesTable)
+            .where(and(eq(clearancesTable.tripId, id), eq(clearancesTable.checkpoint, "zambia_entry"), inArray(clearancesTable.documentType, ["T1"])));
+          if (existing.length === 0) {
+            await db.insert(clearancesTable).values({
+              tripId: id, checkpoint: "zambia_entry", documentType: "T1",
+              status: "requested", requestedAt: new Date(),
+            });
+          }
+          const existingFee = await db.select({ id: tripExpensesTable.id }).from(tripExpensesTable)
+            .where(and(eq(tripExpensesTable.tripId, id), eq(tripExpensesTable.costType, "clearance_fee")));
+          if (existingFee.length === 0) {
+            const [cs] = await db.select({
+              fee: companySettingsTable.t1ClearanceFeeUsd,
+              agencyId: companySettingsTable.activeClearanceAgencyId,
+            }).from(companySettingsTable).limit(1);
+            const agencyId = cs?.agencyId ?? null;
+            const feeAmount = parseFloat(cs?.fee ?? "80.00");
+            const paymentMethod = agencyId ? "fuel_credit" : "cash";
+            const [newFee] = await db.insert(tripExpensesTable).values({
+              tripId: id, costType: "clearance_fee", amount: feeAmount.toFixed(2),
+              description: "T1 Zambia Entry Clearance Fee", paymentMethod, supplierId: agencyId,
+            }).returning();
+            const creditCode = agencyId ? "2050" : "1002";
+            await postJournalEntry({
+              description: "T1 Zambia Entry Clearance Fee",
+              entryDate: new Date(),
+              referenceType: "trip_expense",
+              referenceId: newFee.id,
+              lines: [
+                { accountCode: "5004", debit: feeAmount, description: "T1 Clearance Fee" },
+                { accountCode: creditCode, credit: feeAmount, description: agencyId ? "Cr Supplier Payables" : "Cr Cash" },
+              ],
+            });
+            if (agencyId) {
+              await db.update(suppliersTable)
+                .set({ balance: sql`${suppliersTable.balance} + ${feeAmount.toFixed(2)}` })
+                .where(eq(suppliersTable.id, agencyId));
+            }
+          }
+        }
+        if (trip.status === "at_drc_entry") {
+          const existing = await db.select({ id: clearancesTable.id }).from(clearancesTable)
+            .where(and(eq(clearancesTable.tripId, id), eq(clearancesTable.checkpoint, "drc_entry"), inArray(clearancesTable.documentType, ["TR8"])));
+          if (existing.length === 0) {
+            await db.insert(clearancesTable).values({
+              tripId: id, checkpoint: "drc_entry", documentType: "TR8",
+              status: "requested", requestedAt: new Date(),
+            });
+          }
         }
       }
     }
@@ -458,7 +571,8 @@ router.post("/:id/amend", async (req, res, next) => {
     }
 
     const LOCKED_STATUSES = ["loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered"];
-    if (LOCKED_STATUSES.includes(trip.status) && amendmentType !== "cancellation") {
+    const isAtCheckpoint = trip.status.startsWith("at_checkpoint_");
+    if ((LOCKED_STATUSES.includes(trip.status) || isAtCheckpoint) && amendmentType !== "cancellation") {
       return res.status(400).json({
         error: `Cannot amend a trip with status '${trip.status}'. Truck swaps and driver changes are only allowed before loading is confirmed. You may still cancel this trip.`,
       });

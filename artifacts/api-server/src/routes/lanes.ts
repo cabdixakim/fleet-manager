@@ -57,13 +57,14 @@ router.post("/", async (req, res, next) => {
 router.patch("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
-    const { label, short, chart, sortOrder, isActive } = req.body;
+    const { label, short, chart, sortOrder, isActive, checkpoints } = req.body;
     const update: Partial<typeof lanesTable.$inferInsert> = {};
     if (label !== undefined) update.label = label;
     if (short !== undefined) update.short = short;
     if (chart !== undefined) update.chart = chart;
     if (sortOrder !== undefined) update.sortOrder = sortOrder;
     if (isActive !== undefined) update.isActive = isActive;
+    if (checkpoints !== undefined) update.checkpoints = checkpoints;
     const [lane] = await db.update(lanesTable).set(update).where(eq(lanesTable.id, id)).returning();
     if (!lane) return res.status(404).json({ error: "Route not found" });
     res.json(lane);

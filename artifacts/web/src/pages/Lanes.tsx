@@ -13,7 +13,17 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, Plus, Route, GripVertical } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Pencil, Trash2, Plus, Route, GripVertical, X, ChevronDown, ChevronUp } from "lucide-react";
+
+interface LaneCheckpoint {
+  seq: number;
+  name: string;
+  country: string;
+  documentType: string | null;
+  feeUsd: number | null;
+  clearanceRequired: boolean;
+}
 
 interface Lane {
   id: number;
@@ -23,8 +33,10 @@ interface Lane {
   chart: string;
   sortOrder: number;
   isActive: boolean;
+  checkpoints: LaneCheckpoint[];
 }
 
+const emptyCheckpoint = (): LaneCheckpoint => ({ seq: 0, name: "", country: "", documentType: null, feeUsd: null, clearanceRequired: false });
 const emptyForm = { label: "", short: "", chart: "" };
 
 function slugPreview(label: string) {
@@ -44,6 +56,8 @@ export default function Lanes() {
   const [editLane, setEditLane] = useState<Lane | null>(null);
   const [deleteLane, setDeleteLane] = useState<Lane | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [editCheckpoints, setEditCheckpoints] = useState<LaneCheckpoint[]>([]);
+  const [showCheckpoints, setShowCheckpoints] = useState(false);
 
   const { data: lanes = [], isLoading } = useQuery<Lane[]>({
     queryKey: ["/api/lanes/all"],
@@ -109,6 +123,21 @@ export default function Lanes() {
   function openEdit(lane: Lane) {
     setEditLane(lane);
     setForm({ label: lane.label, short: lane.short, chart: lane.chart });
+    setEditCheckpoints((lane.checkpoints ?? []).map((cp, i) => ({ ...cp, seq: i + 1 })));
+    setShowCheckpoints((lane.checkpoints ?? []).length > 0);
+  }
+
+  function addCheckpoint() {
+    setEditCheckpoints((prev) => [...prev, { ...emptyCheckpoint(), seq: prev.length + 1 }]);
+    setShowCheckpoints(true);
+  }
+
+  function removeCheckpoint(index: number) {
+    setEditCheckpoints((prev) => prev.filter((_, i) => i !== index).map((cp, i) => ({ ...cp, seq: i + 1 })));
+  }
+
+  function updateCheckpoint(index: number, patch: Partial<LaneCheckpoint>) {
+    setEditCheckpoints((prev) => prev.map((cp, i) => i === index ? { ...cp, ...patch } : cp));
   }
 
   const slug = slugPreview(form.label);
@@ -145,10 +174,15 @@ export default function Lanes() {
                 <GripVertical className="w-4 h-4 text-muted-foreground/30 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{lane.label}</p>
-                  <div className="flex gap-3 mt-0.5">
+                  <div className="flex gap-3 mt-0.5 flex-wrap">
                     <span className="text-[11px] text-muted-foreground font-mono bg-secondary rounded px-1.5 py-0.5">{lane.value}</span>
                     <span className="text-[11px] text-muted-foreground">Short: <span className="font-medium text-foreground">{lane.short}</span></span>
                     <span className="text-[11px] text-muted-foreground">Chart: <span className="font-medium text-foreground">{lane.chart}</span></span>
+                    {(lane.checkpoints ?? []).length > 0 && (
+                      <span className="text-[11px] text-cyan-600 dark:text-cyan-400 font-medium">
+                        {lane.checkpoints.length} checkpoint{lane.checkpoints.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {!lane.isActive && (
@@ -222,7 +256,7 @@ export default function Lanes() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editLane} onOpenChange={(o) => !o && setEditLane(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Route</DialogTitle></DialogHeader>
           {editLane && (
             <div className="space-y-4 py-1">
@@ -243,12 +277,94 @@ export default function Lanes() {
                 <Label>Chart Label</Label>
                 <Input value={form.chart} onChange={e => setForm(p => ({ ...p, chart: e.target.value }))} />
               </div>
+
+              {/* Checkpoint editor */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 text-sm font-semibold text-foreground w-full"
+                  onClick={() => setShowCheckpoints(!showCheckpoints)}
+                >
+                  {showCheckpoints ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  Border Checkpoints
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">{editCheckpoints.length} configured</span>
+                </button>
+                {showCheckpoints && (
+                  <div className="space-y-3 pl-1">
+                    <p className="text-[11px] text-muted-foreground">
+                      Checkpoints define the border stops for this lane. Each checkpoint can require a clearance document and/or a fee. Order determines the status sequence for trips on this lane.
+                    </p>
+                    {editCheckpoints.map((cp, i) => (
+                      <div key={i} className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">#{i + 1}</span>
+                          <Input
+                            placeholder="Checkpoint name (e.g. Chirundu Border)"
+                            value={cp.name}
+                            onChange={e => updateCheckpoint(i, { name: e.target.value })}
+                            className="flex-1 h-8 text-sm"
+                          />
+                          <button type="button" onClick={() => removeCheckpoint(i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Country (ISO)</Label>
+                            <Input
+                              placeholder="e.g. ZM"
+                              value={cp.country ?? ""}
+                              onChange={e => updateCheckpoint(i, { country: e.target.value.toUpperCase().slice(0, 2) })}
+                              className="h-7 text-xs font-mono mt-0.5"
+                              maxLength={2}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                            <Input
+                              placeholder="e.g. T1, TR8"
+                              value={cp.documentType ?? ""}
+                              onChange={e => updateCheckpoint(i, { documentType: e.target.value || null })}
+                              className="h-7 text-xs mt-0.5"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">Fee (USD)</Label>
+                            <Input
+                              type="number"
+                              placeholder="0.00"
+                              value={cp.feeUsd ?? ""}
+                              onChange={e => updateCheckpoint(i, { feeUsd: e.target.value ? parseFloat(e.target.value) : null })}
+                              className="h-7 text-xs mt-0.5"
+                            />
+                          </div>
+                          <div className="flex flex-col justify-end pb-0.5">
+                            <Label className="text-[10px] text-muted-foreground mb-1.5">Clearance required</Label>
+                            <Switch
+                              checked={cp.clearanceRequired}
+                              onCheckedChange={v => updateCheckpoint(i, { clearanceRequired: v })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" size="sm" variant="outline" className="w-full h-8 text-xs" onClick={addCheckpoint}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Add Checkpoint
+                    </Button>
+                  </div>
+                )}
+                {!showCheckpoints && (
+                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs w-full" onClick={addCheckpoint}>
+                    <Plus className="w-3.5 h-3.5 mr-1" /> Add Checkpoint
+                  </Button>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditLane(null)}>Cancel</Button>
             <Button
-              onClick={() => editLane && editMutation.mutate({ id: editLane.id, body: { label: form.label, short: form.short, chart: form.chart } })}
+              onClick={() => editLane && editMutation.mutate({ id: editLane.id, body: { label: form.label, short: form.short, chart: form.chart, checkpoints: editCheckpoints.map((cp, i) => ({ ...cp, seq: i + 1 })) } })}
               disabled={editMutation.isPending}
             >
               {editMutation.isPending ? "Saving…" : "Save Changes"}
