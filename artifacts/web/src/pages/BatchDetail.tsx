@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const BATCH_STAGE_ORDER = ["planning", "loading", "in_transit", "delivered", "invoiced"];
 const BATCH_STAGE_LABELS: Record<string, string> = {
@@ -396,6 +397,7 @@ export default function BatchDetail() {
   const { mutateAsync: updateBatch, isPending: advancingBatch } = useUpdateBatch();
   const { mutateAsync: updateTrip, isPending: updatingTrip } = useUpdateTrip();
   const { mutateAsync: patchDriverMutate, isPending: savingDriver } = usePatchDriver();
+  const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<"trips" | "financials">("trips");
   const [showNominate, setShowNominate] = useState(false);
@@ -480,20 +482,25 @@ export default function BatchDetail() {
   const handleNominate = async () => {
     const valid = nominations.filter((n) => n.truckId && n.capacity);
     if (!valid.length) return;
-    await nominate({
-      id,
-      data: {
-        nominations: valid.map((n) => ({
-          truckId: parseInt(n.truckId),
-          driverId: n.driverId ? parseInt(n.driverId) : undefined,
-          product: n.product as "AGO" | "PMS",
-          capacity: parseFloat(n.capacity),
-        })),
-      },
-    });
-    invalidate();
-    setShowNominate(false);
-    setNominations([{ truckId: "", driverId: "", product: "AGO", capacity: "" }]);
+    try {
+      await nominate({
+        id,
+        data: {
+          nominations: valid.map((n) => ({
+            truckId: parseInt(n.truckId),
+            driverId: n.driverId ? parseInt(n.driverId) : undefined,
+            product: n.product as "AGO" | "PMS",
+            capacity: parseFloat(n.capacity),
+          })),
+        },
+      });
+      invalidate();
+      setShowNominate(false);
+      setNominations([{ truckId: "", driverId: "", product: "AGO", capacity: "" }]);
+    } catch (err: any) {
+      const msg = err?.data?.error ?? err?.message ?? "Nomination failed. Please try again.";
+      toast({ variant: "destructive", title: "Cannot nominate", description: msg });
+    }
   };
 
   const advanceTripStatus = async (tripId: number, status: string, extraData?: Record<string, unknown>) => {
@@ -550,17 +557,22 @@ export default function BatchDetail() {
 
   const handleSaveDriver = async () => {
     if (!editDriverDialog) return;
-    await patchDriverMutate({
-      id: editDriverDialog.driverId,
-      data: {
-        passportNumber: editDriverDialog.passportNumber || null,
-        licenseNumber: editDriverDialog.licenseNumber || null,
-        phone: editDriverDialog.phone || null,
-      },
-    });
-    qc.invalidateQueries({ queryKey: ["/api/drivers"] });
-    invalidate();
-    setEditDriverDialog(null);
+    try {
+      await patchDriverMutate({
+        id: editDriverDialog.driverId,
+        data: {
+          passportNumber: editDriverDialog.passportNumber || null,
+          licenseNumber: editDriverDialog.licenseNumber || null,
+          phone: editDriverDialog.phone || null,
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["/api/drivers"] });
+      invalidate();
+      setEditDriverDialog(null);
+    } catch (err: any) {
+      const msg = err?.data?.error ?? err?.message ?? "Could not save driver details.";
+      toast({ variant: "destructive", title: "Error", description: msg });
+    }
   };
 
   const handleCancel = async () => {
