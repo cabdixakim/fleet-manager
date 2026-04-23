@@ -60,6 +60,7 @@ export default function Lanes() {
   const [form, setForm] = useState(emptyForm);
   const [editCheckpoints, setEditCheckpoints] = useState<LaneCheckpoint[]>([]);
   const [showCheckpoints, setShowCheckpoints] = useState(false);
+  const [expandedCps, setExpandedCps] = useState<Set<number>>(new Set());
 
   const { data: lanes = [], isLoading } = useQuery<Lane[]>({
     queryKey: ["/api/lanes/all"],
@@ -132,15 +133,25 @@ export default function Lanes() {
     setForm({ label: lane.label, short: lane.short, chart: lane.chart });
     setEditCheckpoints((lane.checkpoints ?? []).map((cp, i) => ({ ...cp, seq: i + 1 })));
     setShowCheckpoints((lane.checkpoints ?? []).length > 0);
+    setExpandedCps(new Set());
   }
 
   function addCheckpoint() {
-    setEditCheckpoints((prev) => [...prev, { ...emptyCheckpoint(), seq: prev.length + 1 }]);
+    setEditCheckpoints((prev) => {
+      const next = [...prev, { ...emptyCheckpoint(), seq: prev.length + 1 }];
+      setExpandedCps((s) => new Set([...s, next.length - 1]));
+      return next;
+    });
     setShowCheckpoints(true);
   }
 
   function removeCheckpoint(index: number) {
     setEditCheckpoints((prev) => prev.filter((_, i) => i !== index).map((cp, i) => ({ ...cp, seq: i + 1 })));
+    setExpandedCps((s) => {
+      const next = new Set<number>();
+      s.forEach((n) => { if (n < index) next.add(n); else if (n > index) next.add(n - 1); });
+      return next;
+    });
   }
 
   function updateCheckpoint(index: number, patch: Partial<LaneCheckpoint>) {
@@ -301,80 +312,102 @@ export default function Lanes() {
                     <p className="text-[11px] text-muted-foreground">
                       Checkpoints define the border stops for this lane. Each checkpoint can require a clearance document and/or a fee. Order determines the status sequence for trips on this lane.
                     </p>
-                    {editCheckpoints.map((cp, i) => (
-                      <div key={i} className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 min-w-0">
-                            <Label className="text-[10px] text-muted-foreground">Checkpoint Name</Label>
-                            <Input
-                              placeholder="e.g. Tunduma Border"
-                              value={cp.name}
-                              onChange={e => updateCheckpoint(i, { name: e.target.value })}
-                              className="h-8 text-sm mt-0.5"
-                            />
-                          </div>
-                          <button type="button" onClick={() => removeCheckpoint(i)} className="text-muted-foreground hover:text-destructive shrink-0 mt-4">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-[10px] text-muted-foreground">Country (ISO)</Label>
-                            <Input
-                              placeholder="e.g. ZM"
-                              value={cp.country ?? ""}
-                              onChange={e => updateCheckpoint(i, { country: e.target.value.toUpperCase().slice(0, 2) })}
-                              className="h-7 text-xs font-mono mt-0.5"
-                              maxLength={2}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
-                            <Input
-                              placeholder="e.g. T1, TR8"
-                              value={cp.documentType ?? ""}
-                              onChange={e => updateCheckpoint(i, { documentType: e.target.value || null })}
-                              className="h-7 text-xs mt-0.5"
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-[10px] text-muted-foreground">Fee (USD)</Label>
-                            <Input
-                              type="number"
-                              placeholder="0.00"
-                              value={cp.feeUsd ?? ""}
-                              onChange={e => updateCheckpoint(i, { feeUsd: e.target.value ? parseFloat(e.target.value) : null })}
-                              className="h-7 text-xs mt-0.5"
-                            />
-                          </div>
-                          <div className="flex flex-col justify-end pb-0.5">
-                            <Label className="text-[10px] text-muted-foreground mb-1.5">Clearance required</Label>
-                            <Switch
-                              checked={cp.clearanceRequired}
-                              onCheckedChange={v => updateCheckpoint(i, { clearanceRequired: v })}
-                            />
-                          </div>
-                        </div>
-                        {cp.clearanceRequired && (
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Clearance Agency <span className="text-muted-foreground/60">(optional — overrides global setting)</span></Label>
-                            <Select
-                              value={cp.clearanceAgencyId != null ? String(cp.clearanceAgencyId) : "none"}
-                              onValueChange={v => updateCheckpoint(i, { clearanceAgencyId: v === "none" ? null : parseInt(v) })}
+                    {editCheckpoints.map((cp, i) => {
+                      const isOpen = expandedCps.has(i);
+                      return (
+                        <div key={i} className="bg-secondary/40 border border-border rounded-lg overflow-hidden">
+                          {/* Collapsible header */}
+                          <div
+                            className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none hover:bg-secondary/70 transition-colors"
+                            onClick={() => setExpandedCps((s) => { const n = new Set(s); isOpen ? n.delete(i) : n.add(i); return n; })}
+                          >
+                            <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">#{i + 1}</span>
+                            <span className="flex-1 text-sm font-medium truncate">{cp.name || <span className="text-muted-foreground italic">Unnamed checkpoint</span>}</span>
+                            {cp.clearanceRequired && <span className="text-[10px] font-medium text-blue-400 shrink-0">Clearance</span>}
+                            {cp.feeUsd ? <span className="text-[10px] text-muted-foreground shrink-0">${cp.feeUsd}</span> : null}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); removeCheckpoint(i); }}
+                              className="text-muted-foreground hover:text-destructive shrink-0 ml-1"
                             >
-                              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Use global active agency" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Use global active agency</SelectItem>
-                                {suppliers.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                            {!cp.documentType && (
-                              <p className="text-[10px] text-amber-500">Set a Doc Type so the clearance record is labelled correctly (e.g. T1, TR8).</p>
-                            )}
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                            {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                           </div>
-                        )}
-                      </div>
-                    ))}
+
+                          {/* Expandable body */}
+                          {isOpen && (
+                            <div className="px-3 pb-3 space-y-2 border-t border-border/50 pt-2">
+                              <div>
+                                <Label className="text-[10px] text-muted-foreground">Checkpoint Name</Label>
+                                <Input
+                                  placeholder="e.g. Tunduma Border"
+                                  value={cp.name}
+                                  onChange={e => updateCheckpoint(i, { name: e.target.value })}
+                                  className="h-8 text-sm mt-0.5"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Country (ISO)</Label>
+                                  <Input
+                                    placeholder="e.g. ZM"
+                                    value={cp.country ?? ""}
+                                    onChange={e => updateCheckpoint(i, { country: e.target.value.toUpperCase().slice(0, 2) })}
+                                    className="h-7 text-xs font-mono mt-0.5"
+                                    maxLength={2}
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                                  <Input
+                                    placeholder="e.g. T1, TR8"
+                                    value={cp.documentType ?? ""}
+                                    onChange={e => updateCheckpoint(i, { documentType: e.target.value || null })}
+                                    className="h-7 text-xs mt-0.5"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-[10px] text-muted-foreground">Fee (USD)</Label>
+                                  <Input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={cp.feeUsd ?? ""}
+                                    onChange={e => updateCheckpoint(i, { feeUsd: e.target.value ? parseFloat(e.target.value) : null })}
+                                    className="h-7 text-xs mt-0.5"
+                                  />
+                                </div>
+                                <div className="flex flex-col justify-end pb-0.5">
+                                  <Label className="text-[10px] text-muted-foreground mb-1.5">Clearance required</Label>
+                                  <Switch
+                                    checked={cp.clearanceRequired}
+                                    onCheckedChange={v => updateCheckpoint(i, { clearanceRequired: v })}
+                                  />
+                                </div>
+                              </div>
+                              {cp.clearanceRequired && (
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Clearance Agency <span className="text-muted-foreground/60">(optional — overrides global setting)</span></Label>
+                                  <Select
+                                    value={cp.clearanceAgencyId != null ? String(cp.clearanceAgencyId) : "none"}
+                                    onValueChange={v => updateCheckpoint(i, { clearanceAgencyId: v === "none" ? null : parseInt(v) })}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Use global active agency" /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">Use global active agency</SelectItem>
+                                      {suppliers.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                  {!cp.documentType && (
+                                    <p className="text-[10px] text-amber-500">Set a Doc Type so the clearance record is labelled correctly (e.g. T1, TR8).</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     <Button type="button" size="sm" variant="outline" className="w-full h-8 text-xs" onClick={addCheckpoint}>
                       <Plus className="w-3.5 h-3.5 mr-1" /> Add Checkpoint
                     </Button>
