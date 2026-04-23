@@ -343,6 +343,7 @@ export default function Fleet() {
   const [confirmOwnershipTransfer, setConfirmOwnershipTransfer] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
   const [showDriverDialog, setShowDriverDialog] = useState<{ truck: any } | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>("__none__");
   const [savingLocationId, setSavingLocationId] = useState<number | null>(null);
 
   const fleetMode = useFleetMode();
@@ -835,60 +836,81 @@ export default function Fleet() {
       </AlertDialog>
 
       {/* Driver assignment dialog */}
-      <Dialog open={!!showDriverDialog} onOpenChange={() => setShowDriverDialog(null)}>
+      <Dialog open={!!showDriverDialog} onOpenChange={() => { setShowDriverDialog(null); setSelectedDriverId("__none__"); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Driver — {showDriverDialog?.truck?.plateNumber}</DialogTitle>
           </DialogHeader>
-          {showDriverDialog && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Assign Driver</Label>
-                <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-                  {(drivers as any[]).map((d: any) => {
-                    const isCurrentDriver = (driverHistory as any[]).some((h: any) => h.driverId === d.id && !h.unassignedAt);
-                    return (
-                      <button
-                        key={d.id}
-                        onClick={() => handleAssignDriver(d.id)}
-                        disabled={assigning || isCurrentDriver}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition-colors",
-                          isCurrentDriver
-                            ? "bg-primary/10 text-primary cursor-default"
-                            : "hover:bg-secondary text-foreground"
-                        )}
-                      >
-                        <User className="w-4 h-4 shrink-0" />
-                        <span className="flex-1">{d.name}</span>
-                        {isCurrentDriver && <CheckCircle className="w-4 h-4 text-primary shrink-0" />}
-                      </button>
-                    );
-                  })}
+          {showDriverDialog && (() => {
+            const currentAssignment = (driverHistory as any[]).find((h: any) => !h.unassignedAt);
+            return (
+              <div className="space-y-4 py-1">
+                {/* Current driver status */}
+                <div className={cn(
+                  "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm border",
+                  currentAssignment
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                    : "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                )}>
+                  <User className="w-4 h-4 shrink-0" />
+                  {currentAssignment
+                    ? <span>Currently assigned: <span className="font-semibold">{currentAssignment.driverName}</span></span>
+                    : <span>No driver assigned to this truck yet</span>
+                  }
                 </div>
-              </div>
-              {(driverHistory as any[]).length > 0 && (
-                <div>
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Assignment History</Label>
-                  <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                    {(driverHistory as any[]).map((h: any) => (
-                      <div key={h.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground">
-                        <User className="w-3 h-3 shrink-0" />
-                        <span className="flex-1">{h.driverName}</span>
-                        <span>{h.assignedAt ? new Date(h.assignedAt).toLocaleDateString() : "—"}</span>
-                        {h.unassignedAt
-                          ? <span className="text-muted-foreground/50">→ {new Date(h.unassignedAt).toLocaleDateString()}</span>
-                          : <span className="text-emerald-400 font-medium">Current</span>
-                        }
-                      </div>
-                    ))}
+
+                {/* Dropdown to pick a new driver */}
+                <div className="space-y-1.5">
+                  <Label>{currentAssignment ? "Change driver" : "Assign a driver"}</Label>
+                  <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select driver…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Select driver —</SelectItem>
+                      {(drivers as any[]).map((d: any) => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Assignment history */}
+                {(driverHistory as any[]).length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">History</Label>
+                    <div className="space-y-0.5 max-h-36 overflow-y-auto">
+                      {(driverHistory as any[]).map((h: any) => (
+                        <div key={h.id} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground">
+                          <User className="w-3 h-3 shrink-0" />
+                          <span className="flex-1">{h.driverName}</span>
+                          <span>{h.assignedAt ? new Date(h.assignedAt).toLocaleDateString() : "—"}</span>
+                          {h.unassignedAt
+                            ? <span className="text-muted-foreground/50">→ {new Date(h.unassignedAt).toLocaleDateString()}</span>
+                            : <span className="text-emerald-400 font-medium">Current</span>
+                          }
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })()}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDriverDialog(null)}>Close</Button>
+            <Button variant="outline" onClick={() => { setShowDriverDialog(null); setSelectedDriverId("__none__"); }}>Cancel</Button>
+            <Button
+              disabled={assigning || (() => {
+                const currentAssignment = (driverHistory as any[]).find((h: any) => !h.unassignedAt);
+                return selectedDriverId === "__none__" || selectedDriverId === String(currentAssignment?.driverId);
+              })()}
+              onClick={async () => {
+                await handleAssignDriver(parseInt(selectedDriverId));
+                setSelectedDriverId("__none__");
+              }}
+            >
+              {assigning ? "Assigning…" : "Assign"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
