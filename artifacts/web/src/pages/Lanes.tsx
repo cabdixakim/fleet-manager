@@ -304,7 +304,6 @@ export default function Lanes() {
                     {editCheckpoints.map((cp, i) => (
                       <div key={i} className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-muted-foreground w-5 shrink-0">#{i + 1}</span>
                           <Input
                             placeholder="e.g. Tunduma Border"
                             value={cp.name}
