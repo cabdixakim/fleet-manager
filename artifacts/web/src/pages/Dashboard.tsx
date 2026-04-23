@@ -361,6 +361,9 @@ export default function Dashboard() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                         <span className="font-bold text-foreground truncate">{batch.name}</span>
+                        {batch.product && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${batch.product === "AGO" ? "bg-primary/15 text-primary" : "bg-yellow-500/15 text-yellow-400"}`}>{batch.product}</span>
+                        )}
                         <StatusBadge status={batch.status} />
                         {batch.pendingClearances > 0 && (
                           <span className="flex items-center gap-1 text-[10px] bg-destructive/15 text-destructive px-1.5 py-0.5 rounded-full font-bold">

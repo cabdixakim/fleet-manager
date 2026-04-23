@@ -145,6 +145,9 @@ export default function Batches() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-foreground">{b.name || `Batch #${b.id}`}</span>
+                  {b.product && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${b.product === "AGO" ? "bg-primary/15 text-primary" : "bg-yellow-500/15 text-yellow-400"}`}>{b.product}</span>
+                  )}
                   <span className="text-xs text-muted-foreground">·</span>
                   <span className="text-sm text-muted-foreground">{b.clientName}</span>
                 </div>

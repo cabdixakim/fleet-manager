@@ -22,9 +22,11 @@ import { logAudit } from "../lib/audit";
 const router = Router();
 
 async function enrichBatch(b: typeof batchesTable.$inferSelect, clientName: string) {
-  const trips = await db.select({ id: tripsTable.id, status: tripsTable.status }).from(tripsTable).where(eq(tripsTable.batchId, b.id));
-  const activeTrips = trips.filter((t) => !["cancelled", "amended_out"].includes(t.status)).length;
-  return { ...b, ratePerMt: parseFloat(b.ratePerMt), clientName, truckCount: trips.length, activeTrips };
+  const trips = await db.select({ id: tripsTable.id, status: tripsTable.status, product: tripsTable.product }).from(tripsTable).where(eq(tripsTable.batchId, b.id));
+  const active = trips.filter((t) => !["cancelled", "amended_out"].includes(t.status));
+  const activeTrips = active.length;
+  const product: string | null = active[0]?.product ?? null;
+  return { ...b, ratePerMt: parseFloat(b.ratePerMt), clientName, truckCount: trips.length, activeTrips, product };
 }
 
 router.get("/", async (req, res, next) => {
