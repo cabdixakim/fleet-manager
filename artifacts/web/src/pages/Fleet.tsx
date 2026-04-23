@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import {
   useGetTrucks, useCreateTruck, useUpdateTruck, useDeleteTruck,
   useGetSubcontractors, useGetTruckDriverEngagements, useEngageDriverToTruck,
-  useGetDrivers, useGetTruckDriverAssignments,
+  useGetDrivers, useGetAllCurrentTruckDriverAssignments,
 } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { exportToExcel } from "@/lib/export";
@@ -339,7 +339,7 @@ export default function Fleet() {
   const { mutateAsync: updateTruck, isPending: updating } = useUpdateTruck();
   const { mutateAsync: deleteTruck } = useDeleteTruck();
   const { mutateAsync: engageDriver, isPending: assigning } = useEngageDriverToTruck();
-  const { data: allAssignments = [] } = useGetTruckDriverAssignments(null);
+  const { data: allAssignments = [] } = useGetAllCurrentTruckDriverAssignments();
 
   const handleRetire = async () => {
     if (!confirmDelete) return;
@@ -416,7 +416,7 @@ export default function Fleet() {
     if (!showDriverDialog) return;
     await engageDriver({ truckId: showDriverDialog.truck.id, driverId });
     qc.invalidateQueries({ queryKey: ["/api/truck-driver-engagements", showDriverDialog.truck.id] });
-    qc.invalidateQueries({ queryKey: ["/api/truck-driver-assignments"] });
+    qc.invalidateQueries({ queryKey: ["/api/truck-driver-engagements-all-current"] });
     qc.invalidateQueries({ queryKey: ["/api/trucks"] });
   };
 
