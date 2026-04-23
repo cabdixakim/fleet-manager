@@ -247,19 +247,28 @@ export default function Clearances() {
   const focusClearanceId = searchParams.get("clearanceId") ? parseInt(searchParams.get("clearanceId")!) : null;
   const returnTo = searchParams.get("returnTo") ?? null;
 
+  // Build dynamic columns from checkpointGroups (works for both legacy and dynamic trips)
+  const columnMap = new Map<string, { label: string; country: string | null; items: ClearanceDoc[] }>();
   const allDocs: ClearanceDoc[] = [];
-  const zambiaDocs: ClearanceDoc[] = [];
-  const drcDocs: ClearanceDoc[] = [];
+
   for (const trip of boardTrips as any[]) {
-    for (const doc of trip.zambiaEntry ?? []) {
-      const enriched = { ...doc, truckPlate: trip.truckPlate, batchName: trip.batchName, tripStatus: trip.tripStatus };
-      allDocs.push(enriched);
-      zambiaDocs.push(enriched);
-    }
-    for (const doc of trip.drcEntry ?? []) {
-      const enriched = { ...doc, truckPlate: trip.truckPlate, batchName: trip.batchName, tripStatus: trip.tripStatus };
-      allDocs.push(enriched);
-      drcDocs.push(enriched);
+    const groups: Array<{ key: string; label: string; country: string | null; docs: any[] }> =
+      trip.checkpointGroups ?? [
+        { key: "zambia_entry", label: "🇿🇲 Zambia Entry (T1)", country: "ZM", docs: trip.zambiaEntry ?? [] },
+        { key: "drc_entry",    label: "🇨🇩 DRC Entry (TR8)",   country: "CD", docs: trip.drcEntry ?? [] },
+      ];
+
+    for (const group of groups) {
+      if (!columnMap.has(group.key)) {
+        // Add country flag emoji to label if we have a country code and label doesn't already have a flag
+        const label = group.label;
+        columnMap.set(group.key, { label, country: group.country, items: [] });
+      }
+      for (const doc of group.docs) {
+        const enriched: ClearanceDoc = { ...doc, truckPlate: trip.truckPlate, batchName: trip.batchName, tripStatus: trip.tripStatus };
+        columnMap.get(group.key)!.items.push(enriched);
+        allDocs.push(enriched);
+      }
     }
   }
 
@@ -375,46 +384,51 @@ export default function Clearances() {
           </span>
         </div>
 
-        {/* Two-column board */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {[
-            { key: "zambia", title: "🇿🇲 Zambia Entry (T1)", items: zambiaDocs },
-            { key: "drc", title: "🇨🇩 DRC Entry (TR8)", items: drcDocs },
-          ].map((col) => (
-            <div key={col.key} className="bg-card border border-border rounded-xl overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">{col.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {col.items.filter((c) => ["requested", "pending"].includes(c.status)).length} pending · {col.items.filter((c) => c.status === "approved").length} approved
-                  </p>
+        {/* Dynamic checkpoint columns */}
+        {isLoading ? (
+          <div className="text-center py-16 text-muted-foreground text-sm">Loading clearances...</div>
+        ) : columnMap.size === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <ClipboardCheck className="w-10 h-10 mb-3 opacity-20" />
+            <p className="text-sm font-medium">No active clearances</p>
+            <p className="text-xs mt-1 opacity-60">Clearances are created automatically when trucks reach each checkpoint</p>
+          </div>
+        ) : (
+          <div className={`grid gap-6 ${columnMap.size === 1 ? "grid-cols-1 max-w-xl" : "grid-cols-1 lg:grid-cols-2"}`}>
+            {Array.from(columnMap.entries()).map(([key, col]) => (
+              <div key={key} className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">{col.label}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {col.items.filter((c) => ["requested", "pending"].includes(c.status)).length} pending · {col.items.filter((c) => c.status === "approved").length} approved
+                    </p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{col.items.length} doc(s)</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{col.items.length} doc(s)</span>
+                {col.items.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <ClipboardCheck className="w-8 h-8 mb-2 opacity-30" />
+                    <span className="text-sm">No clearances yet</span>
+                    <span className="text-xs mt-1 opacity-60">Clearances appear when trucks arrive at this checkpoint</span>
+                  </div>
+                ) : (
+                  <div>
+                    {col.items.map((c) => (
+                      <ClearanceCard
+                        key={c.id}
+                        doc={c}
+                        onEdit={openEdit}
+                        highlighted={focusClearanceId === c.id}
+                        onApproved={focusClearanceId === c.id && returnTo ? () => navigate(returnTo) : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              {isLoading ? (
-                <div className="text-center py-12 text-muted-foreground text-sm">Loading...</div>
-              ) : col.items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <ClipboardCheck className="w-8 h-8 mb-2 opacity-30" />
-                  <span className="text-sm">No clearances yet</span>
-                  <span className="text-xs mt-1 opacity-60">Clearances are created automatically when trucks reach each border</span>
-                </div>
-              ) : (
-                <div>
-                  {col.items.map((c) => (
-                    <ClearanceCard
-                      key={c.id}
-                      doc={c}
-                      onEdit={openEdit}
-                      highlighted={focusClearanceId === c.id}
-                      onApproved={focusClearanceId === c.id && returnTo ? () => navigate(returnTo) : undefined}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Edit dialog */}
         <Dialog open={!!editDoc} onOpenChange={(o) => !o && setEditDoc(null)}>
