@@ -324,7 +324,7 @@ export default function Fleet() {
   const [savingLocationId, setSavingLocationId] = useState<number | null>(null);
 
   const fleetMode = useFleetMode();
-  const defaultCompanyOwned = fleetMode === "company";
+  const defaultCompanyOwned = fleetMode !== "subcontractor";
   const emptyForm = {
     plateNumber: "", trailerPlate: "", subcontractorId: "", status: "available",
     driverId: "__none__", notes: "", companyOwned: defaultCompanyOwned, currentLocation: "",
