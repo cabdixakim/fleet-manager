@@ -221,7 +221,9 @@ router.put("/:id", async (req, res, next) => {
           if (toMatch) {
             const seq = parseInt(toMatch[1]);
             const cp = tripCheckpoints.find((c) => c.seq === seq);
-            if (cp?.clearanceRequired && cp.documentType) {
+            // Gate fires whenever clearanceRequired is true — documentType is optional (falls back to checkpoint name)
+            if (cp?.clearanceRequired) {
+              const docType = cp.documentType ?? cp.name;
               const [existing] = await db
                 .select()
                 .from(clearancesTable)
@@ -229,7 +231,7 @@ router.put("/:id", async (req, res, next) => {
                   and(
                     eq(clearancesTable.tripId, id),
                     eq(clearancesTable.checkpoint, `checkpoint_${seq}`),
-                    eq(clearancesTable.documentType, cp.documentType),
+                    eq(clearancesTable.documentType, docType),
                   ),
                 );
               if (!existing || existing.status !== "approved") {
@@ -238,7 +240,7 @@ router.put("/:id", async (req, res, next) => {
                   const [created] = await db.insert(clearancesTable).values({
                     tripId: id,
                     checkpoint: `checkpoint_${seq}`,
-                    documentType: cp.documentType,
+                    documentType: docType,
                     status: "requested",
                     requestedAt: new Date(),
                   }).returning();
@@ -248,7 +250,7 @@ router.put("/:id", async (req, res, next) => {
                   blocked: true,
                   clearanceId,
                   checkpoint: `checkpoint_${seq}`,
-                  error: `${cp.documentType} clearance must be approved before entering ${cp.name}.`,
+                  error: `${docType} clearance must be approved before entering ${cp.name}.`,
                 });
               }
             }
@@ -421,13 +423,14 @@ router.put("/:id", async (req, res, next) => {
           const seq = parseInt(cpMatch[1]);
           const cp = tripCheckpoints.find((c) => c.seq === seq);
           if (cp) {
-            // Auto-create clearance doc if a documentType is configured
-            if (cp.documentType) {
+            // Auto-create clearance doc if clearanceRequired or a documentType is configured
+            const cpDocType = cp.documentType ?? (cp.clearanceRequired ? cp.name : null);
+            if (cpDocType) {
               const existingClear = await db.select({ id: clearancesTable.id }).from(clearancesTable)
                 .where(and(eq(clearancesTable.tripId, id), eq(clearancesTable.checkpoint, `checkpoint_${seq}`)));
               if (existingClear.length === 0) {
                 await db.insert(clearancesTable).values({
-                  tripId: id, checkpoint: `checkpoint_${seq}`, documentType: cp.documentType,
+                  tripId: id, checkpoint: `checkpoint_${seq}`, documentType: cpDocType,
                   status: "requested", requestedAt: new Date(),
                 });
               }

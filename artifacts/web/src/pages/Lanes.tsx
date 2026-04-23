@@ -346,6 +346,9 @@ export default function Lanes() {
                             />
                           </div>
                         </div>
+                        {cp.clearanceRequired && !cp.documentType && (
+                          <p className="text-[10px] text-amber-500">Set a Doc Type so the clearance record is labelled correctly (e.g. T1, TR8).</p>
+                        )}
                       </div>
                     ))}
                     <Button type="button" size="sm" variant="outline" className="w-full h-8 text-xs" onClick={addCheckpoint}>
