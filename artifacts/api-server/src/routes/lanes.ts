@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { lanesTable } from "@workspace/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { lanesTable, tripsTable, batchesTable, tripCheckpointsTable } from "@workspace/db/schema";
+import { eq, asc, and, inArray, gt, not } from "drizzle-orm";
 
 const router = Router();
 
@@ -67,6 +67,55 @@ router.patch("/:id", async (req, res, next) => {
     if (checkpoints !== undefined) update.checkpoints = checkpoints;
     const [lane] = await db.update(lanesTable).set(update).where(eq(lanesTable.id, id)).returning();
     if (!lane) return res.status(404).json({ error: "Route not found" });
+
+    // Re-sync checkpoints onto all active trips that use this lane
+    if (Array.isArray(checkpoints) && checkpoints.length > 0) {
+      // Find all active (not delivered/completed/cancelled) trips on this lane
+      const activeTripRows = await db
+        .select({ id: tripsTable.id, status: tripsTable.status })
+        .from(tripsTable)
+        .innerJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
+        .where(
+          and(
+            eq(batchesTable.route, lane.value),
+            not(inArray(tripsTable.status, ["delivered", "completed", "cancelled", "amended_out"]))
+          )
+        );
+
+      for (const trip of activeTripRows) {
+        // Determine which checkpoint seq the trip is currently at (if any)
+        const cpMatch = trip.status.match(/^at_checkpoint_(\d+)$/);
+        const currentSeq = cpMatch ? parseInt(cpMatch[1]) : 0;
+
+        // Delete future checkpoints (seq > currentSeq) and re-insert from lane definition
+        if (currentSeq > 0) {
+          await db.delete(tripCheckpointsTable).where(
+            and(eq(tripCheckpointsTable.tripId, trip.id), gt(tripCheckpointsTable.seq, currentSeq))
+          );
+        } else {
+          // Not at a checkpoint yet — replace all
+          await db.delete(tripCheckpointsTable).where(eq(tripCheckpointsTable.tripId, trip.id));
+        }
+
+        // Insert the checkpoints the trip still needs to visit
+        const toInsert = (checkpoints as any[]).filter((cp: any) => cp.seq > currentSeq);
+        if (toInsert.length > 0) {
+          await db.insert(tripCheckpointsTable).values(
+            toInsert.map((cp: any) => ({
+              tripId: trip.id,
+              seq: cp.seq,
+              name: cp.name ?? "",
+              country: cp.country ?? null,
+              documentType: cp.documentType ?? null,
+              feeUsd: cp.feeUsd != null ? String(cp.feeUsd) : null,
+              clearanceRequired: cp.clearanceRequired ?? false,
+              clearanceAgencyId: cp.clearanceAgencyId ?? null,
+            }))
+          );
+        }
+      }
+    }
+
     res.json(lane);
   } catch (e) { next(e); }
 });
