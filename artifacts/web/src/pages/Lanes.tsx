@@ -304,13 +304,16 @@ export default function Lanes() {
                     {editCheckpoints.map((cp, i) => (
                       <div key={i} className="bg-secondary/40 border border-border rounded-lg p-3 space-y-2">
                         <div className="flex items-center gap-2">
-                          <Input
-                            placeholder="e.g. Tunduma Border"
-                            value={cp.name}
-                            onChange={e => updateCheckpoint(i, { name: e.target.value })}
-                            className="flex-1 h-8 text-sm"
-                          />
-                          <button type="button" onClick={() => removeCheckpoint(i)} className="text-muted-foreground hover:text-destructive shrink-0">
+                          <div className="flex-1 min-w-0">
+                            <Label className="text-[10px] text-muted-foreground">Checkpoint Name</Label>
+                            <Input
+                              placeholder="e.g. Tunduma Border"
+                              value={cp.name}
+                              onChange={e => updateCheckpoint(i, { name: e.target.value })}
+                              className="h-8 text-sm mt-0.5"
+                            />
+                          </div>
+                          <button type="button" onClick={() => removeCheckpoint(i)} className="text-muted-foreground hover:text-destructive shrink-0 mt-4">
                             <X className="w-4 h-4" />
                           </button>
                         </div>
