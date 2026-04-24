@@ -150,17 +150,73 @@ export async function calculateTripFinancials(tripId: number, overrides?: TripFi
   const tripSubRatePerMt = trip.subRatePerMt != null ? parseFloat(trip.subRatePerMt) : null;
 
   if (!resolvedSubcontractorId) {
+    // Company-owned fleet — no sub, so no sub commission or sub short charge.
+    // Short liability uses the CLIENT's short rate (with per-trip override support).
     const billingModel: "commission" | "rate_differential" = tripSubRatePerMt != null ? "rate_differential" : "commission";
-    if (trip.loadedQty == null) {
-      return { ...NONE, billingModel, subRatePerMt: tripSubRatePerMt, tripExpensesTotal, driverSalaryAllocation, netPayable: isRevenueHeld ? -(tripExpensesTotal + driverSalaryAllocation) : null, isRevenueHeld, projectedGross: null, tripStatus };
+    const allowancePct = trip.product === "AGO" ? 0.3 : 0.5;
+
+    if (trip.loadedQty == null && overrides?.overrideLoadedQty == null) {
+      return { ...NONE, billingModel, subRatePerMt: tripSubRatePerMt, allowancePct, tripExpensesTotal, driverSalaryAllocation, netPayable: isRevenueHeld ? -(tripExpensesTotal + driverSalaryAllocation) : null, isRevenueHeld, projectedGross: null, tripStatus };
     }
-    const loadedQty = parseFloat(trip.loadedQty);
+
+    const loadedQty = overrides?.overrideLoadedQty ?? parseFloat(trip.loadedQty!);
     const projectedGross = loadedQty * ratePerMt;
+
     if (isRevenueHeld) {
-      return { ...NONE, billingModel, subRatePerMt: tripSubRatePerMt, tripExpensesTotal, driverSalaryAllocation, netPayable: -(tripExpensesTotal + driverSalaryAllocation), isRevenueHeld: true, projectedGross, tripStatus };
+      return { ...NONE, billingModel, subRatePerMt: tripSubRatePerMt, allowancePct, tripExpensesTotal, driverSalaryAllocation, netPayable: -(tripExpensesTotal + driverSalaryAllocation), isRevenueHeld: true, projectedGross, tripStatus };
     }
-    const netPayable = projectedGross - tripExpensesTotal - driverSalaryAllocation;
-    return { ...NONE, billingModel, subRatePerMt: tripSubRatePerMt, grossRevenue: projectedGross, commission: 0, commissionRatePct: 0, tripExpensesTotal, driverSalaryAllocation, netPayable, isRevenueHeld: false, projectedGross, tripStatus };
+
+    // Revenue recognised — look up client short rate (snapshot → live → 0)
+    let clientShortChargeRate = 0;
+    if (batch.clientId) {
+      const [client] = await db
+        .select({ agoShortChargeRate: clientsTable.agoShortChargeRate, pmsShortChargeRate: clientsTable.pmsShortChargeRate })
+        .from(clientsTable)
+        .where(eq(clientsTable.id, batch.clientId));
+      if (client) {
+        clientShortChargeRate = trip.clientShortRateSnapshot != null
+          ? parseFloat(trip.clientShortRateSnapshot)
+          : parseFloat(trip.product === "AGO" ? (client.agoShortChargeRate ?? "0") : (client.pmsShortChargeRate ?? "0"));
+      }
+    }
+    const baseClientShortChargeRate = clientShortChargeRate;
+    if (trip.clientShortRateOverride != null) clientShortChargeRate = parseFloat(trip.clientShortRateOverride);
+    if (overrides?.overrideClientShortRate != null) clientShortChargeRate = overrides.overrideClientShortRate;
+
+    const agentFeePerMtValue = trip.agentFeeOverride != null
+      ? parseFloat(trip.agentFeeOverride)
+      : (batch.agentFeePerMt != null ? parseFloat(batch.agentFeePerMt) : 0);
+    const agentFeeTotal = loadedQty * agentFeePerMtValue;
+
+    let shortQty: number | null = null;
+    let allowanceQty: number | null = null;
+    let chargeableShort: number | null = null;
+    let clientShortCharge: number | null = null;
+
+    const effectiveDeliveredQty = overrides?.overrideDeliveredQty ?? (trip.deliveredQty != null ? parseFloat(trip.deliveredQty) : null);
+    if (effectiveDeliveredQty != null) {
+      shortQty = Math.max(0, loadedQty - effectiveDeliveredQty);
+      allowanceQty = loadedQty * (allowancePct / 100);
+      chargeableShort = Math.max(0, shortQty - allowanceQty);
+      clientShortCharge = chargeableShort * clientShortChargeRate;
+    }
+
+    const grossRevenue = projectedGross;
+    const effectiveClientShortCharge = clientShortCharge ?? 0;
+    const netPayable = grossRevenue - agentFeeTotal - effectiveClientShortCharge - tripExpensesTotal - driverSalaryAllocation;
+
+    return {
+      agentFeePerMt: agentFeePerMtValue > 0 ? agentFeePerMtValue : null,
+      agentFeeTotal: agentFeeTotal > 0 ? agentFeeTotal : null,
+      grossRevenue,
+      commission: 0, commissionRatePct: 0, billingModel, subRatePerMt: null, subDefaultRatePerMt: null,
+      shortQty, allowancePct, allowanceQty, chargeableShort,
+      shortCharge: null, subShortChargeRate: null,
+      clientShortCharge, clientShortChargeRate,
+      baseClientShortChargeRate, baseSubShortChargeRate: null,
+      tripExpensesTotal, driverSalaryAllocation, netPayable,
+      isRevenueHeld: false, projectedGross, tripStatus,
+    };
   }
 
   const [sub] = await db

@@ -61,7 +61,7 @@ type TruckDetailData = {
     id: number; status: string; loadedQty: number | null; deliveredQty: number | null; product: string | null;
     createdAt: string; batchName: string | null; route: string | null; ratePerMt: number | null;
     grossRevenue: number; commission: number; tripExpenses: number; netContribution: number;
-    shortQty: number | null; allowancePct: number | null; allowanceQty: number | null; chargeableShort: number | null; shortCharge: number | null;
+    shortQty: number | null; allowancePct: number | null; allowanceQty: number | null; chargeableShort: number | null; shortCharge: number | null; clientShortCharge: number | null;
   }[];
   otherExpenses: { id: number; costType: string; description: string | null; amount: number; currency: string; expenseDate: string }[];
   summary: { totalTrips: number; totalRevenue: number; totalCommission: number; totalTripExpenses: number; totalOtherExpenses: number; netProfit: number };
@@ -272,10 +272,10 @@ export default function TruckDetail() {
   const filteredTripExp = filteredTrips.reduce((s, t) => s + t.tripExpenses, 0);
   const filteredExpTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const filteredTripNet = filteredTrips.reduce((s, t) => s + t.netContribution, 0);
-  // Short charge (USD) — chargeable MT × sub short rate, from financials
+  // Short charge (USD) — sub penalty for sub trucks, client credit for company fleet
   const filteredTripShortCharge = filteredTrips
     .filter((t) => !["cancelled", "amended_out"].includes(t.status))
-    .reduce((s, t) => s + (t.shortCharge ?? 0), 0);
+    .reduce((s, t) => s + (t.shortCharge ?? t.clientShortCharge ?? 0), 0);
 
   // Maintenance records filtered by the same period as expenses
   const filteredMaintenance = useMemo(() => {
@@ -427,7 +427,7 @@ export default function TruckDetail() {
                       <td className="py-1.5 pr-3 font-mono">{t.loadedQty != null ? t.loadedQty : "—"}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.deliveredQty != null ? t.deliveredQty : "—"}</td>
                       <td className="py-1.5 pr-3 font-mono text-right">
-                        {t.shortCharge != null && t.shortCharge > 0 ? formatCurrency(t.shortCharge) : "—"}
+                        {(() => { const sc = t.shortCharge ?? t.clientShortCharge; return sc != null && sc > 0 ? formatCurrency(sc) : "—"; })()}
                       </td>
                       <td className="py-1.5 pr-3 font-mono">{formatCurrency(t.grossRevenue)}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.tripExpenses > 0 ? formatCurrency(t.tripExpenses) : "—"}</td>
@@ -721,9 +721,7 @@ export default function TruckDetail() {
                             <td className="px-4 py-3 text-right font-mono text-xs">{t.loadedQty != null ? `${t.loadedQty} MT` : "—"}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{t.deliveredQty != null ? `${t.deliveredQty} MT` : "—"}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs">
-                              {t.shortCharge != null && t.shortCharge > 0
-                                ? <span className="text-amber-400">{formatCurrency(t.shortCharge)}</span>
-                                : <span className="text-muted-foreground/40">—</span>}
+                              {(() => { const sc = t.shortCharge ?? t.clientShortCharge; return sc != null && sc > 0 ? <span className="text-amber-400">{formatCurrency(sc)}</span> : <span className="text-muted-foreground/40">—</span>; })()}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{formatCurrency(t.grossRevenue)}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs text-red-400">
