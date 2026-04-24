@@ -165,6 +165,10 @@ export default function TruckDetail() {
   const [tripStatus, setTripStatus] = useState("all");
   const [tripSearch, setTripSearch] = useState("");
 
+  // Trip pagination — default 10, user expands on demand
+  const TRIPS_PAGE_SIZE = 10;
+  const [tripsLimit, setTripsLimit] = useState(TRIPS_PAGE_SIZE);
+
   // Expense filters (tab-level)
   const [expCategory, setExpCategory] = useState("all");
 
@@ -274,6 +278,11 @@ export default function TruckDetail() {
       if (t.loadedQty != null && t.deliveredQty != null) return s + Math.max(0, t.loadedQty - t.deliveredQty);
       return s;
     }, 0);
+
+  // Paginated slice — totals always come from the full filteredTrips
+  const pagedTrips = filteredTrips.slice(0, tripsLimit);
+  const hasMore = filteredTrips.length > tripsLimit;
+  const remaining = filteredTrips.length - tripsLimit;
 
   const isPeriodActive = !!(dateFrom || dateTo);
 
@@ -630,13 +639,13 @@ export default function TruckDetail() {
                   <Input
                     placeholder="Search trips..."
                     value={tripSearch}
-                    onChange={(e) => setTripSearch(e.target.value)}
+                    onChange={(e) => { setTripSearch(e.target.value); setTripsLimit(TRIPS_PAGE_SIZE); }}
                     className="pl-8 h-7 text-xs w-36"
                   />
                 </div>
                 <div className="flex gap-1 bg-secondary/40 p-0.5 rounded-md">
                   {[["all","All"],["active","Active"],["delivered","Delivered"],["completed","Completed"],["cancelled","Cancelled"]].map(([v,l]) => (
-                    <Chip key={v} label={l} active={tripStatus === v} onClick={() => setTripStatus(v)} />
+                    <Chip key={v} label={l} active={tripStatus === v} onClick={() => { setTripStatus(v); setTripsLimit(TRIPS_PAGE_SIZE); }} />
                   ))}
                 </div>
                 <span className="ml-auto text-xs text-muted-foreground">{filteredTrips.length} trip{filteredTrips.length !== 1 ? "s" : ""}</span>
@@ -664,7 +673,7 @@ export default function TruckDetail() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/50">
-                        {filteredTrips.map((t) => (
+                        {pagedTrips.map((t) => (
                           <tr key={t.id} className="hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(t.createdAt)}</td>
                             <td className="px-4 py-3 text-xs">
@@ -713,6 +722,42 @@ export default function TruckDetail() {
                   </div>
                 )}
               </div>
+
+              {/* Pagination bar */}
+              {filteredTrips.length > TRIPS_PAGE_SIZE && (
+                <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+                  <span>
+                    Showing {Math.min(tripsLimit, filteredTrips.length)} of {filteredTrips.length} trip{filteredTrips.length !== 1 ? "s" : ""}
+                  </span>
+                  <div className="flex gap-2">
+                    {hasMore && (
+                      <>
+                        <button
+                          onClick={() => setTripsLimit((l) => l + TRIPS_PAGE_SIZE)}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          Show {Math.min(remaining, TRIPS_PAGE_SIZE)} more
+                        </button>
+                        <span className="text-border">·</span>
+                        <button
+                          onClick={() => setTripsLimit(filteredTrips.length)}
+                          className="hover:underline"
+                        >
+                          Show all
+                        </button>
+                      </>
+                    )}
+                    {!hasMore && tripsLimit > TRIPS_PAGE_SIZE && (
+                      <button
+                        onClick={() => setTripsLimit(TRIPS_PAGE_SIZE)}
+                        className="hover:underline"
+                      >
+                        Collapse
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
