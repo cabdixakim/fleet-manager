@@ -814,7 +814,7 @@ export default function InvoiceDetail() {
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select bank account" /></SelectTrigger>
                 <SelectContent>
                   {(bankAccounts as any[]).map((b: any) => (
-                    <SelectItem key={b.id} value={String(b.id)}>{b.accountName} ({b.bankName})</SelectItem>
+                    <SelectItem key={b.id} value={String(b.id)}>{b.name}{b.bankName ? ` — ${b.bankName}` : ""}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
