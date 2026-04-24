@@ -15,9 +15,9 @@ async function getAccountByCode(code: string) {
 }
 
 async function getNextEntryNumber(): Promise<string> {
-  const [row] = await db.select({ count: sql<number>`count(*)` }).from(glJournalEntriesTable);
-  const num = Number(row?.count ?? 0) + 1;
-  return `JE-${String(num).padStart(5, "0")}`;
+  const [row] = await db.select({ max: sql<string>`MAX(entry_number)` }).from(glJournalEntriesTable);
+  const maxNum = row?.max ? parseInt(row.max.replace("JE-", ""), 10) : 0;
+  return `JE-${String(maxNum + 1).padStart(5, "0")}`;
 }
 
 interface PostLine {
@@ -95,7 +95,7 @@ export function creditAccountForPaymentMethod(paymentMethod?: string | null): st
  * Post a balanced journal entry. Skips if already posted for the same referenceType+referenceId.
  * Silently fails if GL accounts are not seeded yet (system not yet configured).
  */
-export async function postJournalEntry(params: PostParams): Promise<void> {
+export async function postJournalEntry(params: PostParams): Promise<boolean> {
   try {
     const { description, entryDate, referenceType, referenceId, lines } = params;
 
@@ -109,21 +109,21 @@ export async function postJournalEntry(params: PostParams): Promise<void> {
           eq(glJournalEntriesTable.referenceId, referenceId),
         ))
         .limit(1);
-      if (existing.length > 0) return;
+      if (existing.length > 0) return false;
     }
 
     // Resolve account IDs — if any account is missing, skip silently (COA not seeded)
     const resolved: { accountId: number; debit: number; credit: number; description?: string }[] = [];
     for (const l of lines) {
       const account = await getAccountByCode(l.accountCode);
-      if (!account) return; // COA not ready
+      if (!account) return false; // COA not ready
       resolved.push({ accountId: account.id, debit: l.debit ?? 0, credit: l.credit ?? 0, description: l.description });
     }
 
     // Validate balanced
     const totalDebit = resolved.reduce((s, l) => s + l.debit, 0);
     const totalCredit = resolved.reduce((s, l) => s + l.credit, 0);
-    if (Math.abs(totalDebit - totalCredit) > 0.01) return; // unbalanced — skip silently
+    if (Math.abs(totalDebit - totalCredit) > 0.01) return false; // unbalanced — skip silently
 
     const entryNumber = await getNextEntryNumber();
     const [entry] = await db
@@ -140,8 +140,10 @@ export async function postJournalEntry(params: PostParams): Promise<void> {
         description: l.description ?? null,
       }))
     );
-  } catch {
-    // GL posting errors must never crash main transaction flow
+    return true;
+  } catch (err) {
+    console.error("[GL] postJournalEntry failed:", err instanceof Error ? err.message : err);
+    return false;
   }
 }
 

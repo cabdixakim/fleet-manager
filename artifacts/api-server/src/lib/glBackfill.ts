@@ -97,7 +97,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     const net = parseFloat(inv.netRevenue as string);
     if (net <= 0) continue;
     const [client] = await db.select({ name: clientsTable.name }).from(clientsTable).where(eq(clientsTable.id, inv.clientId));
-    await postJournalEntry({
+    const ok = await postJournalEntry({
       description: `Invoice ${inv.invoiceNumber} — ${client?.name ?? "client"}`,
       entryDate: inv.issuedDate ? new Date(inv.issuedDate) : new Date(),
       referenceType: "invoice",
@@ -107,7 +107,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
         { accountCode: "4001", credit: net, description: "Freight Revenue" },
       ],
     });
-    invoiceCount++;
+    if (ok) invoiceCount++;
   }
 
   // ── Paid invoices → Dr Bank / Cr AR ──────────────────────────────────────
@@ -128,7 +128,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     const net = parseFloat(inv.netRevenue as string);
     if (net <= 0) continue;
     const [client] = await db.select({ name: clientsTable.name }).from(clientsTable).where(eq(clientsTable.id, inv.clientId));
-    await postJournalEntry({
+    const ok = await postJournalEntry({
       description: `Payment received — ${inv.invoiceNumber} — ${client?.name ?? "client"}`,
       entryDate: new Date(inv.createdAt),
       referenceType: "invoice_payment",
@@ -138,7 +138,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
         { accountCode: "1100", credit: net, description: `Clear AR — ${inv.invoiceNumber}` },
       ],
     });
-    paymentCount++;
+    if (ok) paymentCount++;
   }
 
   // ── Company expenses → Dr Expense / Cr correct account ───────────────────
@@ -160,7 +160,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     if (amount <= 0) continue;
     const expenseAccountCode = EXPENSE_ACCOUNT_MAP[exp.category ?? "other"] ?? "6001";
     const creditCode = creditAccountForPaymentMethod(exp.paymentMethod);
-    await postJournalEntry({
+    const ok = await postJournalEntry({
       description: exp.description ?? `${exp.category} expense`,
       entryDate: new Date(exp.expenseDate),
       referenceType: "company_expense",
@@ -170,7 +170,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
         { accountCode: creditCode, credit: amount, description: "Payment" },
       ],
     });
-    expenseCount++;
+    if (ok) expenseCount++;
   }
 
   // ── Trip Expenses → Dr cost account / Cr correct account ─────────────────
@@ -196,7 +196,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     const glAccount = TRIP_EXPENSE_ACCOUNT_MAP[exp.costType ?? "other"] ?? "6001";
     const creditCode = creditAccountForPaymentMethod(exp.paymentMethod);
     const contextLabel = exp.tripId ? `trip #${exp.tripId}` : exp.batchId ? `batch #${exp.batchId}` : exp.truckId ? `truck #${exp.truckId}` : "general";
-    await postJournalEntry({
+    const ok = await postJournalEntry({
       description: `${exp.costType ?? "Expense"} — ${contextLabel}${exp.description ? `: ${exp.description}` : ""}`,
       entryDate: new Date(exp.expenseDate),
       referenceType: "trip_expense",
@@ -206,7 +206,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
         { accountCode: creditCode, credit: amount, description: "Payment" },
       ],
     });
-    tripExpenseCount++;
+    if (ok) tripExpenseCount++;
   }
 
   // ── Payroll → Dr Staff Expense / Cr AP ───────────────────────────────────
@@ -225,7 +225,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
     if (await alreadyPosted("payroll", p.id)) continue;
     const salary = parseFloat(p.monthlySalary as string);
     if (salary <= 0) continue;
-    await postJournalEntry({
+    const ok = await postJournalEntry({
       description: `Payroll — driver #${p.driverId} ${p.month}/${p.year}`,
       entryDate: new Date(p.year, p.month - 1, 1),
       referenceType: "payroll",
@@ -235,7 +235,7 @@ export async function backfillGLEntries(): Promise<{ invoices: number; payments:
         { accountCode: "2000", credit: salary, description: "Accounts Payable" },
       ],
     });
-    payrollCount++;
+    if (ok) payrollCount++;
   }
 
   return { invoices: invoiceCount, payments: paymentCount, expenses: expenseCount, tripExpenses: tripExpenseCount, payroll: payrollCount };
