@@ -271,13 +271,37 @@ export default function TruckDetail() {
   const filteredTripExp = filteredTrips.reduce((s, t) => s + t.tripExpenses, 0);
   const filteredExpTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const filteredTripNet = filteredTrips.reduce((s, t) => s + t.netContribution, 0);
-  const filteredNetContribution = filteredTripNet - filteredExpTotal;
   const filteredTripShorts = filteredTrips
     .filter((t) => !["cancelled", "amended_out"].includes(t.status))
     .reduce((s, t) => {
       if (t.loadedQty != null && t.deliveredQty != null) return s + Math.max(0, t.loadedQty - t.deliveredQty);
       return s;
     }, 0);
+
+  // Maintenance records filtered by the same period as expenses
+  const filteredMaintenance = useMemo(() => {
+    return (maintenanceRecords ?? []).filter((r: any) => {
+      const d = r.date?.slice(0, 10) ?? "";
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }, [maintenanceRecords, dateFrom, dateTo]);
+
+  // Only USD costs feed into the net contribution (other currencies shown separately)
+  const filteredMaintenanceCostUsd = filteredMaintenance
+    .filter((r: any) => r.currency === "USD" && r.cost)
+    .reduce((s: number, r: any) => s + parseFloat(r.cost), 0);
+
+  // Non-USD maintenance totals per currency for the KPI sub-label
+  const maintenanceNonUsd = filteredMaintenance
+    .filter((r: any) => r.currency !== "USD" && r.cost)
+    .reduce((acc: Record<string, number>, r: any) => {
+      acc[r.currency] = (acc[r.currency] ?? 0) + parseFloat(r.cost);
+      return acc;
+    }, {} as Record<string, number>);
+
+  const filteredNetContribution = filteredTripNet - filteredExpTotal - filteredMaintenanceCostUsd;
 
   // Paginated slice — totals always come from the full filteredTrips
   const pagedTrips = filteredTrips.slice(0, tripsLimit);
@@ -358,13 +382,14 @@ export default function TruckDetail() {
           </div>
 
           {/* Print KPI summary */}
-          <div className="grid grid-cols-6 gap-3 mb-8">
+          <div className="grid grid-cols-7 gap-3 mb-8">
             {[
               { label: "Trips", value: filteredTrips.length.toString() },
               { label: "Gross Revenue", value: formatCurrency(filteredTripRevenue) },
               { label: "Commission", value: formatCurrency(filteredTripCommission) },
               { label: "Trip Expenses", value: formatCurrency(filteredTripExp) },
               { label: "Other Expenses", value: formatCurrency(filteredExpTotal) },
+              { label: "Maintenance (USD)", value: formatCurrency(filteredMaintenanceCostUsd) },
               { label: "Net Contribution", value: formatCurrency(filteredNetContribution) },
             ].map((k) => (
               <div key={k.label} className="border border-gray-300 rounded p-3">
@@ -586,13 +611,23 @@ export default function TruckDetail() {
           </div>
 
           {/* KPI Cards — values react to the period filter */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
             {[
               { label: "Trips", value: filteredTrips.length.toString(), sub: isPeriodActive ? `of ${trips.length} total` : `${trips.length} recorded`, accent: undefined },
               { label: "Gross Revenue", value: formatCurrency(filteredTripRevenue), accent: "green" as const },
               { label: "Commission", value: formatCurrency(filteredTripCommission), accent: "amber" as const },
               { label: "Trip Expenses", value: formatCurrency(filteredTripExp), accent: "red" as const },
               { label: "Other Expenses", value: formatCurrency(filteredExpTotal), accent: "red" as const, sub: `${filteredExpenses.length} record${filteredExpenses.length !== 1 ? "s" : ""}` },
+              {
+                label: "Maintenance",
+                value: filteredMaintenanceCostUsd > 0
+                  ? formatCurrency(filteredMaintenanceCostUsd)
+                  : Object.keys(maintenanceNonUsd).length > 0
+                    ? Object.entries(maintenanceNonUsd).map(([c, v]) => `${c} ${v.toLocaleString("en-US", { minimumFractionDigits: 2 })}`).join(", ")
+                    : "$0.00",
+                accent: (filteredMaintenanceCostUsd > 0 || Object.keys(maintenanceNonUsd).length > 0) ? "red" as const : undefined,
+                sub: `${filteredMaintenance.length} record${filteredMaintenance.length !== 1 ? "s" : ""}${Object.keys(maintenanceNonUsd).length > 0 ? " · non-USD excluded from net" : ""}`,
+              },
               { label: "Net Contribution", value: formatCurrency(filteredNetContribution), accent: filteredNetContribution >= 0 ? "green" as const : "red" as const },
             ].map((k) => (
               <div key={k.label} className="bg-card border border-border rounded-xl p-4">
