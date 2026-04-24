@@ -266,9 +266,10 @@ router.get("/:id/detail", async (req, res, next) => {
             allowancePct: fin.allowancePct,
             allowanceQty: fin.allowanceQty,
             chargeableShort: fin.chargeableShort,
+            shortCharge: fin.shortCharge,
           };
         } catch {
-          return { ...t, grossRevenue: 0, commission: 0, tripExpenses: 0, netContribution: 0, shortQty: null, allowancePct: null, allowanceQty: null, chargeableShort: null };
+          return { ...t, grossRevenue: 0, commission: 0, tripExpenses: 0, netContribution: 0, shortQty: null, allowancePct: null, allowanceQty: null, chargeableShort: null, shortCharge: null };
         }
       })
     );

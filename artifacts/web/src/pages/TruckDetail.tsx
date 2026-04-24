@@ -61,7 +61,7 @@ type TruckDetailData = {
     id: number; status: string; loadedQty: number | null; deliveredQty: number | null; product: string | null;
     createdAt: string; batchName: string | null; route: string | null; ratePerMt: number | null;
     grossRevenue: number; commission: number; tripExpenses: number; netContribution: number;
-    shortQty: number | null; allowancePct: number | null; allowanceQty: number | null; chargeableShort: number | null;
+    shortQty: number | null; allowancePct: number | null; allowanceQty: number | null; chargeableShort: number | null; shortCharge: number | null;
   }[];
   otherExpenses: { id: number; costType: string; description: string | null; amount: number; currency: string; expenseDate: string }[];
   summary: { totalTrips: number; totalRevenue: number; totalCommission: number; totalTripExpenses: number; totalOtherExpenses: number; netProfit: number };
@@ -272,10 +272,10 @@ export default function TruckDetail() {
   const filteredTripExp = filteredTrips.reduce((s, t) => s + t.tripExpenses, 0);
   const filteredExpTotal = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const filteredTripNet = filteredTrips.reduce((s, t) => s + t.netContribution, 0);
-  // Chargeable shorts — from financials (allowable portion already excluded)
-  const filteredTripShorts = filteredTrips
+  // Short charge (USD) — chargeable MT × sub short rate, from financials
+  const filteredTripShortCharge = filteredTrips
     .filter((t) => !["cancelled", "amended_out"].includes(t.status))
-    .reduce((s, t) => s + (t.chargeableShort ?? 0), 0);
+    .reduce((s, t) => s + (t.shortCharge ?? 0), 0);
 
   // Maintenance records filtered by the same period as expenses
   const filteredMaintenance = useMemo(() => {
@@ -410,7 +410,7 @@ export default function TruckDetail() {
               <table className="w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b-2 border-gray-400">
-                    {["Date", "Batch", "Route", "Product", "Status", "Loaded (MT)", "Delivered (MT)", "Shorts (MT)", "Gross", "Trip Exp.", "Net Contrib."].map((h) => (
+                    {["Date", "Batch", "Route", "Product", "Status", "Loaded (MT)", "Delivered (MT)", "Short Charge", "Gross", "Trip Exp.", "Net Contrib."].map((h) => (
                       <th key={h} className="py-1.5 pr-3 text-left font-semibold text-gray-700 last:text-right">{h}</th>
                     ))}
                   </tr>
@@ -427,12 +427,7 @@ export default function TruckDetail() {
                       <td className="py-1.5 pr-3 font-mono">{t.loadedQty != null ? t.loadedQty : "—"}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.deliveredQty != null ? t.deliveredQty : "—"}</td>
                       <td className="py-1.5 pr-3 font-mono text-right">
-                        {t.shortQty != null && t.shortQty > 0 ? (
-                          <span>
-                            {t.shortQty.toFixed(3)}{" "}
-                            <span className="text-gray-500 text-[10px]">({t.chargeableShort != null && t.chargeableShort > 0 ? `${t.chargeableShort.toFixed(3)} chg` : "nil chg"})</span>
-                          </span>
-                        ) : "—"}
+                        {t.shortCharge != null && t.shortCharge > 0 ? formatCurrency(t.shortCharge) : "—"}
                       </td>
                       <td className="py-1.5 pr-3 font-mono">{formatCurrency(t.grossRevenue)}</td>
                       <td className="py-1.5 pr-3 font-mono">{t.tripExpenses > 0 ? formatCurrency(t.tripExpenses) : "—"}</td>
@@ -443,7 +438,7 @@ export default function TruckDetail() {
                 <tfoot>
                   <tr className="border-t-2 border-gray-400 font-bold">
                     <td className="py-2 pr-3" colSpan={7}>Totals ({filteredTrips.filter((t) => !["cancelled","amended_out"].includes(t.status)).length} active)</td>
-                    <td className="py-2 pr-3 font-mono">{filteredTripShorts > 0 ? `${filteredTripShorts.toFixed(3)} MT chg` : "—"}</td>
+                    <td className="py-2 pr-3 font-mono">{filteredTripShortCharge > 0 ? formatCurrency(filteredTripShortCharge) : "—"}</td>
                     <td className="py-2 pr-3 font-mono">{formatCurrency(filteredTripRevenue)}</td>
                     <td className="py-2 pr-3 font-mono">{formatCurrency(filteredTripExp)}</td>
                     <td className="py-2 font-mono text-right">{formatCurrency(filteredTripNet)}</td>
@@ -703,10 +698,7 @@ export default function TruckDetail() {
                           <th className="px-4 py-3 text-left">Status</th>
                           <th className="px-4 py-3 text-right">Loaded</th>
                           <th className="px-4 py-3 text-right">Delivered</th>
-                          <th className="px-4 py-3 text-right">
-                            <div>Shorts</div>
-                            <div className="text-[10px] font-normal text-muted-foreground/60">total / allowable / chg</div>
-                          </th>
+                          <th className="px-4 py-3 text-right">Short Charge</th>
                           <th className="px-4 py-3 text-right">Gross</th>
                           <th className="px-4 py-3 text-right">Trip Exp.</th>
                           <th className="px-4 py-3 text-right">Net Contrib.</th>
@@ -729,21 +721,9 @@ export default function TruckDetail() {
                             <td className="px-4 py-3 text-right font-mono text-xs">{t.loadedQty != null ? `${t.loadedQty} MT` : "—"}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{t.deliveredQty != null ? `${t.deliveredQty} MT` : "—"}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs">
-                              {t.shortQty != null && t.shortQty > 0 ? (
-                                <div className="flex flex-col items-end gap-0.5">
-                                  <span className="text-muted-foreground">{t.shortQty.toFixed(3)} MT</span>
-                                  <span className="text-[10px] text-muted-foreground/60">
-                                    -{t.allowanceQty?.toFixed(3)} allow.
-                                  </span>
-                                  <span className={t.chargeableShort != null && t.chargeableShort > 0 ? "text-amber-400 font-semibold" : "text-muted-foreground/40"}>
-                                    {t.chargeableShort != null && t.chargeableShort > 0 ? `${t.chargeableShort.toFixed(3)} chg` : "nil chg"}
-                                  </span>
-                                </div>
-                              ) : t.shortQty === 0 || (t.loadedQty != null && t.deliveredQty != null) ? (
-                                <span className="text-muted-foreground/40">—</span>
-                              ) : (
-                                <span className="text-muted-foreground/40">—</span>
-                              )}
+                              {t.shortCharge != null && t.shortCharge > 0
+                                ? <span className="text-amber-400">{formatCurrency(t.shortCharge)}</span>
+                                : <span className="text-muted-foreground/40">—</span>}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">{formatCurrency(t.grossRevenue)}</td>
                             <td className="px-4 py-3 text-right font-mono text-xs text-red-400">
@@ -761,7 +741,7 @@ export default function TruckDetail() {
                             Totals ({filteredTrips.filter((t) => !["cancelled","amended_out"].includes(t.status)).length} active)
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-amber-400">
-                            {filteredTripShorts > 0 ? `${filteredTripShorts.toFixed(3)} MT chg` : <span className="text-muted-foreground/40">—</span>}
+                            {filteredTripShortCharge > 0 ? formatCurrency(filteredTripShortCharge) : <span className="text-muted-foreground/40">—</span>}
                           </td>
                           <td className="px-4 py-3 text-right font-mono text-green-400">{formatCurrency(filteredTripRevenue)}</td>
                           <td className="px-4 py-3 text-right font-mono text-red-400">{formatCurrency(filteredTripExp)}</td>
