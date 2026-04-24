@@ -525,7 +525,7 @@ export default function TruckDetail() {
         {/* ═══════════════════════════════════════════════════
             SCREEN VIEW — hidden when printing
             ═══════════════════════════════════════════════════ */}
-        <div className="space-y-5 max-w-5xl mx-auto print:hidden">
+        <div className="space-y-5 print:hidden">
           {/* Truck info strip */}
           <div className="bg-card border border-border rounded-xl p-5 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-1 min-w-0">
