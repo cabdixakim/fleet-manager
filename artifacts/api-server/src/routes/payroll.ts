@@ -8,7 +8,7 @@ import {
   tripsTable,
   companyExpensesTable,
 } from "@workspace/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, isNull } from "drizzle-orm";
 import { REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { blockIfClosed } from "../lib/financialPeriod";
 import { postJournalEntry } from "../lib/glPosting";
@@ -101,6 +101,7 @@ router.post("/", async (req, res, next) => {
         .from(tripsTable)
         .where(and(
           eq(tripsTable.driverId, driver.id),
+          isNull(tripsTable.subcontractorId),
           inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
           sql`EXTRACT(MONTH FROM ${tripsTable.createdAt}) = ${month}`,
           sql`EXTRACT(YEAR FROM ${tripsTable.createdAt}) = ${year}`
@@ -136,6 +137,7 @@ router.post("/", async (req, res, next) => {
           .from(tripsTable)
           .where(and(
             eq(tripsTable.driverId, driver.id),
+            isNull(tripsTable.subcontractorId),
             inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
             sql`EXTRACT(MONTH FROM ${tripsTable.createdAt}) = ${month}`,
             sql`EXTRACT(YEAR FROM ${tripsTable.createdAt}) = ${year}`
