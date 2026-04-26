@@ -99,9 +99,9 @@ router.post("/", async (req, res, next) => {
       const totalAdvances = pendingAdvances.reduce((s, a) => s + parseFloat(a.amount), 0);
       const netPay = Math.max(0, salary - totalAdvances);
 
-      // Count trips
+      // Count company trips (sub-free)
       const tripsResult = await db
-        .select({ count: sql<number>`count(*)` })
+        .select({ count: sql<number>`count(*)::int` })
         .from(tripsTable)
         .where(and(
           eq(tripsTable.driverId, driver.id),
@@ -111,8 +111,31 @@ router.post("/", async (req, res, next) => {
           sql`EXTRACT(YEAR FROM ${tripsTable.createdAt}) = ${year}`
         ));
 
+      // Count sub trips grouped by sub (driver may have run on multiple subs)
+      const subTripsResult = await db
+        .select({
+          subcontractorId: tripsTable.subcontractorId,
+          subName: subcontractorsTable.name,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tripsTable)
+        .innerJoin(subcontractorsTable, eq(tripsTable.subcontractorId, subcontractorsTable.id))
+        .where(and(
+          eq(tripsTable.driverId, driver.id),
+          isNotNull(tripsTable.subcontractorId),
+          inArray(tripsTable.status, REVENUE_RECOGNISED_STATUSES),
+          sql`EXTRACT(MONTH FROM ${tripsTable.createdAt}) = ${month}`,
+          sql`EXTRACT(YEAR FROM ${tripsTable.createdAt}) = ${year}`
+        ))
+        .groupBy(tripsTable.subcontractorId, subcontractorsTable.name);
+
       const tripsCount = Number(tripsResult[0]?.count ?? 0);
-      const perTrip = tripsCount > 0 ? salary / tripsCount : 0;
+      const subTripCount = subTripsResult.reduce((s, r) => s + Number(r.count), 0);
+      const totalTrips = tripsCount + subTripCount;
+
+      // Company's share of salary (proportional to company trips)
+      const companyShare = totalTrips > 0 ? salary * (tripsCount / totalTrips) : salary;
+      const perTrip = tripsCount > 0 ? companyShare / tripsCount : 0;
 
       const [payroll] = await db
         .insert(driverPayrollTable)
@@ -136,6 +159,7 @@ router.post("/", async (req, res, next) => {
       }
 
       if (tripsCount > 0) {
+        // Allocate company's share (proportional) across company trips
         const trips = await db
           .select({ id: tripsTable.id })
           .from(tripsTable)
@@ -162,8 +186,8 @@ router.post("/", async (req, res, next) => {
             expenseDate: new Date(),
           });
         }
-      } else {
-        // No company trips — check if driver was assigned to a sub's truck this month
+      } else if (subTripCount === 0) {
+        // No trips at all — check if driver was assigned to a sub's truck this month
         const monthStart = new Date(year, month - 1, 1);
         const monthEnd = new Date(year, month, 0, 23, 59, 59);
 
@@ -187,7 +211,7 @@ router.post("/", async (req, res, next) => {
           .limit(1);
 
         if (subAssignment?.subcontractorId) {
-          // Driver was on a sub's truck — charge salary to that sub
+          // Driver was on a sub's truck with no recognised trips — charge full salary to sub
           const [subTx] = await db.insert(subcontractorTransactionsTable).values({
             subcontractorId: subAssignment.subcontractorId,
             type: "driver_salary",
@@ -208,7 +232,7 @@ router.post("/", async (req, res, next) => {
             ],
           });
         } else {
-          // Not on a sub's truck — post as company overhead
+          // No trips anywhere — post as company overhead
           await db.insert(companyExpensesTable).values({
             category: "staff",
             description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
@@ -219,8 +243,34 @@ router.post("/", async (req, res, next) => {
         }
       }
 
-      // GL: Dr Staff Expense (gross), Cr Accrued Salaries (netPay), Cr Advances Payable / clearing (advances)
-      // Only post company payroll GL if NOT redirected to a sub
+      // Charge each sub their proportional share based on sub trip count
+      // This runs whether or not there were company trips (mixed case included)
+      for (const subGroup of subTripsResult) {
+        if (!subGroup.subcontractorId) continue;
+        const subShare = salary * (Number(subGroup.count) / totalTrips);
+        const [subTx] = await db.insert(subcontractorTransactionsTable).values({
+          subcontractorId: subGroup.subcontractorId,
+          type: "driver_salary",
+          amount: subShare.toFixed(2),
+          driverId: driver.id,
+          description: `Driver salary (${subGroup.count}/${totalTrips} trips): ${driver.name} — ${month}/${year}`,
+          transactionDate: new Date(year, month - 1, 1),
+        }).returning();
+
+        await postJournalEntry({
+          description: `Driver salary charged to ${subGroup.subName} — ${driver.name} ${month}/${year}`,
+          entryDate: new Date(year, month - 1, 1),
+          referenceType: "sub_driver_salary",
+          referenceId: subTx.id,
+          lines: [
+            { accountCode: "2001", debit: subShare, description: `Reduce payables — ${subGroup.subName}` },
+            { accountCode: "5002", credit: subShare, description: "Driver salary recovery" },
+          ],
+        });
+      }
+
+      // GL: payroll obligation to driver (full gross salary regardless of how cost is split)
+      // Sub recovery entries above net down account 5002 to the company's actual share
       const glLines: any[] = [
         { accountCode: "5002", debit: salary, description: `Driver salary ${driver.name}` },
         { accountCode: "2100", credit: netPay, description: "Accrued Salaries" },
