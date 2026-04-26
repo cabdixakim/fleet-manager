@@ -91,7 +91,11 @@ export default function TruckDetail() {
   const { user } = useAuth();
   const canCorrect = !!user && ["accounts", "manager", "admin", "owner", "system"].includes(user.role);
 
-  const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses" | "documents" | "maintenance">("trips");
+  const [activeTab, setActiveTab] = useState<"trips" | "drivers" | "expenses" | "documents" | "maintenance">(() => {
+    const p = new URLSearchParams(window.location.search);
+    const t = p.get("tab");
+    return (["trips", "drivers", "expenses", "documents", "maintenance"] as const).includes(t as any) ? t as any : "trips";
+  });
 
   // Maintenance state
   const [showAddMaintenance, setShowAddMaintenance] = useState(false);

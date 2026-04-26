@@ -12,7 +12,7 @@ import { formatDistanceToNow, differenceInDays } from "date-fns";
 import {
   Plus, Download, Search, Truck, Pencil, Trash2, User,
   Clock, X, History, Building2, MapPin, ArrowRight,
-  CheckCircle, Loader2, Users,
+  CheckCircle, Loader2, Users, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -290,6 +290,13 @@ function TruckRow({
       {/* Actions */}
       <td className="px-2 pr-3 py-3 w-20" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/fleet/${truck.id}?tab=documents`); }}
+            title="Documents"
+            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          >
+            <FileText className="w-3.5 h-3.5" />
+          </button>
           <button onClick={(e) => { e.stopPropagation(); onDriverHistory(); }} title="Assign driver" className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
             <History className="w-3.5 h-3.5" />
           </button>
