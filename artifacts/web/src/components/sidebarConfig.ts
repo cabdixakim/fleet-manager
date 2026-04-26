@@ -48,7 +48,7 @@ export const sidebarConfig: SidebarGroup[] = [
       { label: "Suppliers",  path: "/suppliers", icon: "building2" },
       { label: "Invoices",   path: "/invoices",  icon: "fileText" },
       { label: "Expenses",   path: "/finance",   icon: "dollarSign" },
-      { label: "Payroll",    path: "/payroll",   icon: "calculator", fleetOnly: "company" },
+      { label: "Payroll",    path: "/payroll",   icon: "calculator" },
       { label: "Brokers",    path: "/agents",    icon: "mapPin" },
     ],
   },
