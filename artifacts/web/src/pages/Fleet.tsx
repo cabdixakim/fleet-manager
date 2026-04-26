@@ -282,7 +282,7 @@ function TruckRow({
             onClick={(e) => { e.stopPropagation(); navigate(`/batches/${truck.activeTrip.batchId}`); }}
             className="flex items-center gap-0.5 text-[11px] text-primary hover:underline whitespace-nowrap"
           >
-            {getRouteShort(truck.activeTrip.route) || truck.activeTrip.batchName} <ArrowRight className="w-3 h-3" />
+            {truck.activeTrip.batchName || getRouteShort(truck.activeTrip.route)} <ArrowRight className="w-3 h-3" />
           </button>
         )}
       </td>
