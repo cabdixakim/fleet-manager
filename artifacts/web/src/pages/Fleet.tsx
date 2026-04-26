@@ -215,7 +215,7 @@ function TruckRow({
       </td>
 
       {/* Ownership */}
-      <td className="px-2 py-3 text-xs text-muted-foreground max-w-[120px]">
+      <td className="hidden sm:table-cell px-2 py-3 text-xs text-muted-foreground max-w-[120px]">
         {truck.companyOwned ? (
           <span className="flex items-center gap-1 text-primary/70">
             <Building2 className="w-3 h-3 shrink-0" />Company
@@ -226,7 +226,7 @@ function TruckRow({
       </td>
 
       {/* Driver */}
-      <td className="px-2 py-3 w-36" onClick={(e) => e.stopPropagation()}>
+      <td className="hidden sm:table-cell px-2 py-3 w-36" onClick={(e) => e.stopPropagation()}>
         <button
           className={cn(
             "flex items-center gap-1 text-xs hover:text-primary transition-colors",
@@ -240,7 +240,7 @@ function TruckRow({
       </td>
 
       {/* Location */}
-      <td className="px-2 py-3 text-xs text-muted-foreground max-w-[160px]" onClick={(e) => e.stopPropagation()}>
+      <td className="hidden md:table-cell px-2 py-3 text-xs text-muted-foreground max-w-[160px]" onClick={(e) => e.stopPropagation()}>
         {isOnTrip ? (
           <span className="text-primary font-medium flex items-center gap-1">
             <MapPin className="w-3 h-3 shrink-0" />{location}
@@ -267,7 +267,7 @@ function TruckRow({
       </td>
 
       {/* Last delivery */}
-      <td className="px-2 py-3 text-xs text-muted-foreground w-28 whitespace-nowrap">
+      <td className="hidden lg:table-cell px-2 py-3 text-xs text-muted-foreground w-28 whitespace-nowrap">
         {truck.status !== "retired" && (
           <span className="flex items-center gap-1">
             <Clock className="w-3 h-3 shrink-0" />{daysSinceDelivery(truck.lastDeliveredAt)}
@@ -288,8 +288,8 @@ function TruckRow({
       </td>
 
       {/* Actions */}
-      <td className="px-2 pr-3 py-3 w-20" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <td className="px-2 pr-3 py-3 w-16" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/fleet/${truck.id}?tab=documents`); }}
             title="Documents"
@@ -561,12 +561,12 @@ export default function Fleet() {
                   <th className="pl-4 pr-2 py-2 w-6" />
                   <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Truck</th>
                   <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Status</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Owner</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Driver</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Location</th>
-                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Last Trip</th>
+                  <th className="hidden sm:table-cell px-2 py-2 text-left text-xs font-medium text-muted-foreground">Owner</th>
+                  <th className="hidden sm:table-cell px-2 py-2 text-left text-xs font-medium text-muted-foreground">Driver</th>
+                  <th className="hidden md:table-cell px-2 py-2 text-left text-xs font-medium text-muted-foreground">Location</th>
+                  <th className="hidden lg:table-cell px-2 py-2 text-left text-xs font-medium text-muted-foreground">Last Trip</th>
                   <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">Trip</th>
-                  <th className="px-2 pr-3 py-2 w-20" />
+                  <th className="px-2 pr-3 py-2 w-16" />
                 </tr>
               </thead>
               <tbody>
