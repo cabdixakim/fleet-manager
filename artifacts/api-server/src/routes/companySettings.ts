@@ -29,6 +29,11 @@ router.put("/", async (req, res, next) => {
       console.log("[DEBUG] Created new company settings:", created);
       return res.json(created);
     }
+    const prev = existing[0];
+    const changedFields = Object.keys(req.body).filter((key) => {
+      if (key === "updatedAt" || key === "id") return false;
+      return String((prev as any)[key] ?? "") !== String(req.body[key] ?? "");
+    });
     const [updated] = await db.update(companySettingsTable)
       .set({
         ...req.body,
@@ -37,7 +42,14 @@ router.put("/", async (req, res, next) => {
       .where(eq(companySettingsTable.id, existing[0].id))
       .returning();
     console.log("[DEBUG] Updated company settings:", updated);
-    await logAudit(req, { action: "update", entity: "settings", description: `Updated company settings`, metadata: { fields: Object.keys(req.body) } });
+    await logAudit(req, {
+      action: "update",
+      entity: "settings",
+      description: changedFields.length > 0
+        ? `Updated company settings — changed: ${changedFields.join(", ")}`
+        : `Saved company settings (no changes)`,
+      metadata: changedFields.length > 0 ? { fields: changedFields } : {},
+    });
     res.json(updated);
   } catch (e) {
     console.error("[ERROR] PUT /api/company-settings:", e);
