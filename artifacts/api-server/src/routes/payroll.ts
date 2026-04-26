@@ -7,8 +7,12 @@ import {
   driversTable,
   tripsTable,
   companyExpensesTable,
+  truckDriverAssignmentsTable,
+  trucksTable,
+  subcontractorTransactionsTable,
+  subcontractorsTable,
 } from "@workspace/db/schema";
-import { eq, and, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, inArray, isNull, isNotNull, lte, gte, or } from "drizzle-orm";
 import { REVENUE_RECOGNISED_STATUSES } from "../lib/financials";
 import { blockIfClosed } from "../lib/financialPeriod";
 import { postJournalEntry } from "../lib/glPosting";
@@ -159,16 +163,64 @@ router.post("/", async (req, res, next) => {
           });
         }
       } else {
-        await db.insert(companyExpensesTable).values({
-          category: "staff",
-          description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
-          amount: salary.toFixed(2),
-          currency: "USD",
-          expenseDate: new Date(),
-        });
+        // No company trips — check if driver was assigned to a sub's truck this month
+        const monthStart = new Date(year, month - 1, 1);
+        const monthEnd = new Date(year, month, 0, 23, 59, 59);
+
+        const [subAssignment] = await db
+          .select({
+            subcontractorId: trucksTable.subcontractorId,
+            subName: subcontractorsTable.name,
+          })
+          .from(truckDriverAssignmentsTable)
+          .innerJoin(trucksTable, eq(truckDriverAssignmentsTable.truckId, trucksTable.id))
+          .innerJoin(subcontractorsTable, eq(trucksTable.subcontractorId, subcontractorsTable.id))
+          .where(and(
+            eq(truckDriverAssignmentsTable.driverId, driver.id),
+            isNotNull(trucksTable.subcontractorId),
+            lte(truckDriverAssignmentsTable.assignedAt, monthEnd),
+            or(
+              isNull(truckDriverAssignmentsTable.unassignedAt),
+              gte(truckDriverAssignmentsTable.unassignedAt, monthStart),
+            )
+          ))
+          .limit(1);
+
+        if (subAssignment?.subcontractorId) {
+          // Driver was on a sub's truck — charge salary to that sub
+          const [subTx] = await db.insert(subcontractorTransactionsTable).values({
+            subcontractorId: subAssignment.subcontractorId,
+            type: "driver_salary",
+            amount: salary.toFixed(2),
+            driverId: driver.id,
+            description: `Driver salary: ${driver.name} — ${month}/${year}`,
+            transactionDate: new Date(year, month - 1, 1),
+          }).returning();
+
+          await postJournalEntry({
+            description: `Driver salary charged to ${subAssignment.subName} — ${driver.name} ${month}/${year}`,
+            entryDate: new Date(year, month - 1, 1),
+            referenceType: "sub_driver_salary",
+            referenceId: subTx.id,
+            lines: [
+              { accountCode: "2001", debit: salary, description: `Reduce payables — ${subAssignment.subName}` },
+              { accountCode: "5002", credit: salary, description: "Driver salary recovery" },
+            ],
+          });
+        } else {
+          // Not on a sub's truck — post as company overhead
+          await db.insert(companyExpensesTable).values({
+            category: "staff",
+            description: `Driver salary (no trips): ${driver.name} — ${month}/${year}`,
+            amount: salary.toFixed(2),
+            currency: "USD",
+            expenseDate: new Date(),
+          });
+        }
       }
 
       // GL: Dr Staff Expense (gross), Cr Accrued Salaries (netPay), Cr Advances Payable / clearing (advances)
+      // Only post company payroll GL if NOT redirected to a sub
       const glLines: any[] = [
         { accountCode: "5002", debit: salary, description: `Driver salary ${driver.name}` },
         { accountCode: "2100", credit: netPay, description: "Accrued Salaries" },

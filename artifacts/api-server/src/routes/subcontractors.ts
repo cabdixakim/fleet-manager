@@ -152,6 +152,7 @@ async function getSubBalance(subId: number) {
       advances: sql<string>`coalesce(sum(case when type='advance_given' then amount else 0 end),0)`,
       payments: sql<string>`coalesce(sum(case when type='payment_made' then amount else 0 end),0)`,
       adjustments: sql<string>`coalesce(sum(case when type='adjustment' then amount else 0 end),0)`,
+      driverSalaries: sql<string>`coalesce(sum(case when type='driver_salary' then amount else 0 end),0)`,
     })
     .from(subcontractorTransactionsTable)
     .where(eq(subcontractorTransactionsTable.subcontractorId, subId));
@@ -163,6 +164,7 @@ async function getSubBalance(subId: number) {
     - parseFloat(txBal.advances ?? "0")
     - parseFloat(txBal.payments ?? "0")
     + parseFloat(txBal.adjustments ?? "0")
+    - parseFloat(txBal.driverSalaries ?? "0")
   );
 }
 
@@ -393,7 +395,7 @@ router.get("/:id/transactions", async (req, res, next) => {
       .where(and(eq(tripExpensesTable.subcontractorId, id), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck")));
     const totalTruckExpenses = parseFloat(truckExpRow?.total ?? "0");
 
-    const balance = totalNetPayable - totalTruckExpenses - parseFloat(txBal.totalAdvancesGiven ?? "0") - parseFloat(txBal.totalPaymentsMade ?? "0");
+    const balance = totalNetPayable - totalTruckExpenses - parseFloat(txBal.totalAdvancesGiven ?? "0") - parseFloat(txBal.totalPaymentsMade ?? "0") - parseFloat(txBal.totalDriverSalaries ?? "0");
     const [tc] = await db.select({ count: count() }).from(trucksTable).where(eq(trucksTable.subcontractorId, id));
 
     res.json({
@@ -473,6 +475,18 @@ router.post("/:id/transactions", async (req, res, next) => {
           lines: [
             { accountCode: "5003", debit: amount, description: `Subcontractor costs — ${sub?.name ?? `sub #${subcontractorId}`}` },
             { accountCode: "2001", credit: amount, description: "Subcontractor Payables" },
+          ],
+        });
+      } else if (tx.type === "driver_salary") {
+        // Driver salary charged to sub: Dr Subcontractor Payables (reduces what we owe them) / Cr Driver Salaries (cost recovery)
+        await postJournalEntry({
+          description: `Driver salary charged to ${sub?.name ?? `sub #${subcontractorId}`}${tx.description ? `: ${tx.description}` : ""}`,
+          entryDate: new Date(bump.effectiveDate),
+          referenceType: "sub_driver_salary",
+          referenceId: tx.id,
+          lines: [
+            { accountCode: "2001", debit: amount, description: `Reduce payables — ${sub?.name ?? `sub #${subcontractorId}`}` },
+            { accountCode: "5002", credit: amount, description: "Driver salary recovery" },
           ],
         });
       }
