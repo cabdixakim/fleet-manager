@@ -11,7 +11,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { exportToExcel } from "@/lib/export";
 import {
   Plus, Truck, ChevronLeft, Download, X, ChevronRight,
-  ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle, SlidersHorizontal,
+  ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle, SlidersHorizontal, Phone, MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -956,6 +956,20 @@ export default function BatchDetail() {
                           </span>
                           {trip.driverId && <><span>·</span><span className={`font-mono ${trip.driverPassport ? "" : "text-amber-400"}`}>{trip.driverPassport ? `PP: ${trip.driverPassport}` : "No passport"}</span></>}
                           {trip.driverId && <><span>·</span><span className={`font-mono ${trip.driverLicense ? "" : "text-amber-400"}`}>{trip.driverLicense ? `Lic: ${trip.driverLicense}` : "No licence"}</span></>}
+                          {trip.driverId && (() => {
+                            const ph = (drivers as any[])?.find((d: any) => d.id === trip.driverId)?.phone;
+                            return ph ? (
+                              <>
+                                <span>·</span>
+                                <a href={`tel:${ph}`} onClick={(e) => e.stopPropagation()} className="hover:text-primary transition-colors flex items-center gap-0.5" title={`Call ${trip.driverName}`}>
+                                  <Phone className="w-3 h-3" />{ph}
+                                </a>
+                                <a href={`https://wa.me/${ph.replace(/[^0-9]/g, "")}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="hover:text-green-400 transition-colors" title={`WhatsApp ${trip.driverName}`}>
+                                  <MessageCircle className="w-3 h-3" />
+                                </a>
+                              </>
+                            ) : null;
+                          })()}
                           <span>·</span>
                           <span>{trip.subcontractorName}</span>
                           <span>·</span>

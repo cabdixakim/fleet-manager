@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
-import { ArrowLeft, User, Phone, CreditCard, FileText, Activity } from "lucide-react";
+import { ArrowLeft, User, Phone, CreditCard, FileText, Activity, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DocumentsPanel } from "@/components/DocumentsPanel";
@@ -67,9 +67,20 @@ export default function DriverDetail() {
             <span className="text-xl font-bold text-emerald-400 mt-0.5">{formatCurrency(parseFloat(driver.monthlySalary ?? "0"))}</span>
           </div>
           {driver.phone && (
-            <div className="bg-card border border-border rounded-lg px-5 py-3 flex items-center gap-2 min-w-[160px]">
-              <Phone className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm">{driver.phone}</span>
+            <div className="bg-card border border-border rounded-lg px-5 py-3 flex items-center gap-3 min-w-[180px]">
+              <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+              <a href={`tel:${driver.phone}`} className="text-sm hover:text-primary transition-colors flex-1">
+                {driver.phone}
+              </a>
+              <a
+                href={`https://wa.me/${driver.phone.replace(/[^0-9]/g, "")}`}
+                target="_blank"
+                rel="noreferrer"
+                title="WhatsApp"
+                className="text-muted-foreground hover:text-green-400 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+              </a>
             </div>
           )}
           {driver.licenseNumber && (

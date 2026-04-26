@@ -5,7 +5,7 @@ import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency } from "@/lib/utils";
 import { exportToExcel } from "@/lib/export";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plus, Download, Search, User, Pencil, Trash2, AlertTriangle, FileText } from "lucide-react";
+import { Plus, Download, Search, User, Pencil, Trash2, AlertTriangle, FileText, Phone, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -162,7 +162,29 @@ export default function Drivers() {
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                   {d.licenseNumber ? <span>Lic: {d.licenseNumber}</span> : <span className="text-amber-400/70">No licence</span>}
                   {d.passportNumber && <><span>·</span><span>PP: {d.passportNumber}</span></>}
-                  {d.phone && <><span>·</span><span>{d.phone}</span></>}
+                  {d.phone && (
+                    <>
+                      <span>·</span>
+                      <a
+                        href={`tel:${d.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-primary transition-colors flex items-center gap-1"
+                        title={`Call ${d.name}`}
+                      >
+                        <Phone className="w-3 h-3" />{d.phone}
+                      </a>
+                      <a
+                        href={`https://wa.me/${d.phone.replace(/[^0-9]/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-green-400 transition-colors"
+                        title={`WhatsApp ${d.name}`}
+                      >
+                        <MessageCircle className="w-3 h-3" />
+                      </a>
+                    </>
+                  )}
                   {d.monthlySalary != null && d.monthlySalary > 0 && <><span>·</span><span>{formatCurrency(d.monthlySalary)}/mo</span></>}
                 </div>
               </div>
