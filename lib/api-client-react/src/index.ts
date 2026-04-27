@@ -225,11 +225,22 @@ export function useUpdateClearanceStatus() {
         credentials: "include",
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error("Failed to update clearance");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err: any = new Error(data?.error ?? "Failed to update clearance");
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
       return res.json();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/clearances/board"] });
+    },
+    onError: (err: any) => {
+      if (err?.status === 409 && err?.data?.conflict) {
+        qc.invalidateQueries({ queryKey: ["/api/clearances/board"] });
+      }
     },
   });
 }

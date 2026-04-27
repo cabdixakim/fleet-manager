@@ -246,19 +246,24 @@ export default function InvoiceDetail() {
     queryFn: () => fetch("/api/bank-accounts", { credentials: "include" }).then((r) => r.json()),
   });
 
+  const refreshInvoice = () => {
+    qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
+    qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+  };
+
   const handleStatusChange = async (status: string) => {
     if (status === "cancelled") { setShowCancelConfirm(true); return; }
     if (status === "paid") { setPayDate(format(new Date(), "yyyy-MM-dd")); setPayBankAccountId(""); setShowPayDialog(true); return; }
     setUpdatingStatus(true);
     try {
-      await fetch(`/api/invoices/${id}/status`, {
+      const res = await fetch(`/api/invoices/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ status }),
       });
-      qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
-      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      if (res.status === 409) { refreshInvoice(); return; }
+      refreshInvoice();
     } finally {
       setUpdatingStatus(false);
     }
@@ -268,14 +273,14 @@ export default function InvoiceDetail() {
     setShowPayDialog(false);
     setUpdatingStatus(true);
     try {
-      await fetch(`/api/invoices/${id}/status`, {
+      const res = await fetch(`/api/invoices/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ status: "paid", paidDate: payDate, bankAccountId: payBankAccountId ? parseInt(payBankAccountId) : undefined }),
       });
-      qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
-      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      if (res.status === 409) { refreshInvoice(); return; }
+      refreshInvoice();
     } finally {
       setUpdatingStatus(false);
     }
@@ -285,14 +290,14 @@ export default function InvoiceDetail() {
     setShowCancelConfirm(false);
     setUpdatingStatus(true);
     try {
-      await fetch(`/api/invoices/${id}/status`, {
+      const res = await fetch(`/api/invoices/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ status: "cancelled" }),
       });
-      qc.invalidateQueries({ queryKey: [`/api/invoices/${id}`] });
-      qc.invalidateQueries({ queryKey: ["/api/invoices"] });
+      if (res.status === 409) { refreshInvoice(); return; }
+      refreshInvoice();
     } finally {
       setUpdatingStatus(false);
     }

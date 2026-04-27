@@ -59,18 +59,28 @@ export default function Batches() {
 
   const performBatchUpdate = async (revertReason?: string) => {
     if (!editBatch) return;
-    await updateBatch({
-      id: editBatch.id,
-      data: {
-        name: editBatch.name,
-        ratePerMt: parseFloat(editBatch.ratePerMt),
-        notes: editBatch.notes,
-        status: editBatch.status,
-        agentId: editBatch.agentId ? parseInt(editBatch.agentId) : null,
-        agentFeePerMt: editBatch.agentFeePerMt ? parseFloat(editBatch.agentFeePerMt) : null,
-        ...(revertReason ? { revertReason } : {}),
-      } as any,
-    });
+    try {
+      await updateBatch({
+        id: editBatch.id,
+        data: {
+          name: editBatch.name,
+          ratePerMt: parseFloat(editBatch.ratePerMt),
+          notes: editBatch.notes,
+          status: editBatch.status,
+          agentId: editBatch.agentId ? parseInt(editBatch.agentId) : null,
+          agentFeePerMt: editBatch.agentFeePerMt ? parseFloat(editBatch.agentFeePerMt) : null,
+          ...(revertReason ? { revertReason } : {}),
+        } as any,
+      });
+    } catch (err: any) {
+      if (err?.status === 409 && err?.data?.conflict) {
+        qc.invalidateQueries({ queryKey: ["/api/batches"] });
+        setEditBatch(null);
+        setBatchRevertDialog(null);
+        return;
+      }
+      throw err;
+    }
     qc.invalidateQueries({ queryKey: ["/api/batches"] });
     setEditBatch(null);
     setBatchRevertDialog(null);

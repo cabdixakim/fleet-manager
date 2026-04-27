@@ -405,14 +405,18 @@ router.patch("/:id/status", async (req, res, next) => {
     const { status, paidDate } = req.body;
     const VALID = ["draft", "sent", "paid", "overdue", "cancelled"];
     if (!VALID.includes(status)) return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID.join(", ")}` });
+
+    const [before] = await db.select({ status: invoicesTable.status }).from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
+    if (!before) return res.status(404).json({ error: "Not found" });
+
     const updateData: Record<string, unknown> = { status };
     if (status === "paid") updateData.paidDate = paidDate ?? new Date().toISOString().split("T")[0];
     const [invoice] = await db
       .update(invoicesTable)
       .set(updateData)
-      .where(eq(invoicesTable.id, id))
+      .where(and(eq(invoicesTable.id, id), eq(invoicesTable.status, before.status)))
       .returning();
-    if (!invoice) return res.status(404).json({ error: "Not found" });
+    if (!invoice) return res.status(409).json({ conflict: true });
 
     // When cancelling: reverse ledger entry, unstamp trips, revert batch
     if (status === "cancelled" && invoice.clientId) {

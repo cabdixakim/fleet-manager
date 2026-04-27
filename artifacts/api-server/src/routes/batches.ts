@@ -269,8 +269,16 @@ router.put("/:id", async (req, res, next) => {
     }
 
     const { revertReason, ...dbBody } = req.body as Record<string, any>;
-    const [batch] = await db.update(batchesTable).set(dbBody).where(eq(batchesTable.id, id)).returning();
-    if (!batch) return res.status(404).json({ error: "Not found" });
+    const isStatusTransition = newStatus && newStatus !== before.status;
+    const updateWhere = isStatusTransition
+      ? and(eq(batchesTable.id, id), eq(batchesTable.status, before.status))
+      : eq(batchesTable.id, id);
+    const [batch] = await db.update(batchesTable).set(dbBody).where(updateWhere).returning();
+    if (!batch) {
+      const [current] = await db.select().from(batchesTable).where(eq(batchesTable.id, id)).limit(1);
+      if (!current) return res.status(404).json({ error: "Not found" });
+      return res.status(409).json({ conflict: true });
+    }
     const enriched = await enrichBatch(batch, "");
     const [client] = await db.select({ name: clientsTable.name }).from(clientsTable).where(eq(clientsTable.id, batch.clientId));
     const isStatusChange = dbBody.status && dbBody.status !== before?.status;

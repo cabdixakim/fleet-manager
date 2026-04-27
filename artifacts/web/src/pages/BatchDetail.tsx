@@ -638,6 +638,7 @@ export default function BatchDetail() {
       await updateBatch({ id, data: { status: next.status as any } });
       invalidate();
     } catch (err: any) {
+      if (err?.status === 409 && err?.data?.conflict) { invalidate(); return; }
       const msg = err?.data?.error ?? err?.message ?? "Could not advance batch status.";
       setAdvanceBatchError(msg);
     }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { clearancesTable, tripsTable, trucksTable, batchesTable, tripCheckpointsTable } from "@workspace/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
 const router = Router();
@@ -75,6 +75,7 @@ router.put("/:id", async (req, res, next) => {
     const [before] = await db.select().from(clearancesTable).where(eq(clearancesTable.id, id));
 
     const { status, documentNumber, notes, documentUrl } = req.body;
+    const isStatusChange = status !== undefined && before?.status !== status;
     const updates: Record<string, any> = {};
     if (status !== undefined) updates.status = status;
     if (documentNumber !== undefined) updates.documentNumber = documentNumber;
@@ -83,14 +84,20 @@ router.put("/:id", async (req, res, next) => {
     if (status === "approved") updates.approvedAt = new Date();
     if (status === "requested" || status === "pending") updates.approvedAt = null;
 
+    const updateWhere = isStatusChange
+      ? and(eq(clearancesTable.id, id), eq(clearancesTable.status, before!.status))
+      : eq(clearancesTable.id, id);
+
     const [clearance] = await db
       .update(clearancesTable)
       .set(updates)
-      .where(eq(clearancesTable.id, id))
+      .where(updateWhere)
       .returning();
-    if (!clearance) return res.status(404).json({ error: "Not found" });
-
-    const isStatusChange = status !== undefined && before?.status !== status;
+    if (!clearance) {
+      const [current] = await db.select({ id: clearancesTable.id }).from(clearancesTable).where(eq(clearancesTable.id, id)).limit(1);
+      if (!current) return res.status(404).json({ error: "Not found" });
+      return res.status(409).json({ conflict: true });
+    }
     const checkpoint = clearance.checkpoint?.replace(/_/g, " ") ?? "?";
     await logAudit(req, {
       action: isStatusChange ? "status_change" : "update",

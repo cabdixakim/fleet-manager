@@ -71,8 +71,13 @@ function ClearanceCard({
   }, [highlighted]);
 
   const quickUpdate = async (status: string) => {
-    await updateStatus({ id: doc.id, status });
-    if (status === "approved" && onApproved) onApproved();
+    try {
+      await updateStatus({ id: doc.id, status });
+      if (status === "approved" && onApproved) onApproved();
+    } catch (err: any) {
+      if (err?.status === 409 && err?.data?.conflict) return;
+      throw err;
+    }
   };
 
   const handleFileAttach = async (file: File) => {
@@ -302,13 +307,18 @@ export default function Clearances() {
 
   const handleSaveEdit = async () => {
     if (!editDoc) return;
-    await updateStatus({
-      id: editDoc.id,
-      status: editForm.status,
-      notes: editForm.notes,
-      documentNumber: editForm.documentNumber,
-      documentUrl: editDocUrl,
-    });
+    try {
+      await updateStatus({
+        id: editDoc.id,
+        status: editForm.status,
+        notes: editForm.notes,
+        documentNumber: editForm.documentNumber,
+        documentUrl: editDocUrl,
+      });
+    } catch (err: any) {
+      if (err?.status === 409 && err?.data?.conflict) { setEditDoc(null); return; }
+      throw err;
+    }
     setEditDoc(null);
     if (editForm.status === "approved" && focusClearanceId === editDoc.id && returnTo) {
       navigate(returnTo);
