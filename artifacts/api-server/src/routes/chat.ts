@@ -1,9 +1,16 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { chatChannelsTable, chatMessagesTable, usersTable, tripsTable } from "@workspace/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, lt, sql } from "drizzle-orm";
 
 const router = Router();
+
+// Channel → which roles may access it (undefined = all roles)
+const CHANNEL_ROLES: Record<string, string[]> = {
+  general:    ["owner", "admin", "manager", "accounts", "operations"],
+  operations: ["owner", "admin", "manager", "operations"],
+  accounts:   ["owner", "admin", "manager", "accounts"],
+};
 
 // ── Ensure default team channels exist ──────────────────────────────────────
 async function ensureDefaultChannels() {
@@ -25,14 +32,43 @@ async function ensureDefaultChannels() {
 }
 ensureDefaultChannels().catch(console.error);
 
+// ── Auto-delete messages older than 7 days ───────────────────────────────────
+async function purgeOldMessages() {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await db.delete(chatMessagesTable).where(lt(chatMessagesTable.createdAt, cutoff));
+}
+purgeOldMessages().catch(console.error);
+// Run cleanup every hour
+setInterval(() => purgeOldMessages().catch(console.error), 60 * 60 * 1000);
+
+// ── Helper: get current user's role ─────────────────────────────────────────
+async function getUserRole(req: any): Promise<string | null> {
+  const userId = req.session?.userId;
+  if (!userId) return null;
+  const [u] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+  return u?.role ?? null;
+}
+
 // ── GET /api/chat/channels ───────────────────────────────────────────────────
 router.get("/channels", async (req, res, next) => {
   try {
-    const channels = await db
+    const role = await getUserRole(req);
+    if (!role) return res.status(401).json({ error: "Not authenticated" });
+
+    const all = await db
       .select()
       .from(chatChannelsTable)
       .orderBy(chatChannelsTable.type, chatChannelsTable.name);
-    res.json(channels);
+
+    // Filter team channels by role; trip channels are open to all
+    const visible = all.filter((ch) => {
+      if (ch.type !== "team") return true;
+      const allowed = CHANNEL_ROLES[ch.slug];
+      if (!allowed) return true;
+      return allowed.includes(role);
+    });
+
+    res.json(visible);
   } catch (e) { next(e); }
 });
 
@@ -65,6 +101,7 @@ router.get("/channels/:id/messages", async (req, res, next) => {
   try {
     const channelId = parseInt(req.params.id);
     const limit = parseInt(req.query.limit as string) || 100;
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const rows = await db
       .select({
         id: chatMessagesTable.id,
@@ -77,7 +114,10 @@ router.get("/channels/:id/messages", async (req, res, next) => {
       })
       .from(chatMessagesTable)
       .leftJoin(usersTable, eq(chatMessagesTable.userId, usersTable.id))
-      .where(eq(chatMessagesTable.channelId, channelId))
+      .where(and(
+        eq(chatMessagesTable.channelId, channelId),
+        sql`${chatMessagesTable.createdAt} >= ${cutoff}`,
+      ))
       .orderBy(chatMessagesTable.createdAt)
       .limit(limit);
     res.json(rows);
@@ -118,17 +158,9 @@ router.post("/channels/:id/messages", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── DELETE /api/chat/messages/:id (own messages only) ───────────────────────
-router.delete("/messages/:id", async (req, res, next) => {
-  try {
-    const id = parseInt(req.params.id);
-    const userId = (req.session as any)?.userId;
-    const [msg] = await db.select().from(chatMessagesTable).where(eq(chatMessagesTable.id, id)).limit(1);
-    if (!msg) return res.status(404).json({ error: "Not found" });
-    if (msg.userId !== userId) return res.status(403).json({ error: "Cannot delete another user's message" });
-    await db.delete(chatMessagesTable).where(eq(chatMessagesTable.id, id));
-    res.json({ success: true });
-  } catch (e) { next(e); }
+// ── DELETE /api/chat/messages/:id — disabled ─────────────────────────────────
+router.delete("/messages/:id", (_req, res) => {
+  res.status(403).json({ error: "Message deletion is disabled. Messages are removed automatically after 7 days." });
 });
 
 export default router;

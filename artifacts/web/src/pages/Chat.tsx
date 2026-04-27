@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { Hash, Send, Trash2, MessageSquare, ChevronLeft } from "lucide-react";
+import { Hash, Send, MessageSquare, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import { Layout } from "@/components/Layout";
@@ -113,11 +113,6 @@ export default function Chat() {
     } finally {
       setSending(false);
     }
-  }
-
-  async function deleteMessage(id: number) {
-    await api(`/api/chat/messages/${id}`, { method: "DELETE" });
-    setMessages((prev) => prev.filter((m) => m.id !== id));
   }
 
   const teamChannels = channels.filter((c) => c.type === "team");
@@ -253,15 +248,6 @@ export default function Chat() {
                     : "bg-muted text-foreground rounded-tl-sm"
                 }`}>
                   {msg.body}
-                  {isOwn && (
-                    <button
-                      onClick={() => deleteMessage(msg.id)}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive items-center justify-center shadow flex md:hidden md:group-hover:flex"
-                      title="Delete message"
-                    >
-                      <Trash2 className="w-2.5 h-2.5 text-white" />
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
