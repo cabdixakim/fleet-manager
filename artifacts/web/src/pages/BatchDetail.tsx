@@ -551,6 +551,11 @@ export default function BatchDetail() {
       await updateTrip({ id: tripId, data: { status: status as any, ...extraData } });
       invalidate();
     } catch (err: any) {
+      if (err?.status === 409 && err?.data?.conflict) {
+        // Another user already moved this status — silently refresh so they see the current state
+        invalidate();
+        return;
+      }
       if (err?.status === 409 && err?.data?.blocked && err?.data?.clearanceId) {
         sessionStorage.setItem(
           `pendingAdvance_${id}`,

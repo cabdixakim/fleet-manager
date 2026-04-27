@@ -347,6 +347,14 @@ export default function TripDetail() {
       setEditingStatus(false);
       setRevertDialog(null);
     } catch (err: any) {
+      if (err?.status === 409 && err?.data?.conflict) {
+        // Another user already moved this status — silently refresh so they see the current state
+        invalidate();
+        qc.invalidateQueries({ queryKey: [`/api/batches/${trip?.batchId}`] });
+        setEditingStatus(false);
+        setRevertDialog(null);
+        return;
+      }
       if (err?.status === 409 && err?.data?.blocked) {
         const { clearanceId, checkpoint, error: message } = err.data;
         setClearanceBlock({ clearanceId, checkpoint, message });

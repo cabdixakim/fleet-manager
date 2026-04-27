@@ -344,8 +344,23 @@ router.put("/:id", async (req, res, next) => {
       if (await blockIfClosed(res, before.deliveredAt)) return;
     }
 
-    const [trip] = await db.update(tripsTable).set(dbBody).where(eq(tripsTable.id, id)).returning();
-    if (!trip) return res.status(404).json({ error: "Not found" });
+    // Atomic guard: if a status change is in flight, only apply it if the DB
+    // still has the status we read earlier — prevents double-execution of side effects
+    // when two users click the same button at the same time.
+    const isStatusTransition = newStatus && before && newStatus !== before.status;
+    const updateWhere = isStatusTransition
+      ? and(eq(tripsTable.id, id), eq(tripsTable.status, before!.status))
+      : eq(tripsTable.id, id);
+
+    const [trip] = await db.update(tripsTable).set(dbBody).where(updateWhere).returning();
+    if (!trip) {
+      // 0 rows returned — either the trip doesn't exist or another request already
+      // moved the status. Distinguish the two by re-fetching.
+      const [current] = await db.select().from(tripsTable).where(eq(tripsTable.id, id)).limit(1);
+      if (!current) return res.status(404).json({ error: "Not found" });
+      // Status was already changed by someone else — tell the client to just refresh
+      return res.status(409).json({ conflict: true });
+    }
 
     // Auto-record agent fee_earned when trip becomes loaded (upfront, before delivery)
     if (dbBody.status === "loaded" && before?.status !== "loaded") {
