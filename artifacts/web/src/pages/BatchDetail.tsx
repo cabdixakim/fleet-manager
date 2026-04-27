@@ -1273,7 +1273,7 @@ export default function BatchDetail() {
             {/* Lock warning */}
             <div className="flex items-start gap-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2.5 text-xs text-amber-700 dark:text-amber-400">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>Once raised, this batch is locked as <strong>Invoiced</strong> and cannot be reverted while the invoice is active. To redo an invoice, cancel it first — this will unlock the batch and clear the trip stamps.</span>
+              <span>Raising locks this batch as <strong>Invoiced</strong>. To redo, cancel the invoice first.</span>
             </div>
             {/* Invoice details */}
             <div className="grid grid-cols-3 gap-3">
