@@ -1597,7 +1597,7 @@ export default function TripDetail() {
                 <Select value={expenseForm.supplierId} onValueChange={(v) => setExpenseForm({ ...expenseForm, supplierId: v })}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select supplier" /></SelectTrigger>
                   <SelectContent>
-                    {(suppliers as any[]).map((s: any) => (
+                    {(suppliers as any[]).filter((s: any) => s.type === "fuel").map((s: any) => (
                       <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>

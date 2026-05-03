@@ -1089,7 +1089,7 @@ export default function TruckDetail() {
                 <Select value={expenseForm.supplierId} onValueChange={(v) => setExpenseForm({ ...expenseForm, supplierId: v })}>
                   <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
                   <SelectContent>
-                    {(suppliers as any[]).map((s: any) => (
+                    {(suppliers as any[]).filter((s: any) => s.type === "fuel").map((s: any) => (
                       <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
