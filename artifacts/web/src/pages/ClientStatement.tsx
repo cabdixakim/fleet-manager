@@ -120,7 +120,7 @@ function generateClientStatementHtml(statement: Statement, company: any, userNam
       <div style="font-size:18px;font-weight:700;">${C(Math.abs(finalBal))}</div>
     </div>
   </div>
-  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total No. of entries: ${statement.transactions.length}</div>
+  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total transactions: ${statement.transactions.length}</div>
   <table style="width:100%;border-collapse:collapse;font-size:11px;">
     <thead>
       <tr style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;background:#f9f9f9;">

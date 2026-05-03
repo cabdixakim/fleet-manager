@@ -334,6 +334,14 @@ export default function TruckDetail() {
 
   return (
     <Layout>
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 8mm; }
+          body * { visibility: hidden !important; }
+          #truck-print-doc { display: block !important; visibility: visible !important; position: fixed; left: 0; top: 0; width: 100%; background: #fff; }
+          #truck-print-doc * { visibility: visible !important; }
+        }
+      `}</style>
       {closedPeriodDialog}
       {/* ── Screen header ── */}
       <PageHeader
@@ -357,7 +365,7 @@ export default function TruckDetail() {
         {/* ═══════════════════════════════════════════════════
             PRINT DOCUMENT — hidden on screen, shown when printing
             ═══════════════════════════════════════════════════ */}
-        <div className="hidden print:block text-black bg-white">
+        <div id="truck-print-doc" className="hidden print:block text-black bg-white">
           {/* Print header */}
           <div className="flex items-start justify-between mb-6 pb-4 border-b-2 border-black">
             <div>

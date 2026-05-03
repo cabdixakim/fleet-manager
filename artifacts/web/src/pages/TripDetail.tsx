@@ -236,7 +236,7 @@ function generateTripStatementHtml(trip: any, company: any, userName?: string): 
       <div style="font-size:18px;font-weight:700;">${C(Math.abs(balance))}</div>
     </div>
   </div>
-  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total No. of entries: ${entries.length}</div>
+  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total expense items: ${entries.length}</div>
   <table style="width:100%;border-collapse:collapse;font-size:11px;">
     <thead>
       <tr style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;background:#f9f9f9;">
