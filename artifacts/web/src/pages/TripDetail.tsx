@@ -1552,7 +1552,7 @@ export default function TripDetail() {
               </div>
               <div><Label>Type *</Label>
                 <Select value={expenseForm.costType} onValueChange={(v) => {
-                  const isFuel = ["fuel_1", "fuel_2", "fuel_3"].includes(v);
+                  const isFuel = ["fuel_advance", "fuel_1", "fuel_2", "fuel_3"].includes(v);
                   setExpenseForm({
                     ...expenseForm,
                     costType: v,
