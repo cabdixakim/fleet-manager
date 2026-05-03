@@ -1551,7 +1551,15 @@ export default function TripDetail() {
                 <Input type="date" value={expenseForm.expenseDate} onChange={(e) => setExpenseForm({ ...expenseForm, expenseDate: e.target.value })} className="mt-1" />
               </div>
               <div><Label>Type *</Label>
-                <Select value={expenseForm.costType} onValueChange={(v) => setExpenseForm({ ...expenseForm, costType: v })}>
+                <Select value={expenseForm.costType} onValueChange={(v) => {
+                  const isFuel = ["fuel_1", "fuel_2", "fuel_3"].includes(v);
+                  setExpenseForm({
+                    ...expenseForm,
+                    costType: v,
+                    paymentMethod: isFuel ? "fuel_credit" : (expenseForm.paymentMethod === "fuel_credit" ? "petty_cash" : expenseForm.paymentMethod),
+                    supplierId: isFuel ? expenseForm.supplierId : "",
+                  });
+                }}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>{EXPENSE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>

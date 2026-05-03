@@ -1025,7 +1025,15 @@ export default function TruckDetail() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Category</Label>
-                <Select value={expenseForm.costType} onValueChange={(v) => setExpenseForm({ ...expenseForm, costType: v })}>
+                <Select value={expenseForm.costType} onValueChange={(v) => {
+                  const isFuel = v === "fuel";
+                  setExpenseForm({
+                    ...expenseForm,
+                    costType: v,
+                    paymentMethod: isFuel ? "fuel_credit" : (expenseForm.paymentMethod === "fuel_credit" ? "petty_cash" : expenseForm.paymentMethod),
+                    supplierId: isFuel ? expenseForm.supplierId : "",
+                  });
+                }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EXPENSE_CATEGORIES.map((c) => (
