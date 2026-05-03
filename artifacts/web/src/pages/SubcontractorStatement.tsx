@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, TruckIcon, Printer } from "lucide-react";
 import { getRouteLabel } from "@/lib/routes";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Period = { id: number; name: string; startDate: string; endDate: string; isClosed: boolean };
 type TripLine = {
@@ -28,13 +29,12 @@ type Statement = {
   };
 };
 
-
 const TX_LABEL: Record<string, string> = {
-  net_payable: "Net Payable",
+  net_payable:   "Net Payable",
   advance_given: "Advance Given",
-  payment_made: "Payment Made",
+  payment_made:  "Payment Made",
   driver_salary: "Driver Salary",
-  adjustment: "Adjustment",
+  adjustment:    "Adjustment",
 };
 
 function WaterfallRow({ label, value, deduct, isSub, isTotal }: { label: string; value: number; deduct?: boolean; isSub?: boolean; isTotal?: boolean }) {
@@ -55,192 +55,104 @@ function WaterfallRow({ label, value, deduct, isSub, isTotal }: { label: string;
   );
 }
 
-const C = (v: number) => formatCurrency(v);
-const pRow = (label: string, value: string, deduct?: boolean, bold?: boolean, indent?: boolean) => `
-  <tr style="border-bottom:1px solid #e5e7eb;">
-    <td style="padding:5px ${indent ? "6px 5px 20px" : "6px"};font-size:11px;color:${bold ? "#111827" : indent ? "#6b7280" : "#374151"};font-weight:${bold ? "700" : "400"};">${label}</td>
-    <td style="padding:5px 6px;text-align:right;font-size:11px;font-weight:${bold ? "700" : "600"};color:${bold ? "#059669" : deduct ? "#dc2626" : "#111827"};">${deduct ? `− ${value}` : value}</td>
-  </tr>`;
-
-function SubStatementPrintDoc({ statement, company, periodLabel }: { statement: Statement; company: any; periodLabel: string }) {
+function SubStatementPrintDoc({ statement, company, periodLabel, userName }: {
+  statement: Statement; company: any; periodLabel: string; userName?: string;
+}) {
   const s = statement.summary;
-  const datePrinted = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const companyName = company?.name ?? "Optima Transport LLC";
   const companyAddress = [company?.address, company?.city, company?.country].filter(Boolean).join(", ");
   const companyPhone = company?.phone ?? "";
-  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join("");
-  const logoHtml = company?.logoUrl
-    ? `<img src="${company.logoUrl}" style="width:38px;height:38px;object-fit:contain;border-radius:6px;flex-shrink:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:none;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`
-    : `<div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`;
+  const now = new Date();
+  const datePrinted = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const C = (v: number) => `$${Math.abs(v).toFixed(2)}`;
 
-  const txDebit = statement.transactions
-    .filter((t) => !["payment_made", "advance_given", "driver_salary"].includes(t.type))
-    .reduce((acc, t) => acc + t.amount, 0);
-  const txCredit = statement.transactions
-    .filter((t) => ["payment_made", "advance_given", "driver_salary"].includes(t.type))
-    .reduce((acc, t) => acc + t.amount, 0);
+  type Entry = { date: string; remark: string; mode: string; cashIn: number; cashOut: number };
+  const rawEntries: Entry[] = [
+    ...statement.trips.map((t) => ({
+      date: t.createdAt,
+      remark: `${t.truckPlate} — ${t.batchName}`,
+      mode: "Trip",
+      cashIn: t.netPayable,
+      cashOut: 0,
+    })),
+    ...statement.transactions
+      .filter((tx) => ["payment_made", "advance_given", "driver_salary"].includes(tx.type))
+      .map((tx) => ({
+        date: tx.transactionDate,
+        remark: (TX_LABEL[tx.type] ?? tx.type) + (tx.description ? ` — ${tx.description}` : ""),
+        mode: "Cash",
+        cashIn: 0,
+        cashOut: tx.amount,
+      })),
+  ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const html = `
-<div style="font-family:Arial,sans-serif;color:#111827;background:#fff;width:100%;max-width:780px;margin:0 auto;">
+  const totalIn = rawEntries.reduce((acc, e) => acc + e.cashIn, 0);
+  const totalOut = rawEntries.reduce((acc, e) => acc + e.cashOut, 0);
+  let balance = s.openingBalance;
 
-  <!-- Header band -->
-  <div style="background:#0f172a;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      ${logoHtml}
-      <div>
-        <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:-0.3px;">${companyName}</div>
-        ${companyAddress ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">${companyAddress}</div>` : ""}
-        ${companyPhone ? `<div style="color:#94a3b8;font-size:10px;">${companyPhone}</div>` : ""}
-      </div>
+  const rows = rawEntries.map((e, i) => {
+    balance += e.cashIn - e.cashOut;
+    const balLabel = balance < 0 ? `${C(Math.abs(balance))} cr` : C(balance);
+    return `<tr style="border-bottom:1px solid #f0f0f0;background:${i % 2 === 0 ? "#fff" : "#fafafa"};">
+      <td style="padding:5px 10px;white-space:nowrap;color:#444;">${formatDate(e.date)}</td>
+      <td style="padding:5px 10px;">${e.remark}</td>
+      <td style="padding:5px 10px;color:#666;">${e.mode}</td>
+      <td style="padding:5px 10px;text-align:right;">${e.cashIn > 0 ? C(e.cashIn) : ""}</td>
+      <td style="padding:5px 10px;text-align:right;">${e.cashOut > 0 ? C(e.cashOut) : ""}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:600;">${balLabel}</td>
+    </tr>`;
+  }).join("");
+
+  const finalBal = s.closingBalance;
+  const finalStr = finalBal >= 0 ? `${C(finalBal)} payable` : `${C(Math.abs(finalBal))} credit`;
+
+  const html = `<div style="font-family:Arial,sans-serif;color:#111;background:#fff;width:100%;max-width:780px;margin:0 auto;font-size:12px;">
+  <div style="text-align:center;padding:20px 16px 14px;border-bottom:2px solid #111;">
+    <div style="font-size:22px;font-weight:700;">${companyName}</div>
+    ${companyAddress ? `<div style="font-size:10px;color:#666;margin-top:2px;">${companyAddress}${companyPhone ? ` &nbsp;·&nbsp; ${companyPhone}` : ""}</div>` : ""}
+    <div style="font-size:12px;color:#444;margin-top:6px;font-weight:600;">Subcontractor Settlement Statement</div>
+    <div style="font-size:10px;color:#888;margin-top:3px;">Generated On - ${datePrinted}, ${timeStr}${userName ? `. Generated by - ${userName}` : ""}</div>
+  </div>
+  <div style="padding:14px 16px 4px;">
+    <div style="font-size:17px;font-weight:700;">${statement.subcontractor.name}</div>
+    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;Duration: ${periodLabel} &nbsp;·&nbsp; Commission Rate: ${statement.subcontractor.commissionRate}%</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ddd;margin:10px 16px 4px;border-radius:3px;overflow:hidden;">
+    <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Total Earned</div>
+      <div style="font-size:18px;font-weight:700;">${C(totalIn)}</div>
     </div>
-    <div style="text-align:right;">
-      <div style="color:#f1f5f9;font-size:15px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Subcontractor Settlement</div>
-      <div style="color:#94a3b8;font-size:11px;margin-top:3px;">${periodLabel}</div>
+    <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Total Paid</div>
+      <div style="font-size:18px;font-weight:700;">${C(totalOut)}</div>
+    </div>
+    <div style="padding:12px 16px;text-align:center;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Final Balance</div>
+      <div style="font-size:18px;font-weight:700;">${C(Math.abs(finalBal))}</div>
     </div>
   </div>
-
-  <!-- Sub info row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:2px solid #e5e7eb;">
-    <div style="padding:10px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Subcontractor</div>
-      <div style="font-size:13px;font-weight:700;">${statement.subcontractor.name}</div>
-    </div>
-    <div style="padding:10px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Commission Rate</div>
-      <div style="font-size:13px;font-weight:700;">${statement.subcontractor.commissionRate}%</div>
-    </div>
-    <div style="padding:10px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Delivered Trips</div>
-      <div style="font-size:13px;font-weight:700;">${statement.trips.length}</div>
-    </div>
-    <div style="padding:10px 16px;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Date Printed</div>
-      <div style="font-size:12px;font-weight:600;">${datePrinted}</div>
-    </div>
-  </div>
-
-  <!-- Summary: Waterfall + Settlement side by side -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:2px solid #e5e7eb;">
-    <div style="padding:14px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">Deduction Waterfall</div>
-      <table style="width:100%;border-collapse:collapse;">
-        ${pRow("Gross Revenue (Loaded × Rate)", C(s.gross))}
-        ${pRow("Commission ("+statement.subcontractor.commissionRate+"%)", C(s.commission), true, false, true)}
-        ${pRow("Short Charges", C(s.shortCharges), true, false, true)}
-        ${pRow("Trip Expenses", C(s.tripExpenses), true, false, true)}
-        ${pRow("Driver Salaries", C(s.driverSalaries), true, false, true)}
-        ${(s.otherExpenses ?? 0) > 0 ? pRow("Other Expenses", C(s.otherExpenses ?? 0), true, false, true) : ""}
-        ${pRow("Net Payable to Subcontractor", C(s.netPayable), false, true)}
-      </table>
-    </div>
-    <div style="padding:14px 16px;">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">Settlement Summary</div>
-      <table style="width:100%;border-collapse:collapse;">
-        ${pRow("Opening Balance B/F", C(s.openingBalance))}
-        ${pRow("Net Earned This Period", C(s.netPayable))}
-        ${pRow("Payments Made to Sub", C(s.totalPaid), true, false, true)}
-        <tr style="border-top:2px solid #111827;">
-          <td style="padding:7px 6px;font-size:12px;font-weight:700;color:#111827;">Closing Balance</td>
-          <td style="padding:7px 6px;text-align:right;font-size:13px;font-weight:700;color:${s.closingBalance >= 0 ? "#d97706" : "#059669"};">
-            ${C(Math.abs(s.closingBalance))} <span style="font-size:10px;font-weight:400;">${s.closingBalance >= 0 ? "payable" : "credit"}</span>
-          </td>
-        </tr>
-      </table>
-    </div>
-  </div>
-
-  <!-- Trip Breakdown Table -->
-  <div style="padding:14px 16px 8px;border-bottom:2px solid #e5e7eb;">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">
-      Trip Breakdown — ${statement.trips.length} delivered trip${statement.trips.length !== 1 ? "s" : ""}
-    </div>
-    ${statement.trips.length === 0 ? `<div style="font-size:12px;color:#9ca3af;padding:8px 0;">No delivered trips for this period.</div>` : `
-    <table style="width:100%;border-collapse:collapse;font-size:10px;">
-      <thead>
-        <tr style="background:#f3f4f6;">
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Trip</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Truck</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Route</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#374151;">Gross</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#dc2626;">Comm.</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#dc2626;">Short</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#dc2626;">Expns.</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#dc2626;">Salary</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#059669;">Net</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${statement.trips.map((t, i) => `
-        <tr style="background:${i % 2 === 0 ? "#fff" : "#f9fafb"};border-bottom:1px solid #f3f4f6;">
-          <td style="padding:4px 6px;font-family:monospace;">${t.tripNumber ?? `#${t.tripId}`}</td>
-          <td style="padding:4px 6px;font-family:monospace;color:#6b7280;">${t.truckPlate}</td>
-          <td style="padding:4px 6px;color:#6b7280;white-space:nowrap;">${getRouteLabel(t.route ?? "")}</td>
-          <td style="padding:4px 6px;text-align:right;font-family:monospace;">${C(t.gross)}</td>
-          <td style="padding:4px 6px;text-align:right;font-family:monospace;color:#dc2626;">${t.commission > 0 ? `−${C(t.commission)}` : "—"}</td>
-          <td style="padding:4px 6px;text-align:right;font-family:monospace;color:#dc2626;">${t.shortCharge > 0 ? `−${C(t.shortCharge)}` : "—"}</td>
-          <td style="padding:4px 6px;text-align:right;font-family:monospace;color:#dc2626;">${t.tripExpenses > 0 ? `−${C(t.tripExpenses)}` : "—"}</td>
-          <td style="padding:4px 6px;text-align:right;font-family:monospace;color:#dc2626;">${t.driverSalary > 0 ? `−${C(t.driverSalary)}` : "—"}</td>
-          <td style="padding:4px 6px;text-align:right;font-family:monospace;font-weight:700;color:#059669;">${C(t.netPayable)}</td>
-        </tr>`).join("")}
-      </tbody>
-      <tfoot>
-        <tr style="background:#f3f4f6;border-top:2px solid #d1d5db;">
-          <td colspan="3" style="padding:5px 6px;font-size:10px;font-weight:700;">TOTAL (${statement.trips.length} trips)</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;">${C(s.gross)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#dc2626;">−${C(s.commission)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#dc2626;">−${C(s.shortCharges)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#dc2626;">−${C(s.tripExpenses)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#dc2626;">−${C(s.driverSalaries)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#059669;">${C(s.netPayable)}</td>
-        </tr>
-      </tfoot>
-    </table>`}
-  </div>
-
-  <!-- Ledger Transactions -->
-  ${statement.transactions.length > 0 ? `
-  <div style="padding:14px 16px;">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">
-      Ledger Transactions (${statement.transactions.length})
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:10px;">
-      <thead>
-        <tr style="background:#f3f4f6;">
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Date</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Type</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Description</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#374151;">Debit</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#059669;">Credit</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${statement.transactions.map((tx, i) => {
-          const isCredit = ["payment_made", "advance_given", "driver_salary"].includes(tx.type);
-          return `
-          <tr style="background:${i % 2 === 0 ? "#fff" : "#f9fafb"};border-bottom:1px solid #f3f4f6;">
-            <td style="padding:4px 6px;color:#6b7280;white-space:nowrap;">${formatDate(tx.transactionDate)}</td>
-            <td style="padding:4px 6px;font-weight:600;">${TX_LABEL[tx.type] ?? tx.type}</td>
-            <td style="padding:4px 6px;color:#6b7280;">${tx.description ?? "—"}</td>
-            <td style="padding:4px 6px;text-align:right;font-family:monospace;">${!isCredit ? C(tx.amount) : "—"}</td>
-            <td style="padding:4px 6px;text-align:right;font-family:monospace;color:#059669;">${isCredit ? C(tx.amount) : "—"}</td>
-          </tr>`;
-        }).join("")}
-      </tbody>
-      <tfoot>
-        <tr style="background:#f3f4f6;border-top:2px solid #d1d5db;">
-          <td colspan="3" style="padding:5px 6px;font-size:10px;font-weight:700;">TOTAL</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;">${C(txDebit)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#059669;">${C(txCredit)}</td>
-        </tr>
-      </tfoot>
-    </table>
-  </div>` : ""}
-
-  <!-- Footer -->
-  <div style="border-top:1px solid #e5e7eb;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;">
-    <span style="font-size:9px;color:#9ca3af;">Generated by ${companyName} · ${datePrinted}</span>
-    <span style="font-size:9px;color:#9ca3af;">Confidential — For recipient use only</span>
-  </div>
+  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total No. of entries: ${rawEntries.length}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead>
+      <tr style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;background:#f9f9f9;">
+        <th style="padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;">Date</th>
+        <th style="padding:7px 10px;text-align:left;font-weight:600;">Remark</th>
+        <th style="padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;">Mode</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Earned</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Paid</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Balance</th>
+      </tr>
+    </thead>
+    <tbody>${rawEntries.length ? rows : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#888;">No entries for this period.</td></tr>`}</tbody>
+    <tfoot>
+      <tr style="border-top:2px solid #111;background:#f9f9f9;">
+        <td colspan="5" style="padding:7px 10px;font-weight:700;">Final Balance</td>
+        <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;">${finalStr}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div style="padding:12px 16px;text-align:center;font-size:10px;color:#888;border-top:1px solid #ddd;margin-top:8px;">Generated by ${companyName}.</div>
 </div>`;
 
   return (
@@ -254,9 +166,10 @@ function SubStatementPrintDoc({ statement, company, periodLabel }: { statement: 
 
 export default function SubcontractorStatement() {
   const [, params] = useRoute("/subcontractors/:id/statement");
-  const subId = Number(params?.id);
+  const subId = params?.id;
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"statement" | "expenses">("statement");
+  const { user } = useAuth();
 
   const { data: periods = [] } = useQuery<Period[]>({
     queryKey: ["/api/periods"],
@@ -265,7 +178,7 @@ export default function SubcontractorStatement() {
 
   const periodParam = selectedPeriodId !== "all" ? `?periodId=${selectedPeriodId}` : "";
   const { data: statement, isLoading } = useQuery<Statement>({
-    queryKey: ["/api/subcontractors", subId, "period-statement", selectedPeriodId],
+    queryKey: [`/api/subcontractors/${subId}/period-statement`, selectedPeriodId],
     queryFn: () =>
       fetch(`/api/subcontractors/${subId}/period-statement${periodParam}`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!subId,
@@ -424,6 +337,7 @@ export default function SubcontractorStatement() {
                 })()}
               </div>
             )}
+
             {activeTab === "statement" && (
             <div className="space-y-6">
             {/* KPI Cards */}
@@ -582,7 +496,7 @@ export default function SubcontractorStatement() {
 
       </PageContent>
 
-      {statement && <SubStatementPrintDoc statement={statement} company={company} periodLabel={periodLabel} />}
+      {statement && <SubStatementPrintDoc statement={statement} company={company} periodLabel={periodLabel} userName={(user as any)?.name ?? (user as any)?.email} />}
     </Layout>
   );
 }

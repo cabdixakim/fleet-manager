@@ -15,6 +15,7 @@ import Clients from "@/pages/Clients";
 import Subcontractors from "@/pages/Subcontractors";
 import Fleet from "@/pages/Fleet";
 import TruckDetail from "@/pages/TruckDetail";
+import FleetStatement from "@/pages/FleetStatement";
 import Drivers from "@/pages/Drivers";
 import Clearances from "@/pages/Clearances";
 import Invoices from "@/pages/Invoices";
@@ -137,6 +138,7 @@ function Router() {
               <Route path="/clients" component={Clients} />
               <Route path="/subcontractors" component={Subcontractors} />
               <Route path="/fleet" component={Fleet} />
+              <Route path="/fleet/:id/statement" component={FleetStatement} />
               <Route path="/fleet/:id" component={TruckDetail} />
               <Route path="/trucks" component={Fleet} />
               <Route path="/drivers" component={Drivers} />

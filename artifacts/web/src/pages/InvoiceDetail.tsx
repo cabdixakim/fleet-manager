@@ -22,11 +22,6 @@ function generateInvoicePrintHtml(invoice: any, company: any): string {
   const companyAddress = [company?.address, company?.city, company?.country].filter(Boolean).join(", ");
   const companyPhone = company?.phone ?? "";
   const datePrinted = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
-  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join("");
-  const logoHtml = company?.logoUrl
-    ? `<img src="${company.logoUrl}" style="width:38px;height:38px;object-fit:contain;border-radius:6px;flex-shrink:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:none;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`
-    : `<div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`;
-
   const invoiceNumber = invoice.invoiceNumber ?? `INV-${invoice.id}`;
   const clientName = invoice.clientName ?? "—";
   const batchName = invoice.batchName ?? "—";
@@ -69,21 +64,17 @@ function generateInvoicePrintHtml(invoice: any, company: any): string {
   ).join("");
 
   return `
-<div style="font-family:Arial,sans-serif;color:#111827;background:#fff;width:100%;max-width:720px;margin:0 auto;">
+<div style="font-family:Arial,sans-serif;color:#111;background:#fff;width:100%;max-width:720px;margin:0 auto;">
 
   <!-- ══ TAX INVOICE ══ -->
-  <div style="background:#0f172a;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      ${logoHtml}
-      <div>
-        <div style="color:#fff;font-size:20px;font-weight:700;">${companyName}</div>
-        ${companyAddress ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">${companyAddress}</div>` : ""}
-        ${companyPhone ? `<div style="color:#94a3b8;font-size:10px;">${companyPhone}</div>` : ""}
-      </div>
+  <div style="padding:18px 20px 14px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;">
+    <div>
+      <div style="font-size:20px;font-weight:700;">${companyName}</div>
+      ${companyAddress ? `<div style="font-size:10px;color:#666;margin-top:2px;">${companyAddress}${companyPhone ? ` · ${companyPhone}` : ""}</div>` : ""}
     </div>
     <div style="text-align:right;">
-      <div style="color:#f1f5f9;font-size:16px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Invoice</div>
-      <div style="color:#94a3b8;font-size:11px;margin-top:3px;">${invoiceNumber}</div>
+      <div style="font-size:22px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;">Invoice</div>
+      <div style="font-size:11px;color:#555;margin-top:3px;">${invoiceNumber}</div>
     </div>
   </div>
 
@@ -165,25 +156,22 @@ function generateInvoicePrintHtml(invoice: any, company: any): string {
   ${lineItems.length > 0 ? `
   <!-- ══ DELIVERY STATEMENT ══ -->
   <div style="page-break-before:always;padding-top:8px;">
-    <div style="background:#0f172a;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        ${logoHtml}
-        <div>
-          <div style="color:#fff;font-size:16px;font-weight:700;">${companyName}</div>
-          ${companyAddress ? `<div style="color:#94a3b8;font-size:10px;margin-top:1px;">${companyAddress}</div>` : ""}
-        </div>
+    <div style="padding:14px 20px 12px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;">
+      <div>
+        <div style="font-size:17px;font-weight:700;">${companyName}</div>
+        ${companyAddress ? `<div style="font-size:10px;color:#666;margin-top:2px;">${companyAddress}</div>` : ""}
       </div>
       <div style="text-align:right;">
-        <div style="color:#f1f5f9;font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Delivery Statement</div>
-        <div style="color:#94a3b8;font-size:10px;margin-top:2px;">${invoiceNumber} · ${clientName} · ${batchName}</div>
+        <div style="font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Delivery Statement</div>
+        <div style="font-size:10px;color:#555;margin-top:2px;">${invoiceNumber} · ${clientName} · ${batchName}</div>
       </div>
     </div>
 
     <table style="width:100%;border-collapse:collapse;margin-top:0;">
       <thead>
-        <tr style="background:#1e293b;">
+        <tr style="background:#f9f9f9;border-top:1px solid #ddd;border-bottom:1px solid #ddd;">
           ${["Truck", "Product", "Loaded (MT)", "Delivered (MT)", "Short (MT)", "Gross ($)", "Short Chg ($)", "Net ($)"].map((h) =>
-            `<th style="padding:7px 10px;text-align:${["Truck","Product"].includes(h) ? "left" : "right"};font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.04em;">${h}</th>`
+            `<th style="padding:7px 10px;text-align:${["Truck","Product"].includes(h) ? "left" : "right"};font-size:9px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:0.04em;">${h}</th>`
           ).join("")}
         </tr>
       </thead>

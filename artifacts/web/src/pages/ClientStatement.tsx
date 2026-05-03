@@ -6,6 +6,7 @@ import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Building2, Printer } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Period = { id: number; name: string; startDate: string; endDate: string; isClosed: boolean };
 type TxLine = {
@@ -64,141 +65,82 @@ function StatRow({ label, value, deduct, isSub, isTotal }: {
   );
 }
 
-const C = (v: number) => formatCurrency(v);
-const pRow = (label: string, value: string, deduct?: boolean, bold?: boolean, indent?: boolean, color?: string) => `
-  <tr style="border-bottom:1px solid #e5e7eb;">
-    <td style="padding:5px ${indent ? "6px 5px 20px" : "6px"};font-size:11px;color:${bold ? "#111827" : indent ? "#6b7280" : "#374151"};font-weight:${bold ? "700" : "400"};">${label}</td>
-    <td style="padding:5px 6px;text-align:right;font-size:11px;font-weight:${bold ? "700" : "600"};color:${color ?? (bold ? "#059669" : deduct ? "#059669" : "#111827")};">${deduct ? `− ${value}` : value}</td>
-  </tr>`;
-
-function ClientStatementPrintDoc({ statement, company }: { statement: Statement; company: any }) {
+function ClientStatementPrintDoc({ statement, company, userName }: { statement: Statement; company: any; userName?: string }) {
   const s = statement.summary;
-  const datePrinted = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const companyName = company?.name ?? "Optima Transport LLC";
   const companyAddress = [company?.address, company?.city, company?.country].filter(Boolean).join(", ");
   const companyPhone = company?.phone ?? "";
-  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join("");
-  const logoHtml = company?.logoUrl
-    ? `<img src="${company.logoUrl}" style="width:38px;height:38px;object-fit:contain;border-radius:6px;flex-shrink:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:none;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`
-    : `<div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`;
+  const now = new Date();
+  const datePrinted = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const C = (v: number) => `$${Math.abs(v).toFixed(2)}`;
 
-  const totalDebit = s.totalInvoiced + (s.totalAdjustments > 0 ? s.totalAdjustments : 0);
-  const totalCredit = s.totalAdvances + s.totalPayments + (s.totalAdjustments < 0 ? Math.abs(s.totalAdjustments) : 0);
+  let balance = s.openingBalance;
+  const rows = statement.transactions.map((tx, i) => {
+    const meta = TX_LABELS[tx.type] ?? { label: tx.type, sign: 1 };
+    const isIn = meta.sign === 1;
+    if (isIn) balance += tx.amount; else balance -= tx.amount;
+    const balLabel = balance < 0 ? `${C(Math.abs(balance))} cr` : C(balance);
+    const desc = tx.batchName ?? tx.description ?? meta.label;
+    return `<tr style="border-bottom:1px solid #f0f0f0;background:${i % 2 === 0 ? "#fff" : "#fafafa"};">
+      <td style="padding:5px 10px;white-space:nowrap;color:#444;">${formatDate(tx.transactionDate)}</td>
+      <td style="padding:5px 10px;">${desc}</td>
+      <td style="padding:5px 10px;color:#666;">${tx.reference ?? "—"}</td>
+      <td style="padding:5px 10px;text-align:right;">${isIn ? C(tx.amount) : ""}</td>
+      <td style="padding:5px 10px;text-align:right;">${!isIn ? C(tx.amount) : ""}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:600;">${balLabel}</td>
+    </tr>`;
+  }).join("");
 
-  const html = `
-<div style="font-family:Arial,sans-serif;color:#111827;background:#fff;width:100%;max-width:780px;margin:0 auto;">
+  const finalBal = s.closingBalance;
+  const finalStr = finalBal < 0 ? `${C(Math.abs(finalBal))} credit` : `${C(Math.abs(finalBal))} receivable`;
 
-  <!-- Header band -->
-  <div style="background:#0f172a;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      ${logoHtml}
-      <div>
-        <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:-0.3px;">${companyName}</div>
-        ${companyAddress ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">${companyAddress}</div>` : ""}
-        ${companyPhone ? `<div style="color:#94a3b8;font-size:10px;">${companyPhone}</div>` : ""}
-      </div>
+  const html = `<div style="font-family:Arial,sans-serif;color:#111;background:#fff;width:100%;max-width:780px;margin:0 auto;font-size:12px;">
+  <div style="text-align:center;padding:20px 16px 14px;border-bottom:2px solid #111;">
+    <div style="font-size:22px;font-weight:700;">${companyName}</div>
+    ${companyAddress ? `<div style="font-size:10px;color:#666;margin-top:2px;">${companyAddress}${companyPhone ? ` &nbsp;·&nbsp; ${companyPhone}` : ""}</div>` : ""}
+    <div style="font-size:12px;color:#444;margin-top:6px;font-weight:600;">Client Account Statement</div>
+    <div style="font-size:10px;color:#888;margin-top:3px;">Generated On - ${datePrinted}, ${timeStr}${userName ? `. Generated by - ${userName}` : ""}</div>
+  </div>
+  <div style="padding:14px 16px 4px;">
+    <div style="font-size:17px;font-weight:700;">${statement.client.name}</div>
+    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;Duration: ${statement.periodName}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ddd;margin:10px 16px 4px;border-radius:3px;overflow:hidden;">
+    <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Total Invoiced</div>
+      <div style="font-size:18px;font-weight:700;">${C(s.totalInvoiced)}</div>
     </div>
-    <div style="text-align:right;">
-      <div style="color:#f1f5f9;font-size:15px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Client Account Statement</div>
-      <div style="color:#94a3b8;font-size:11px;margin-top:3px;">${statement.periodName}</div>
+    <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Total Received</div>
+      <div style="font-size:18px;font-weight:700;">${C(s.totalAdvances + s.totalPayments)}</div>
+    </div>
+    <div style="padding:12px 16px;text-align:center;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Final Balance</div>
+      <div style="font-size:18px;font-weight:700;">${C(Math.abs(finalBal))}</div>
     </div>
   </div>
-
-  <!-- Client info row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:2px solid #e5e7eb;">
-    <div style="padding:10px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Client</div>
-      <div style="font-size:13px;font-weight:700;">${statement.client.name}</div>
-    </div>
-    <div style="padding:10px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Total Invoiced</div>
-      <div style="font-size:13px;font-weight:700;">${C(s.totalInvoiced)}</div>
-    </div>
-    <div style="padding:10px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Transactions</div>
-      <div style="font-size:13px;font-weight:700;">${statement.transactions.length}</div>
-    </div>
-    <div style="padding:10px 16px;">
-      <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:3px;">Date Printed</div>
-      <div style="font-size:12px;font-weight:600;">${datePrinted}</div>
-    </div>
-  </div>
-
-  <!-- Summary: Account waterfall + Settlement -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:2px solid #e5e7eb;">
-    <div style="padding:14px 16px;border-right:1px solid #e5e7eb;">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">Account Summary</div>
-      <table style="width:100%;border-collapse:collapse;">
-        ${pRow("Total Invoiced", C(s.totalInvoiced))}
-        ${s.totalAdjustments !== 0 ? pRow("Adjustments", C(Math.abs(s.totalAdjustments)), s.totalAdjustments > 0 ? false : true, false, true) : ""}
-        ${pRow("Advances Received", C(s.totalAdvances), true, false, true)}
-        ${pRow("Payments Received", C(s.totalPayments), true, false, true)}
-        ${pRow("Net Balance (Receivable)", C(s.netBalance), false, true)}
-      </table>
-    </div>
-    <div style="padding:14px 16px;">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">Settlement Summary</div>
-      <table style="width:100%;border-collapse:collapse;">
-        ${pRow("Opening Balance B/F", C(s.openingBalance))}
-        ${pRow("Net This Period", C(s.netBalance))}
-        <tr style="border-top:2px solid #111827;">
-          <td style="padding:7px 6px;font-size:12px;font-weight:700;color:#111827;">Closing Balance</td>
-          <td style="padding:7px 6px;text-align:right;font-size:13px;font-weight:700;color:${s.closingBalance > 0 ? "#dc2626" : "#059669"};">
-            ${C(Math.abs(s.closingBalance))} <span style="font-size:10px;font-weight:400;">${s.closingBalance > 0 ? "receivable" : "credit"}</span>
-          </td>
-        </tr>
-      </table>
-    </div>
-  </div>
-
-  <!-- Transaction Detail Table -->
-  <div style="padding:14px 16px;">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:8px;letter-spacing:0.08em;">
-      Transaction Detail — ${statement.transactions.length} entr${statement.transactions.length !== 1 ? "ies" : "y"}
-    </div>
-    ${statement.transactions.length === 0 ? `<div style="font-size:12px;color:#9ca3af;padding:8px 0;">No transactions for this period.</div>` : `
-    <table style="width:100%;border-collapse:collapse;font-size:10px;">
-      <thead>
-        <tr style="background:#f3f4f6;">
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Date</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Type</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Batch / Description</th>
-          <th style="padding:5px 6px;text-align:left;font-weight:600;color:#6b7280;">Reference</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#374151;">Debit</th>
-          <th style="padding:5px 6px;text-align:right;font-weight:600;color:#059669;">Credit</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${statement.transactions.map((tx, i) => {
-          const meta = TX_LABELS[tx.type] ?? { label: tx.type, sign: 1, color: "" };
-          const isDebit = meta.sign === 1;
-          const desc = tx.batchName ?? tx.description ?? "—";
-          return `
-          <tr style="background:${i % 2 === 0 ? "#fff" : "#f9fafb"};border-bottom:1px solid #f3f4f6;">
-            <td style="padding:4px 6px;color:#6b7280;white-space:nowrap;">${formatDate(tx.transactionDate)}</td>
-            <td style="padding:4px 6px;font-weight:600;">${meta.label}</td>
-            <td style="padding:4px 6px;color:#6b7280;">${desc}</td>
-            <td style="padding:4px 6px;font-family:monospace;color:#6b7280;">${tx.reference ?? "—"}</td>
-            <td style="padding:4px 6px;text-align:right;font-family:monospace;">${isDebit ? C(tx.amount) : "—"}</td>
-            <td style="padding:4px 6px;text-align:right;font-family:monospace;color:#059669;">${!isDebit ? C(tx.amount) : "—"}</td>
-          </tr>`;
-        }).join("")}
-      </tbody>
-      <tfoot>
-        <tr style="background:#f3f4f6;border-top:2px solid #d1d5db;">
-          <td colspan="4" style="padding:5px 6px;font-size:10px;font-weight:700;">TOTAL (${statement.transactions.length} entries)</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;">${C(totalDebit)}</td>
-          <td style="padding:5px 6px;text-align:right;font-family:monospace;font-weight:700;color:#059669;">${C(totalCredit)}</td>
-        </tr>
-      </tfoot>
-    </table>`}
-  </div>
-
-  <!-- Footer -->
-  <div style="border-top:1px solid #e5e7eb;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;">
-    <span style="font-size:9px;color:#9ca3af;">Generated by ${companyName} · ${datePrinted}</span>
-    <span style="font-size:9px;color:#9ca3af;">Confidential — For recipient use only</span>
-  </div>
+  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total No. of entries: ${statement.transactions.length}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead>
+      <tr style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;background:#f9f9f9;">
+        <th style="padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;">Date</th>
+        <th style="padding:7px 10px;text-align:left;font-weight:600;">Remark</th>
+        <th style="padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;">Reference</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Invoiced</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Received</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Balance</th>
+      </tr>
+    </thead>
+    <tbody>${statement.transactions.length ? rows : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#888;">No transactions for this period.</td></tr>`}</tbody>
+    <tfoot>
+      <tr style="border-top:2px solid #111;background:#f9f9f9;">
+        <td colspan="5" style="padding:7px 10px;font-weight:700;">Final Balance</td>
+        <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;">${finalStr}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div style="padding:12px 16px;text-align:center;font-size:10px;color:#888;border-top:1px solid #ddd;margin-top:8px;">Generated by ${companyName}.</div>
 </div>`;
 
   return (
@@ -215,6 +157,7 @@ export default function ClientStatement() {
   const [, navigate] = useLocation();
   const clientId = Number(params?.id);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("all");
+  const { user } = useAuth();
 
   const { data: periods = [] } = useQuery<Period[]>({
     queryKey: ["/api/periods"],
@@ -302,7 +245,6 @@ export default function ClientStatement() {
           <div className="text-center py-16 text-muted-foreground">Failed to load statement.</div>
         ) : (
           <div className="space-y-6 max-w-5xl mx-auto">
-            {/* KPI cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs text-muted-foreground mb-1">Transactions</p>
@@ -330,7 +272,6 @@ export default function ClientStatement() {
               </div>
             </div>
 
-            {/* Waterfall + settlement */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-card border border-border rounded-xl p-5">
                 <p className="text-sm font-semibold text-foreground mb-4">Account Summary</p>
@@ -366,7 +307,6 @@ export default function ClientStatement() {
               </div>
             </div>
 
-            {/* Transactions table */}
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="px-5 py-4 border-b border-border flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-muted-foreground" />
@@ -447,7 +387,7 @@ export default function ClientStatement() {
         )}
       </PageContent>
 
-      {statement && <ClientStatementPrintDoc statement={statement} company={company} />}
+      {statement && <ClientStatementPrintDoc statement={statement} company={company} userName={(user as any)?.name ?? (user as any)?.email} />}
     </Layout>
   );
 }

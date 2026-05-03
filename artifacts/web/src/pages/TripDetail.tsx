@@ -63,25 +63,16 @@ function generateTripClientHtml(trip: any, company: any): string {
   const companyPhone = company?.phone ?? "";
   const datePrinted = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const routeLabel = getRouteLabel(trip.batchRoute ?? trip.route ?? "");
-  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join("");
-  const logoHtml = company?.logoUrl
-    ? `<img src="${company.logoUrl}" style="width:38px;height:38px;object-fit:contain;border-radius:6px;flex-shrink:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:none;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`
-    : `<div style="width:38px;height:38px;background:rgba(255,255,255,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;">${initials}</div>`;
-
   const html = `
-<div style="font-family:Arial,sans-serif;color:#111827;background:#fff;width:100%;max-width:680px;margin:0 auto;">
-  <div style="background:#0f172a;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
-    <div style="display:flex;align-items:center;gap:12px;">
-      ${logoHtml}
-      <div>
-        <div style="color:#fff;font-size:18px;font-weight:700;">${companyName}</div>
-        ${companyAddress ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">${companyAddress}</div>` : ""}
-        ${companyPhone ? `<div style="color:#94a3b8;font-size:10px;">${companyPhone}</div>` : ""}
-      </div>
+<div style="font-family:Arial,sans-serif;color:#111;background:#fff;width:100%;max-width:680px;margin:0 auto;">
+  <div style="padding:16px 20px 12px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;">
+    <div>
+      <div style="font-size:19px;font-weight:700;">${companyName}</div>
+      ${companyAddress ? `<div style="font-size:10px;color:#666;margin-top:2px;">${companyAddress}${companyPhone ? ` · ${companyPhone}` : ""}</div>` : ""}
     </div>
     <div style="text-align:right;">
-      <div style="color:#f1f5f9;font-size:15px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Trip Delivery Note</div>
-      <div style="color:#94a3b8;font-size:11px;margin-top:3px;">${datePrinted}</div>
+      <div style="font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Trip Delivery Note</div>
+      <div style="font-size:10px;color:#555;margin-top:3px;">${datePrinted}</div>
     </div>
   </div>
 
@@ -122,9 +113,9 @@ function generateTripClientHtml(trip: any, company: any): string {
 
   <table style="width:100%;border-collapse:collapse;margin-top:0;">
     <thead>
-      <tr style="background:#1e293b;">
+      <tr style="background:#f9f9f9;border-top:1px solid #ddd;border-bottom:1px solid #ddd;">
         ${["Description", "Loaded (MT)", "Delivered (MT)", "Short (MT)", "Amount (USD)"].map((h) =>
-          `<th style="padding:8px 12px;text-align:${h === "Description" ? "left" : "right"};font-size:9px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.05em;">${h}</th>`
+          `<th style="padding:7px 12px;text-align:${h === "Description" ? "left" : "right"};font-size:9px;font-weight:700;text-transform:uppercase;color:#888;letter-spacing:0.05em;">${h}</th>`
         ).join("")}
       </tr>
     </thead>
@@ -170,6 +161,103 @@ function generateTripClientHtml(trip: any, company: any): string {
 </div>`;
 
   return html;
+}
+
+function generateTripStatementHtml(trip: any, company: any, userName?: string): string {
+  const fin = trip.financials ?? {};
+  const companyName = company?.name ?? "Optima Transport LLC";
+  const companyAddress = [company?.address, company?.city, company?.country].filter(Boolean).join(", ");
+  const companyPhone = company?.phone ?? "";
+  const now = new Date();
+  const datePrinted = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
+  const C = (v: number) => `$${Math.abs(v).toFixed(2)}`;
+
+  const expenses: any[] = (trip.expenses ?? []).slice().sort((a: any, b: any) =>
+    new Date(a.expenseDate ?? trip.createdAt).getTime() - new Date(b.expenseDate ?? trip.createdAt).getTime()
+  );
+  const gross = parseFloat(fin.grossRevenue ?? 0);
+  const shortCharge = parseFloat(fin.shortCharge ?? 0);
+
+  type Entry = { date: string; remark: string; mode: string; cashIn: number; cashOut: number };
+  const entries: Entry[] = [
+    ...expenses.map((e: any) => ({
+      date: e.expenseDate ?? trip.createdAt,
+      remark: EXPENSE_TYPES.find((t) => t.value === e.costType)?.label ?? (e.costType ?? "Expense").replace(/_/g, " "),
+      mode: "Cash",
+      cashIn: 0,
+      cashOut: parseFloat(e.amount),
+    })),
+    ...(gross > 0 ? [{ date: trip.createdAt, remark: "Freight Income", mode: "Cash", cashIn: gross, cashOut: 0 }] : []),
+    ...(shortCharge > 0 ? [{ date: trip.createdAt, remark: "Short Delivery Deduction", mode: "—", cashIn: 0, cashOut: shortCharge }] : []),
+  ];
+
+  const totalIn = entries.reduce((s, e) => s + e.cashIn, 0);
+  const totalOut = entries.reduce((s, e) => s + e.cashOut, 0);
+  let balance = 0;
+
+  const rows = entries.map((e, i) => {
+    balance += e.cashIn - e.cashOut;
+    const balLabel = balance < 0 ? `(${C(Math.abs(balance))})` : C(balance);
+    return `<tr style="border-bottom:1px solid #f0f0f0;background:${i % 2 === 0 ? "#fff" : "#fafafa"};">
+      <td style="padding:5px 10px;white-space:nowrap;color:#444;">${formatDate(e.date)}</td>
+      <td style="padding:5px 10px;">${e.remark}</td>
+      <td style="padding:5px 10px;color:#666;">${e.mode}</td>
+      <td style="padding:5px 10px;text-align:right;">${e.cashIn > 0 ? C(e.cashIn) : ""}</td>
+      <td style="padding:5px 10px;text-align:right;">${e.cashOut > 0 ? C(e.cashOut) : ""}</td>
+      <td style="padding:5px 10px;text-align:right;font-weight:600;">${balLabel}</td>
+    </tr>`;
+  }).join("");
+
+  const finalStr = balance < 0 ? `(${C(Math.abs(balance))}) deficit` : `${C(balance)} net`;
+
+  return `<div style="font-family:Arial,sans-serif;color:#111;background:#fff;width:100%;max-width:680px;margin:0 auto;font-size:12px;">
+  <div style="text-align:center;padding:20px 16px 14px;border-bottom:2px solid #111;">
+    <div style="font-size:22px;font-weight:700;">${companyName}</div>
+    ${companyAddress ? `<div style="font-size:10px;color:#666;margin-top:2px;">${companyAddress}${companyPhone ? ` · ${companyPhone}` : ""}</div>` : ""}
+    <div style="font-size:12px;color:#444;margin-top:6px;font-weight:600;">Trip Cash Statement</div>
+    <div style="font-size:10px;color:#888;margin-top:3px;">Generated On - ${datePrinted}, ${timeStr}${userName ? `. Generated by - ${userName}` : ""}</div>
+  </div>
+  <div style="padding:14px 16px 4px;">
+    <div style="font-size:17px;font-weight:700;">${trip.truckPlate ?? "—"} — ${trip.batchName ?? "—"}</div>
+    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;${[trip.clientName, trip.product, trip.driverName].filter(Boolean).join(" · ")}</div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ddd;margin:10px 16px 4px;border-radius:3px;overflow:hidden;">
+    <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Total Cash In</div>
+      <div style="font-size:18px;font-weight:700;">${C(totalIn)}</div>
+    </div>
+    <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Total Cash Out</div>
+      <div style="font-size:18px;font-weight:700;">${C(totalOut)}</div>
+    </div>
+    <div style="padding:12px 16px;text-align:center;">
+      <div style="font-size:10px;text-transform:uppercase;color:#888;margin-bottom:5px;">Final Balance</div>
+      <div style="font-size:18px;font-weight:700;">${C(Math.abs(balance))}</div>
+    </div>
+  </div>
+  <div style="padding:4px 16px 8px;font-size:11px;color:#555;">Total No. of entries: ${entries.length}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead>
+      <tr style="border-top:1px solid #ddd;border-bottom:1px solid #ddd;background:#f9f9f9;">
+        <th style="padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;">Date</th>
+        <th style="padding:7px 10px;text-align:left;font-weight:600;">Remark</th>
+        <th style="padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;">Mode</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Cash In</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Cash Out</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600;white-space:nowrap;">Balance</th>
+      </tr>
+    </thead>
+    <tbody>${entries.length ? rows : `<tr><td colspan="6" style="padding:20px;text-align:center;color:#888;">No entries recorded.</td></tr>`}</tbody>
+    <tfoot>
+      <tr style="border-top:2px solid #111;background:#f9f9f9;">
+        <td colspan="5" style="padding:7px 10px;font-weight:700;">Final Balance</td>
+        <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:13px;">${finalStr}</td>
+      </tr>
+    </tfoot>
+  </table>
+  <div style="padding:12px 16px;text-align:center;font-size:10px;color:#888;border-top:1px solid #ddd;margin-top:8px;">Generated by ${companyName}.</div>
+</div>`;
 }
 
 export default function TripDetail() {
