@@ -320,6 +320,205 @@ export default function FinancialStatements() {
     { key: "expenses" as TabKey, label: "Expenses" },
   ];
 
+  // ─── Print ───────────────────────────────────────────────────────────────────
+  const handlePrint = () => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const M = (n: number | undefined | null, showZero = false) => {
+      if (n === undefined || n === null) return "—";
+      if (n === 0 && !showZero) return "—";
+      if (n < 0) return `($${Math.abs(n).toFixed(2)})`;
+      return `$${n.toFixed(2)}`;
+    };
+    const P = (n: number | undefined) => n != null ? `${n.toFixed(1)}%` : "";
+    const hdr = (title: string, period: string) =>
+      `<div style="text-align:center;padding:16px 0 12px;border-bottom:1px solid #ccc;margin-bottom:16px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#666;margin-bottom:4px;">Optima Transport LLC</div>
+        <div style="font-size:18px;font-weight:700;">${title}</div>
+        <div style="font-size:12px;color:#555;margin-top:2px;">${period}</div>
+      </div>`;
+    const sec = (label: string) =>
+      `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#1a6fb5;padding:14px 0 6px;border-bottom:1px solid #dbeafe;">${label}</div>`;
+    const row = (code: string, label: string, amount?: number, pct?: number) =>
+      `<div style="display:flex;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0;">
+        <span style="width:44px;font-size:10px;color:#aaa;font-family:monospace;">${code}</span>
+        <span style="flex:1;padding-left:8px;font-size:12px;">${label}</span>
+        ${pct !== undefined ? `<span style="width:52px;text-align:right;font-size:10px;color:#888;">${P(pct)}</span>` : ""}
+        ${amount !== undefined ? `<span style="width:110px;text-align:right;font-size:12px;font-family:monospace;">${amount === 0 ? "<span style='color:#bbb'>—</span>" : M(amount)}</span>` : ""}
+      </div>`;
+    const subtotal = (label: string, amount: number, pct?: number) =>
+      `<div style="display:flex;align-items:center;padding:8px 0;border-top:1px solid #ccc;background:#f9f9f9;">
+        <span style="width:44px;"></span>
+        <span style="flex:1;padding-left:8px;font-size:12px;font-weight:700;">${label}</span>
+        ${pct !== undefined ? `<span style="width:52px;text-align:right;font-size:10px;font-weight:700;color:#888;">${P(pct)}</span>` : ""}
+        <span style="width:110px;text-align:right;font-size:12px;font-weight:700;font-family:monospace;">${M(amount, true)}</span>
+      </div>`;
+    const grandtotal = (label: string, amount: number, pct?: number) =>
+      `<div style="display:flex;align-items:center;padding:10px 0;border-top:2px solid #aaa;background:#f0f0f0;">
+        <span style="width:44px;"></span>
+        <span style="flex:1;padding-left:8px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${label}</span>
+        ${pct !== undefined ? `<span style="width:52px;text-align:right;font-size:11px;font-weight:700;color:${amount >= 0 ? "#059669" : "#dc2626"};">${P(pct)}</span>` : ""}
+        <span style="width:110px;text-align:right;font-size:14px;font-weight:700;font-family:monospace;color:${amount >= 0 ? "#059669" : "#dc2626"};">${M(amount, true)}</span>
+      </div>`;
+
+    let body = "";
+
+    if (tab === "pl" && pl) {
+      const rev = pl.totalRevenue ?? 0;
+      body = hdr("Profit & Loss Statement", periodLabel)
+        + sec("Income")
+        + (pl.revenueRows ?? []).map((r: any) => row(r.code, r.name, r.amount, rev > 0 ? (r.amount / rev) * 100 : undefined)).join("")
+        + subtotal("Total Income", rev, 100)
+        + (pl.cogsRows?.length ? sec("Cost of Goods Sold")
+            + (pl.cogsRows ?? []).map((r: any) => row(r.code, r.name, r.amount, rev > 0 ? (r.amount / rev) * 100 : undefined)).join("")
+            + subtotal("Total Cost of Goods Sold", pl.totalCogs ?? 0, rev > 0 ? (pl.totalCogs / rev) * 100 : undefined)
+          : "")
+        + grandtotal("Gross Profit", pl.grossProfit ?? 0, rev > 0 ? (pl.grossProfit / rev) * 100 : undefined)
+        + (pl.opexRows?.length ? sec("Expenses")
+            + (pl.opexRows ?? []).map((r: any) => row(r.code, r.name, r.amount, rev > 0 ? (r.amount / rev) * 100 : undefined)).join("")
+            + subtotal("Total Expenses", pl.totalOpex ?? 0, rev > 0 ? (pl.totalOpex / rev) * 100 : undefined)
+          : "")
+        + grandtotal("Net Income", pl.netIncome ?? 0, rev > 0 ? (pl.netIncome / rev) * 100 : undefined);
+
+    } else if (tab === "balance" && bs) {
+      body = hdr("Balance Sheet", `As of ${fmtDisplayDate(to)}`)
+        + sec("Assets")
+        + (bs.assetRows ?? []).map((r: any) => row(r.code, r.name, r.balance)).join("")
+        + grandtotal("Total Assets", bs.totalAssets ?? 0)
+        + sec("Liabilities")
+        + (bs.liabilityRows ?? []).map((r: any) => row(r.code, r.name, r.balance)).join("")
+        + subtotal("Total Liabilities", bs.totalLiabilities ?? 0)
+        + sec("Equity")
+        + (bs.equityRows ?? []).map((r: any) => row(r.code, r.name, r.balance)).join("")
+        + row("", "Current Period Earnings", bs.currentPeriodEarnings ?? 0)
+        + subtotal("Total Equity", bs.totalEquity ?? 0)
+        + grandtotal("Total Liabilities + Equity", (bs.totalLiabilities ?? 0) + (bs.totalEquity ?? 0));
+
+    } else if (tab === "trial" && tb) {
+      const tRows = (tb.rows ?? []).map((r: any, i: number) => {
+        const net = r.totalDebit - r.totalCredit;
+        return `<tr style="background:${i % 2 === 0 ? "#fff" : "#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+          <td style="padding:5px 8px;font-size:10px;font-family:monospace;color:#888;">${r.code}</td>
+          <td style="padding:5px 8px;font-size:11px;">${r.name}</td>
+          <td style="padding:5px 8px;font-size:10px;color:#777;text-transform:capitalize;">${r.type}</td>
+          <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;color:#059669;">${r.totalDebit > 0 ? `$${r.totalDebit.toFixed(2)}` : "—"}</td>
+          <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;color:#d97706;">${r.totalCredit > 0 ? `$${r.totalCredit.toFixed(2)}` : "—"}</td>
+          <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;font-weight:600;color:${net > 0 ? "#111" : net < 0 ? "#dc2626" : "#bbb"};">${net !== 0 ? M(net) : "—"}</td>
+        </tr>`;
+      }).join("");
+      body = hdr("Trial Balance", periodLabel)
+        + `<table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid #aaa;background:#f0f0f0;">
+            ${["Code","Account Name","Type","Debit","Credit","Balance"].map((h, i) =>
+              `<th style="padding:7px 8px;font-size:9px;font-weight:700;text-transform:uppercase;color:#555;text-align:${i > 2 ? "right" : "left"};">${h}</th>`
+            ).join("")}
+          </tr></thead>
+          <tbody>${tRows}</tbody>
+          <tfoot><tr style="border-top:2px solid #aaa;background:#f0f0f0;font-weight:700;">
+            <td colspan="3" style="padding:7px 8px;font-size:11px;text-align:right;font-weight:700;">TOTALS</td>
+            <td style="padding:7px 8px;font-size:11px;text-align:right;font-family:monospace;color:#059669;">$${(tb.grandTotalDebit ?? 0).toFixed(2)}</td>
+            <td style="padding:7px 8px;font-size:11px;text-align:right;font-family:monospace;color:#d97706;">$${(tb.grandTotalCredit ?? 0).toFixed(2)}</td>
+            <td style="padding:7px 8px;font-size:11px;text-align:right;font-family:monospace;">${M((tb.grandTotalDebit ?? 0) - (tb.grandTotalCredit ?? 0), true)}</td>
+          </tr></tfoot>
+        </table>`;
+
+    } else if (tab === "ar" && ar) {
+      const buckets = [["current","Current (0–30d)"],["d30","31–60d"],["d60","61–90d"],["d90plus","90+d"]];
+      const arRows = (ar.clients ?? []).map((c: any, i: number) =>
+        `<tr style="background:${i%2===0?"#fff":"#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+          <td style="padding:5px 8px;font-size:11px;font-weight:500;">${c.clientName}</td>
+          ${buckets.map(([k]) => `<td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;">${c[k] > 0 ? M(c[k]) : "—"}</td>`).join("")}
+          <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;font-weight:700;">${M(c.total, true)}</td>
+        </tr>`
+      ).join("");
+      body = hdr("Accounts Receivable Aging", `As of ${fmtDisplayDate(fmt(now))}`)
+        + `<table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid #aaa;background:#f0f0f0;">
+            <th style="padding:7px 8px;font-size:9px;text-align:left;text-transform:uppercase;color:#555;">Customer</th>
+            ${buckets.map(([,l]) => `<th style="padding:7px 8px;font-size:9px;text-align:right;text-transform:uppercase;color:#555;">${l}</th>`).join("")}
+            <th style="padding:7px 8px;font-size:9px;text-align:right;text-transform:uppercase;color:#555;">Total Outstanding</th>
+          </tr></thead>
+          <tbody>${arRows}</tbody>
+          ${ar.summary ? `<tfoot><tr style="border-top:2px solid #aaa;background:#f0f0f0;font-weight:700;">
+            <td style="padding:7px 8px;font-size:11px;font-weight:700;">TOTAL</td>
+            ${buckets.map(([k]) => `<td style="padding:7px 8px;text-align:right;font-family:monospace;">${ar.summary[k] > 0 ? M(ar.summary[k]) : "—"}</td>`).join("")}
+            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-weight:700;font-size:12px;">${M(ar.summary.total, true)}</td>
+          </tr></tfoot>` : ""}
+        </table>`;
+
+    } else if (tab === "ap" && ap) {
+      const buckets = [["current","Current (0–30d)"],["d30","31–60d"],["d60","61–90d"],["d90plus","90+d"]];
+      const apRows = (ap.suppliers ?? []).map((s: any, i: number) =>
+        `<tr style="background:${i%2===0?"#fff":"#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+          <td style="padding:5px 8px;font-size:11px;font-weight:500;">${s.supplierName}</td>
+          ${buckets.map(([k]) => `<td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;">${s[k] > 0 ? M(s[k]) : "—"}</td>`).join("")}
+          <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;font-weight:700;">${M(s.balance, true)}</td>
+        </tr>`
+      ).join("");
+      body = hdr("Accounts Payable Aging", `As of ${fmtDisplayDate(fmt(now))}`)
+        + `<table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid #aaa;background:#f0f0f0;">
+            <th style="padding:7px 8px;font-size:9px;text-align:left;text-transform:uppercase;color:#555;">Supplier</th>
+            ${buckets.map(([,l]) => `<th style="padding:7px 8px;font-size:9px;text-align:right;text-transform:uppercase;color:#555;">${l}</th>`).join("")}
+            <th style="padding:7px 8px;font-size:9px;text-align:right;text-transform:uppercase;color:#555;">Total Outstanding</th>
+          </tr></thead>
+          <tbody>${apRows}</tbody>
+          ${ap.summary ? `<tfoot><tr style="border-top:2px solid #aaa;background:#f0f0f0;font-weight:700;">
+            <td style="padding:7px 8px;font-size:11px;font-weight:700;">TOTAL</td>
+            ${buckets.map(([k]) => `<td style="padding:7px 8px;text-align:right;font-family:monospace;">${ap.summary[k] > 0 ? M(ap.summary[k]) : "—"}</td>`).join("")}
+            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-weight:700;font-size:12px;">${M(ap.summary.total, true)}</td>
+          </tr></tfoot>` : ""}
+        </table>`;
+
+    } else if (tab === "cashflow" && cf) {
+      const opTotal = (cf.operating ?? []).reduce((s: number, r: any) => s + r.amount, 0);
+      const finTotal = (cf.financing ?? []).reduce((s: number, r: any) => s + r.amount, 0);
+      body = hdr("Cash Flow Statement", periodLabel)
+        + sec("Operating Activities")
+        + (cf.operating ?? []).map((r: any) => row("", r.label, r.amount)).join("")
+        + subtotal("Net Cash from Operating Activities", opTotal)
+        + ((cf.financing ?? []).length ? sec("Financing Activities")
+            + (cf.financing ?? []).map((r: any) => row("", r.label, r.amount)).join("")
+            + subtotal("Net Cash from Financing Activities", finTotal)
+          : "")
+        + grandtotal("Net Change in Cash", cf.netChange ?? 0)
+        + `<div style="display:flex;padding:7px 0;border-top:1px solid #ddd;"><span style="flex:1;font-size:12px;color:#555;">Opening Cash Balance</span><span style="font-family:monospace;font-size:12px;">${M(cf.openingCash, true)}</span></div>`
+        + `<div style="display:flex;padding:9px 0;border-top:2px solid #aaa;background:#f0f0f0;"><span style="flex:1;font-size:13px;font-weight:700;text-transform:uppercase;">Closing Cash Balance</span><span style="font-family:monospace;font-size:14px;font-weight:700;color:${(cf.closingCash ?? 0) >= 0 ? "#059669" : "#dc2626"};">${M(cf.closingCash, true)}</span></div>`;
+
+    } else if (tab === "expenses" && exp) {
+      const expRows = (exp.accounts ?? []).map((r: any, i: number) =>
+        `<tr style="background:${i%2===0?"#fff":"#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+          <td style="padding:5px 8px;font-size:10px;font-family:monospace;color:#aaa;">${r.code}</td>
+          <td style="padding:5px 8px;font-size:11px;">${r.accountName}</td>
+          <td style="padding:5px 8px;font-size:11px;text-align:right;color:#888;">${r.pct?.toFixed(1)}%</td>
+          <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;">${M(r.net)}</td>
+        </tr>`
+      ).join("");
+      body = hdr("Expense Breakdown by Account", periodLabel)
+        + `<table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid #aaa;background:#f0f0f0;">
+            ${["Code","Account","% Share","Amount"].map((h, i) =>
+              `<th style="padding:7px 8px;font-size:9px;font-weight:700;text-transform:uppercase;color:#555;text-align:${i > 1 ? "right" : "left"};">${h}</th>`
+            ).join("")}
+          </tr></thead>
+          <tbody>${expRows}</tbody>
+          <tfoot><tr style="border-top:2px solid #aaa;background:#f0f0f0;font-weight:700;">
+            <td colspan="2" style="padding:7px 8px;font-size:12px;font-weight:700;text-transform:uppercase;">Total Expenses</td>
+            <td style="padding:7px 8px;text-align:right;font-size:11px;color:#888;">100.0%</td>
+            <td style="padding:7px 8px;text-align:right;font-family:monospace;font-size:13px;font-weight:700;">${M(exp.total, true)}</td>
+          </tr></tfoot>
+        </table>`;
+    } else {
+      w.close(); return;
+    }
+
+    const title = TABS.find((t) => t.key === tab)?.label ?? "Financial Report";
+    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>*{box-sizing:border-box;}body{font-family:Arial,sans-serif;color:#111;background:#fff;padding:20px 24px;max-width:900px;margin:0 auto;}@media print{@page{size:A4 portrait;margin:10mm;}}</style></head><body>${body}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
+  };
+
   // ─── Export ──────────────────────────────────────────────────────────────────
   const handleExport = () => {
     const rev = pl?.totalRevenue ?? 0;
@@ -368,7 +567,7 @@ export default function FinancialStatements() {
         title="Financial Statements"
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
               <Printer className="w-4 h-4" /><span className="hidden sm:inline">Print</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
@@ -410,7 +609,7 @@ export default function FinancialStatements() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "pl" && (
           plLoading ? <LoadingState /> : !pl ? <EmptyState /> : (
-            <ReportSheet onExport={handleExport} onPrint={() => window.print()}>
+            <ReportSheet onExport={handleExport} onPrint={handlePrint}>
               <StatementHeader title="Profit & Loss Statement" period={periodLabel} />
               <ColHeader pctLabel="% Income" />
 
@@ -475,7 +674,7 @@ export default function FinancialStatements() {
           bsLoading ? <LoadingState /> : !bs ? <EmptyState /> : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
               {/* ASSETS */}
-              <ReportSheet onExport={handleExport} onPrint={() => window.print()} maxW="full">
+              <ReportSheet onExport={handleExport} onPrint={handlePrint} maxW="full">
                 <StatementHeader title="Assets" period={`As of ${fmtDisplayDate(to)}`} />
                 <ColHeader />
                 <SectionLabel>Current Assets</SectionLabel>
@@ -526,7 +725,7 @@ export default function FinancialStatements() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "trial" && (
           tbLoading ? <LoadingState /> : !tb || (tb.rows ?? []).length === 0 ? <EmptyState /> : (
-            <ReportSheet onExport={handleExport} onPrint={() => window.print()} maxW="3xl">
+            <ReportSheet onExport={handleExport} onPrint={handlePrint} maxW="3xl">
               <StatementHeader title="Trial Balance" period={periodLabel} />
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -584,7 +783,7 @@ export default function FinancialStatements() {
         {/* AR Aging                                                            */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "ar" && (
-          <ReportSheet onExport={handleExport} onPrint={() => window.print()} maxW="5xl">
+          <ReportSheet onExport={handleExport} onPrint={handlePrint} maxW="5xl">
             <StatementHeader title="Accounts Receivable Aging" period={`As of ${fmtDisplayDate(fmt(now))} — Outstanding customer invoices`} />
             <AgingTable rows={ar?.clients ?? []} nameLabel="Customer" summary={ar?.summary} loading={arLoading} />
           </ReportSheet>
@@ -594,7 +793,7 @@ export default function FinancialStatements() {
         {/* AP Aging                                                            */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "ap" && (
-          <ReportSheet onExport={handleExport} onPrint={() => window.print()} maxW="5xl">
+          <ReportSheet onExport={handleExport} onPrint={handlePrint} maxW="5xl">
             <StatementHeader title="Accounts Payable Aging" period={`As of ${fmtDisplayDate(fmt(now))} — Outstanding supplier balances`} />
             <AgingTable rows={ap?.suppliers ?? []} nameLabel="Supplier" summary={ap?.summary} loading={apLoading} />
           </ReportSheet>
@@ -605,7 +804,7 @@ export default function FinancialStatements() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "cashflow" && (
           cfLoading ? <LoadingState /> : !cf ? <EmptyState /> : (
-            <ReportSheet onExport={handleExport} onPrint={() => window.print()}>
+            <ReportSheet onExport={handleExport} onPrint={handlePrint}>
               <StatementHeader title="Cash Flow Statement" period={periodLabel} />
               <ColHeader />
 
@@ -657,7 +856,7 @@ export default function FinancialStatements() {
         {/* ══════════════════════════════════════════════════════════════════ */}
         {tab === "expenses" && (
           expLoading ? <LoadingState /> : !exp || (exp.accounts ?? []).length === 0 ? <EmptyState /> : (
-            <ReportSheet onExport={handleExport} onPrint={() => window.print()} maxW="2xl">
+            <ReportSheet onExport={handleExport} onPrint={handlePrint} maxW="2xl">
               <StatementHeader title="Expense Breakdown by Account" period={periodLabel} />
               <div className="flex items-center px-6 py-2.5 border-b border-border bg-secondary/30">
                 <span className="w-12 shrink-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Code</span>
