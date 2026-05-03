@@ -591,6 +591,17 @@ export default function TripDetail() {
     setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
   };
 
+  const handlePrintTripStatement = () => {
+    if (!trip) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const html = generateTripStatementHtml(trip, companySettings, (user as any)?.name ?? (user as any)?.email);
+    w.document.write(`<!DOCTYPE html><html><head><title>${trip.truckPlate ?? "Trip"} — Cash Statement</title><style>*{box-sizing:border-box;}body{margin:0;padding:0;background:#fff;}@media print{@page{size:A4;margin:8mm;}}</style></head><body>${html}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
+  };
+
   const handleExport = () => {
     if (!trip) return;
     exportToExcel([{
@@ -683,6 +694,7 @@ export default function TripDetail() {
                 <ArrowRight className="w-4 h-4 mr-1.5" />Reassign Batch
               </Button>
               <Button variant="outline" size="sm" onClick={handlePrintTripDoc} disabled={!trip.financials?.grossRevenue}><Printer className="w-4 h-4 mr-2" />Client Note</Button>
+              <Button variant="outline" size="sm" onClick={handlePrintTripStatement}><Printer className="w-4 h-4 mr-2" />Trip Statement</Button>
               <Button variant="outline" size="sm" onClick={handleExport}><Download className="w-4 h-4 mr-2" />Export</Button>
             </div>
             {/* Mobile — overflow menu */}
@@ -712,6 +724,9 @@ export default function TripDetail() {
                       <Printer className="w-4 h-4 mr-2" />Client Note
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onSelect={handlePrintTripStatement}>
+                    <Printer className="w-4 h-4 mr-2" />Trip Statement
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => { setReassignBatchId(""); setReassignError(""); setShowReassignDialog(true); }}>
                     <ArrowRight className="w-4 h-4 mr-2" />Reassign Batch
                   </DropdownMenuItem>
