@@ -69,6 +69,171 @@ type TruckDetailData = {
 
 import { getRouteLabel } from "@/lib/routes";
 
+function generateTruckProfileHtml(opts: {
+  truck: TruckDetailData["truck"];
+  currentDriver: TruckDetailData["driverAssignments"][0] | undefined;
+  filteredTrips: TruckDetailData["trips"];
+  filteredExpenses: TruckDetailData["otherExpenses"];
+  driverAssignments: TruckDetailData["driverAssignments"];
+  filteredTripRevenue: number; filteredTripCommission: number; filteredTripExp: number;
+  filteredExpTotal: number; filteredMaintenanceCostUsd: number; filteredNetContribution: number;
+  filteredTripShortCharge: number; filteredTripNet: number;
+  printedAt: string; dateFrom: string; dateTo: string; tripStatus: string; expCategory: string;
+  company: any;
+}): string {
+  const {
+    truck, currentDriver, filteredTrips, filteredExpenses, driverAssignments,
+    filteredTripRevenue, filteredTripCommission, filteredTripExp, filteredExpTotal,
+    filteredMaintenanceCostUsd, filteredNetContribution, filteredTripShortCharge, filteredTripNet,
+    printedAt, dateFrom, dateTo, tripStatus, expCategory, company,
+  } = opts;
+  const C = (v: number) => `$${v.toFixed(2)}`;
+  const companyName = company?.name ?? "Optima Transport LLC";
+  const companyAddress = [company?.address, company?.city, company?.country].filter(Boolean).join(", ");
+
+  const activeTrips = filteredTrips.filter((t) => !["cancelled", "amended_out"].includes(t.status));
+
+  const kpis = [
+    { label: "Trips", value: filteredTrips.length.toString() },
+    { label: "Gross Revenue", value: C(filteredTripRevenue) },
+    { label: "Commission", value: C(filteredTripCommission) },
+    { label: "Trip Expenses", value: C(filteredTripExp) },
+    { label: "Other Expenses", value: C(filteredExpTotal) },
+    { label: "Maintenance (USD)", value: C(filteredMaintenanceCostUsd) },
+    { label: "Net Contribution", value: C(filteredNetContribution) },
+  ];
+
+  const tripRows = filteredTrips.map((t, i) => {
+    const sc = t.shortCharge ?? t.clientShortCharge;
+    return `<tr style="background:${i % 2 === 0 ? "#fff" : "#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+      <td style="padding:5px 6px;font-size:10px;white-space:nowrap;">${formatDate(t.createdAt)}</td>
+      <td style="padding:5px 6px;font-size:10px;">${t.batchName ?? `#${t.id}`}</td>
+      <td style="padding:5px 6px;font-size:10px;white-space:nowrap;">${getRouteLabel(t.route ?? "")}</td>
+      <td style="padding:5px 6px;font-size:10px;">${t.product ?? "—"}</td>
+      <td style="padding:5px 6px;font-size:10px;text-transform:capitalize;">${t.status.replace(/_/g, " ")}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;">${t.loadedQty ?? "—"}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;">${t.deliveredQty ?? "—"}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;">${sc != null && sc > 0 ? C(sc) : "—"}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;">${C(t.grossRevenue)}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;">${t.tripExpenses > 0 ? C(t.tripExpenses) : "—"}</td>
+      <td style="padding:5px 6px;font-size:10px;text-align:right;font-weight:700;">${C(t.netContribution)}</td>
+    </tr>`;
+  }).join("");
+
+  const expRows = filteredExpenses.map((e, i) =>
+    `<tr style="background:${i % 2 === 0 ? "#fff" : "#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+      <td style="padding:5px 8px;font-size:10px;white-space:nowrap;">${formatDate(e.expenseDate)}</td>
+      <td style="padding:5px 8px;font-size:10px;">${expenseLabel(e.costType)}</td>
+      <td style="padding:5px 8px;font-size:10px;color:#555;">${e.description ?? "—"}</td>
+      <td style="padding:5px 8px;font-size:10px;text-align:right;font-weight:600;">${C(e.amount)}</td>
+      <td style="padding:5px 8px;font-size:10px;text-align:center;">${e.currency}</td>
+    </tr>`
+  ).join("");
+
+  const driverRows = driverAssignments.map((d, i) =>
+    `<tr style="background:${i % 2 === 0 ? "#fff" : "#f9f9f9"};border-bottom:1px solid #e5e7eb;">
+      <td style="padding:5px 8px;font-size:10px;font-weight:600;">${d.driverName ?? `Driver #${d.driverId}`}</td>
+      <td style="padding:5px 8px;font-size:10px;">${format(new Date(d.assignedAt), "dd MMM yyyy")}</td>
+      <td style="padding:5px 8px;font-size:10px;">${d.unassignedAt ? format(new Date(d.unassignedAt), "dd MMM yyyy") : "—"}</td>
+      <td style="padding:5px 8px;font-size:10px;">${d.unassignedAt ? "Past" : "Current"}</td>
+    </tr>`
+  ).join("");
+
+  return `<div style="font-family:Arial,sans-serif;color:#111;background:#fff;padding:16px 20px;max-width:960px;margin:0 auto;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:2px solid #111;margin-bottom:16px;">
+    <div>
+      <div style="font-size:20px;font-weight:700;">${truck.plateNumber}</div>
+      ${truck.trailerPlate ? `<div style="font-size:11px;color:#555;margin-top:2px;">Trailer: ${truck.trailerPlate}</div>` : ""}
+      <div style="font-size:11px;color:#555;margin-top:2px;">
+        ${truck.companyOwned ? "Company Fleet · No commission" : `${truck.subcontractorName ?? "—"}${truck.commissionRate ? ` · ${truck.commissionRate}% commission` : ""}`}
+        · <strong>${STATUS_LABEL[truck.status] ?? truck.status}</strong>
+      </div>
+      ${currentDriver ? `<div style="font-size:11px;color:#555;margin-top:2px;">Driver: ${currentDriver.driverName}</div>` : ""}
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:11px;color:#555;">${companyName}</div>
+      ${companyAddress ? `<div style="font-size:10px;color:#888;">${companyAddress}</div>` : ""}
+      <div style="font-size:10px;color:#888;margin-top:2px;">Printed ${printedAt}</div>
+      ${(dateFrom || dateTo) ? `<div style="font-size:10px;color:#888;">Period: ${dateFrom || "—"} to ${dateTo || "—"}</div>` : ""}
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:20px;">
+    ${kpis.map((k) => `<div style="border:1px solid #ddd;border-radius:4px;padding:10px 8px;">
+      <div style="font-size:9px;color:#888;text-transform:uppercase;margin-bottom:4px;">${k.label}</div>
+      <div style="font-size:12px;font-weight:700;font-family:monospace;">${k.value}</div>
+    </div>`).join("")}
+  </div>
+
+  <div style="margin-bottom:20px;">
+    <div style="font-size:13px;font-weight:700;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:8px;">
+      Trips (${filteredTrips.length})${tripStatus !== "all" ? ` — filter: ${tripStatus}` : ""}
+    </div>
+    ${filteredTrips.length === 0 ? `<p style="font-size:11px;color:#888;font-style:italic;">No trips match the current filter.</p>` : `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:2px solid #aaa;background:#f9f9f9;">
+          ${["Date","Batch","Route","Product","Status","Loaded (MT)","Delivered (MT)","Short Chg","Gross","Trip Exp.","Net Contrib."].map((h) =>
+            `<th style="padding:6px 6px;font-size:9px;font-weight:700;text-align:${["Loaded (MT)","Delivered (MT)","Short Chg","Gross","Trip Exp.","Net Contrib."].includes(h) ? "right" : "left"};text-transform:uppercase;color:#555;">${h}</th>`
+          ).join("")}
+        </tr>
+      </thead>
+      <tbody>${tripRows}</tbody>
+      <tfoot>
+        <tr style="border-top:2px solid #aaa;background:#f0fdf4;">
+          <td colspan="7" style="padding:6px 6px;font-size:10px;font-weight:700;">Totals (${activeTrips.length} active)</td>
+          <td style="padding:6px 6px;font-size:10px;font-weight:700;text-align:right;">${filteredTripShortCharge > 0 ? C(filteredTripShortCharge) : "—"}</td>
+          <td style="padding:6px 6px;font-size:10px;font-weight:700;text-align:right;">${C(filteredTripRevenue)}</td>
+          <td style="padding:6px 6px;font-size:10px;font-weight:700;text-align:right;">${C(filteredTripExp)}</td>
+          <td style="padding:6px 6px;font-size:10px;font-weight:700;text-align:right;">${C(filteredTripNet)}</td>
+        </tr>
+      </tfoot>
+    </table>`}
+  </div>
+
+  <div style="margin-bottom:20px;">
+    <div style="font-size:13px;font-weight:700;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:8px;">
+      Other Expenses (${filteredExpenses.length})${expCategory !== "all" ? ` — ${expCategory}` : ""}
+    </div>
+    ${filteredExpenses.length === 0 ? `<p style="font-size:11px;color:#888;font-style:italic;">No other expenses recorded.</p>` : `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:2px solid #aaa;background:#f9f9f9;">
+          ${["Date","Category","Description","Amount","Currency"].map((h) =>
+            `<th style="padding:6px 8px;font-size:9px;font-weight:700;text-align:${h === "Amount" ? "right" : h === "Currency" ? "center" : "left"};text-transform:uppercase;color:#555;">${h}</th>`
+          ).join("")}
+        </tr>
+      </thead>
+      <tbody>${expRows}</tbody>
+      <tfoot>
+        <tr style="border-top:2px solid #aaa;background:#f9f9f9;">
+          <td colspan="3" style="padding:6px 8px;font-size:10px;font-weight:700;">Total</td>
+          <td style="padding:6px 8px;font-size:10px;font-weight:700;text-align:right;">${C(filteredExpTotal)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>`}
+  </div>
+
+  <div>
+    <div style="font-size:13px;font-weight:700;border-bottom:1px solid #ccc;padding-bottom:4px;margin-bottom:8px;">
+      Driver History (${driverAssignments.length})
+    </div>
+    ${driverAssignments.length === 0 ? `<p style="font-size:11px;color:#888;font-style:italic;">No driver assignments recorded.</p>` : `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="border-bottom:2px solid #aaa;background:#f9f9f9;">
+          ${["Driver","From","To","Status"].map((h) =>
+            `<th style="padding:6px 8px;font-size:9px;font-weight:700;text-align:left;text-transform:uppercase;color:#555;">${h}</th>`
+          ).join("")}
+        </tr>
+      </thead>
+      <tbody>${driverRows}</tbody>
+    </table>`}
+  </div>
+</div>`;
+}
+
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -160,6 +325,11 @@ export default function TruckDetail() {
     queryKey: [`/api/maintenance/trucks/${id}`],
     queryFn: () => fetch(`/api/maintenance/trucks/${id}`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!id,
+  });
+
+  const { data: companySettings } = useQuery<any>({
+    queryKey: ["/api/company-settings"],
+    queryFn: () => fetch("/api/company-settings", { credentials: "include" }).then((r) => r.json()),
   });
 
   // Shared period filter (drives KPIs + both tabs)
@@ -315,6 +485,22 @@ export default function TruckDetail() {
 
   const printedAt = format(new Date(), "dd MMM yyyy, HH:mm");
 
+  const handlePrint = () => {
+    if (!truck) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const html = generateTruckProfileHtml({
+      truck, currentDriver, filteredTrips, filteredExpenses, driverAssignments,
+      filteredTripRevenue, filteredTripCommission, filteredTripExp, filteredExpTotal,
+      filteredMaintenanceCostUsd, filteredNetContribution, filteredTripShortCharge, filteredTripNet,
+      printedAt, dateFrom, dateTo, tripStatus, expCategory, company: companySettings,
+    });
+    w.document.write(`<!DOCTYPE html><html><head><title>${truck.plateNumber} — Truck Profile</title><style>*{box-sizing:border-box;}body{margin:0;padding:0;background:#fff;}@media print{@page{size:A4 landscape;margin:8mm;}}</style></head><body>${html}</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.print(); } catch (_) {} }, 350);
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -334,27 +520,19 @@ export default function TruckDetail() {
 
   return (
     <Layout>
-      <style>{`
-        @media print {
-          @page { size: A4 landscape; margin: 8mm; }
-          body * { visibility: hidden !important; }
-          #truck-print-doc { display: block !important; visibility: visible !important; position: fixed; left: 0; top: 0; width: 100%; background: #fff; }
-          #truck-print-doc * { visibility: visible !important; }
-        }
-      `}</style>
       {closedPeriodDialog}
       {/* ── Screen header ── */}
       <PageHeader
         title={truck.plateNumber}
         subtitle={truck.trailerPlate ? `Trailer: ${truck.trailerPlate}` : undefined}
         actions={
-          <div className="flex items-center gap-2 print:hidden">
+          <div className="flex items-center gap-2">
             <Link href="/fleet">
               <Button variant="outline" size="sm" className="gap-1.5">
                 <ArrowLeft className="w-3.5 h-3.5" /> Fleet
               </Button>
             </Link>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={handlePrint}>
               <Printer className="w-3.5 h-3.5" /> Print
             </Button>
           </div>
@@ -362,179 +540,7 @@ export default function TruckDetail() {
       />
 
       <PageContent>
-        {/* ═══════════════════════════════════════════════════
-            PRINT DOCUMENT — hidden on screen, shown when printing
-            ═══════════════════════════════════════════════════ */}
-        <div id="truck-print-doc" className="hidden print:block text-black bg-white">
-          {/* Print header */}
-          <div className="flex items-start justify-between mb-6 pb-4 border-b-2 border-black">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{truck.plateNumber}</h1>
-              {truck.trailerPlate && <p className="text-sm text-gray-600">Trailer: {truck.trailerPlate}</p>}
-              <p className="text-sm text-gray-600 mt-1">
-                {truck.companyOwned ? "Company Fleet" : (truck.subcontractorName ?? "No subcontractor")}
-                {!truck.companyOwned && truck.commissionRate ? ` · ${truck.commissionRate}% commission` : ""}
-                {truck.companyOwned ? " · No commission" : ""}
-                {" · "}
-                <span className="font-semibold">{STATUS_LABEL[truck.status] ?? truck.status}</span>
-              </p>
-              {currentDriver && (
-                <p className="text-sm text-gray-600">Driver: {currentDriver.driverName}</p>
-              )}
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Printed {printedAt}</p>
-              {(dateFrom || dateTo) && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Period: {dateFrom || "—"} to {dateTo || "—"}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Print KPI summary */}
-          <div className="grid grid-cols-7 gap-3 mb-8">
-            {[
-              { label: "Trips", value: filteredTrips.length.toString() },
-              { label: "Gross Revenue", value: formatCurrency(filteredTripRevenue) },
-              { label: "Commission", value: formatCurrency(filteredTripCommission) },
-              { label: "Trip Expenses", value: formatCurrency(filteredTripExp) },
-              { label: "Other Expenses", value: formatCurrency(filteredExpTotal) },
-              { label: "Maintenance (USD)", value: formatCurrency(filteredMaintenanceCostUsd) },
-              { label: "Net Contribution", value: formatCurrency(filteredNetContribution) },
-            ].map((k) => (
-              <div key={k.label} className="border border-gray-300 rounded p-3">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wide">{k.label}</p>
-                <p className="text-sm font-bold mt-0.5 font-mono">{k.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Print trips table */}
-          <section className="mb-8">
-            <h2 className="text-base font-bold mb-3 border-b border-gray-300 pb-1">
-              Trips ({filteredTrips.length})
-              {tripStatus !== "all" && <span className="font-normal text-gray-500 text-sm ml-2">— filter: {tripStatus}</span>}
-            </h2>
-            {filteredTrips.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No trips match the current filter.</p>
-            ) : (
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-400">
-                    {["Date", "Batch", "Route", "Product", "Status", "Loaded (MT)", "Delivered (MT)", "Short Charge", "Gross", "Trip Exp.", "Net Contrib."].map((h) => (
-                      <th key={h} className="py-1.5 pr-3 text-left font-semibold text-gray-700 last:text-right">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTrips.map((t, i) => (
-                    <tr key={t.id} className={cn("border-b border-gray-200", i % 2 === 1 && "bg-gray-50")}
-                        style={{ pageBreakInside: "avoid" }}>
-                      <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{formatDate(t.createdAt)}</td>
-                      <td className="py-1.5 pr-3">{t.batchName ?? `#${t.id}`}</td>
-                      <td className="py-1.5 pr-3 text-gray-600">{getRouteLabel(t.route ?? "")}</td>
-                      <td className="py-1.5 pr-3 text-gray-600">{t.product ?? "—"}</td>
-                      <td className="py-1.5 pr-3 capitalize">{t.status.replace(/_/g, " ")}</td>
-                      <td className="py-1.5 pr-3 font-mono">{t.loadedQty != null ? t.loadedQty : "—"}</td>
-                      <td className="py-1.5 pr-3 font-mono">{t.deliveredQty != null ? t.deliveredQty : "—"}</td>
-                      <td className="py-1.5 pr-3 font-mono text-right">
-                        {(() => { const sc = t.shortCharge ?? t.clientShortCharge; return sc != null && sc > 0 ? formatCurrency(sc) : "—"; })()}
-                      </td>
-                      <td className="py-1.5 pr-3 font-mono">{formatCurrency(t.grossRevenue)}</td>
-                      <td className="py-1.5 pr-3 font-mono">{t.tripExpenses > 0 ? formatCurrency(t.tripExpenses) : "—"}</td>
-                      <td className="py-1.5 font-mono font-semibold text-right">{formatCurrency(t.netContribution)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-400 font-bold">
-                    <td className="py-2 pr-3" colSpan={7}>Totals ({filteredTrips.filter((t) => !["cancelled","amended_out"].includes(t.status)).length} active)</td>
-                    <td className="py-2 pr-3 font-mono">{filteredTripShortCharge > 0 ? formatCurrency(filteredTripShortCharge) : "—"}</td>
-                    <td className="py-2 pr-3 font-mono">{formatCurrency(filteredTripRevenue)}</td>
-                    <td className="py-2 pr-3 font-mono">{formatCurrency(filteredTripExp)}</td>
-                    <td className="py-2 font-mono text-right">{formatCurrency(filteredTripNet)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-          </section>
-
-          {/* Print other expenses table — page break before if needed */}
-          <section className="mb-8" style={{ pageBreakBefore: filteredTrips.length > 12 ? "always" : "auto" }}>
-            <h2 className="text-base font-bold mb-3 border-b border-gray-300 pb-1">
-              Other Expenses ({filteredExpenses.length})
-              {expCategory !== "all" && <span className="font-normal text-gray-500 text-sm ml-2">— {expCategory}</span>}
-            </h2>
-            {filteredExpenses.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No other expenses recorded.</p>
-            ) : (
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-400">
-                    {["Date", "Category", "Description", "Amount", "Currency"].map((h) => (
-                      <th key={h} className="py-1.5 pr-3 text-left font-semibold text-gray-700 last:text-right">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredExpenses.map((e, i) => (
-                    <tr key={e.id} className={cn("border-b border-gray-200", i % 2 === 1 && "bg-gray-50")}
-                        style={{ pageBreakInside: "avoid" }}>
-                      <td className="py-1.5 pr-3 text-gray-600 whitespace-nowrap">{formatDate(e.expenseDate)}</td>
-                      <td className="py-1.5 pr-3">{expenseLabel(e.costType)}</td>
-                      <td className="py-1.5 pr-3 text-gray-600">{e.description ?? "—"}</td>
-                      <td className="py-1.5 pr-3 font-mono font-semibold">{formatCurrency(e.amount)}</td>
-                      <td className="py-1.5 font-mono text-right">{e.currency}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-gray-400 font-bold">
-                    <td className="py-2 pr-3" colSpan={3}>Total</td>
-                    <td className="py-2 pr-3 font-mono">{formatCurrency(filteredExpTotal)}</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-          </section>
-
-          {/* Print driver history */}
-          <section style={{ pageBreakInside: "avoid" }}>
-            <h2 className="text-base font-bold mb-3 border-b border-gray-300 pb-1">
-              Driver History ({driverAssignments.length})
-            </h2>
-            {driverAssignments.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No driver assignments recorded.</p>
-            ) : (
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-gray-400">
-                    {["Driver", "From", "To", "Status"].map((h) => (
-                      <th key={h} className="py-1.5 pr-3 text-left font-semibold text-gray-700">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {driverAssignments.map((d, i) => (
-                    <tr key={d.id} className={cn("border-b border-gray-200", i % 2 === 1 && "bg-gray-50")}>
-                      <td className="py-1.5 pr-3 font-medium">{d.driverName ?? `Driver #${d.driverId}`}</td>
-                      <td className="py-1.5 pr-3 text-gray-600">{format(new Date(d.assignedAt), "dd MMM yyyy")}</td>
-                      <td className="py-1.5 pr-3 text-gray-600">{d.unassignedAt ? format(new Date(d.unassignedAt), "dd MMM yyyy") : "—"}</td>
-                      <td className="py-1.5">{d.unassignedAt ? "Past" : "Current"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════
-            SCREEN VIEW — hidden when printing
-            ═══════════════════════════════════════════════════ */}
-        <div className="space-y-5 print:hidden">
+        <div className="space-y-5">
           {/* Truck info strip */}
           <div className="bg-card border border-border rounded-xl p-5 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-3 flex-1 min-w-0">
