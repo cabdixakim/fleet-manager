@@ -137,6 +137,7 @@ router.post("/check", async (req, res) => {
       .toISOString().split("T")[0];
     const today = new Date().toISOString().split("T")[0];
 
+    // Include already-expired docs AND docs expiring within the warning window
     const expiringDocs = await db
       .select({
         id: documentsTable.id,
@@ -146,12 +147,7 @@ router.post("/check", async (req, res) => {
         expiryDate: documentsTable.expiryDate,
       })
       .from(documentsTable)
-      .where(
-        and(
-          gte(documentsTable.expiryDate, today),
-          lte(documentsTable.expiryDate, expiryWindow),
-        )
-      );
+      .where(lte(documentsTable.expiryDate, expiryWindow));
 
     if (expiringDocs.length > 0) {
       // Build lookup maps for entity names
@@ -179,20 +175,27 @@ router.post("/check", async (req, res) => {
           : (driverMap[doc.entityId] ?? `Driver #${doc.entityId}`);
 
         const link = doc.entityType === "truck"
-          ? `/fleet/${doc.entityId}`
-          : `/drivers/${doc.entityId}`;
+          ? `/fleet/${doc.entityId}?tab=documents`
+          : doc.entityType === "driver"
+          ? `/drivers/${doc.entityId}?tab=documents`
+          : `/documents`;
 
         const daysLeft = Math.ceil(
           (new Date(doc.expiryDate!).getTime() - Date.now()) / 86400000
         );
+        const isExpired = daysLeft < 0;
+        const title = isExpired ? "Document Expired" : "Document Expiring Soon";
+        const body = isExpired
+          ? `${entityName} — ${doc.docLabel} expired ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? "" : "s"} ago`
+          : `${entityName} — ${doc.docLabel} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`;
 
         for (const u of docUsers) {
           if (await alreadyNotified(u.id, "doc_expiry", doc.id, dedupMs)) continue;
           await db.insert(notificationsTable).values({
             userId: u.id,
             type: "doc_expiry",
-            title: "Document Expiring Soon",
-            body: `${entityName} — ${doc.docLabel} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+            title,
+            body,
             link,
             read: false,
             metadata: {

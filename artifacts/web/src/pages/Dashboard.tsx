@@ -188,7 +188,11 @@ export default function Dashboard() {
               ))}
               {docAlerts.slice(0, 6).map((doc: any) => {
                 const isExpired = !doc.expiryDate || new Date(doc.expiryDate) < new Date();
-                const dest = doc.entityType === "truck" ? `/fleet/${doc.entityId}` : `/drivers/${doc.entityId}`;
+                const dest = doc.entityType === "truck"
+                  ? `/fleet/${doc.entityId}?tab=documents`
+                  : doc.entityType === "driver"
+                  ? `/drivers/${doc.entityId}?tab=documents`
+                  : `/documents`;
                 return (
                   <button key={`doc-${doc.id}`} onClick={() => navigate(dest)}
                     className={cn(

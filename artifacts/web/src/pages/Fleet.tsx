@@ -654,7 +654,9 @@ export default function Fleet() {
                 <SelectTrigger className="mt-1"><SelectValue placeholder="Select horse…" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— Unassigned —</SelectItem>
-                  {horsesArr.filter(h => h.status !== "retired").map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.plateNumber}</SelectItem>)}
+                  {horsesArr
+                    .filter(h => h.status !== "retired" && (!h.linkedTrailer || h.linkedTrailer.id === reassignTrailer?.id))
+                    .map((h: any) => <SelectItem key={h.id} value={String(h.id)}>{h.plateNumber}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
