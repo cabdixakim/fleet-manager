@@ -179,6 +179,7 @@ export default function Fleet() {
   const [savingLocationId, setSavingLocationId] = useState<number | null>(null);
 
   // Trailer-specific state
+  const [editLinkedTrailerId, setEditLinkedTrailerId] = useState<string>("__none__");
   const [reassignTrailer, setReassignTrailer] = useState<any | null>(null);
   const [reassignHorseId, setReassignHorseId] = useState<string>("");
   const [editTrailerStatus, setEditTrailerStatus] = useState<any | null>(null);
@@ -318,11 +319,25 @@ export default function Fleet() {
   const doUpdate = async () => {
     if (!editTruck) return;
     const isCompanyNow = !!editTruck.companyOwned;
-    await updateTruck({ id: editTruck.id, data: { plateNumber: editTruck.plateNumber, trailerPlate: editTruck.trailerPlate, companyOwned: isCompanyNow, subcontractorId: isCompanyNow ? null : (editTruck.subcontractorId ?? null), status: editTruck.status as any, notes: editTruck.notes, currentLocation: editTruck.currentLocation ?? null } });
+    await updateTruck({ id: editTruck.id, data: { plateNumber: editTruck.plateNumber, companyOwned: isCompanyNow, subcontractorId: isCompanyNow ? null : (editTruck.subcontractorId ?? null), status: editTruck.status as any, notes: editTruck.notes, currentLocation: editTruck.currentLocation ?? null } });
+
+    // Handle trailer link change via entity system
+    const originalTrailerId = editTruck.linkedTrailer?.id ?? null;
+    const newTrailerId = editLinkedTrailerId === "__none__" ? null : parseInt(editLinkedTrailerId);
+    if (newTrailerId !== originalTrailerId) {
+      if (originalTrailerId) {
+        await fetch(`/api/trucks/${originalTrailerId}/assign-horse`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ horseId: null }) });
+      }
+      if (newTrailerId) {
+        await fetch(`/api/trucks/${newTrailerId}/assign-horse`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ horseId: editTruck.id }) });
+      }
+    }
+
     qc.invalidateQueries({ queryKey: ["/api/trucks"] });
     setConfirmSubSwap(false);
     setConfirmOwnershipTransfer(false);
     setEditTruck(null);
+    setEditLinkedTrailerId("__none__");
   };
 
   const handleUpdate = () => {
@@ -428,7 +443,7 @@ export default function Fleet() {
                     <th className="px-2 pr-3 py-2 w-16" />
                   </tr></thead>
                   <tbody>
-                    {filtered.map((t: any) => <TruckRow key={t.id} truck={t} driverName={getCurrentDriverName(t.id)} onEdit={() => { setEditTruck(t); setOriginalSubId(t.subcontractorId); setOriginalCompanyOwned(!!t.companyOwned); }} onRetire={() => setConfirmDelete(t)} onDriverHistory={() => setShowDriverDialog({ truck: t })} onLocationSave={handleLocationSave} savingLocationId={savingLocationId} />)}
+                    {filtered.map((t: any) => <TruckRow key={t.id} truck={t} driverName={getCurrentDriverName(t.id)} onEdit={() => { setEditTruck(t); setOriginalSubId(t.subcontractorId); setOriginalCompanyOwned(!!t.companyOwned); setEditLinkedTrailerId(t.linkedTrailer?.id ? String(t.linkedTrailer.id) : "__none__"); }} onRetire={() => setConfirmDelete(t)} onDriverHistory={() => setShowDriverDialog({ truck: t })} onLocationSave={handleLocationSave} savingLocationId={savingLocationId} />)}
                   </tbody>
                 </table>
               </div>
@@ -584,14 +599,25 @@ export default function Fleet() {
       </Dialog>
 
       {/* Edit Horse Dialog */}
-      <Dialog open={!!editTruck} onOpenChange={() => setEditTruck(null)}>
+      <Dialog open={!!editTruck} onOpenChange={() => { setEditTruck(null); setEditLinkedTrailerId("__none__"); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Update — {editTruck?.plateNumber}</DialogTitle></DialogHeader>
           {editTruck && (
             <div className="space-y-3 py-2">
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Horse Plate</Label><Input value={editTruck.plateNumber ?? ""} onChange={(e) => setEditTruck({ ...editTruck, plateNumber: e.target.value })} className="mt-1" /></div>
-                <div><Label>Trailer Plate</Label><Input value={editTruck.trailerPlate ?? ""} onChange={(e) => setEditTruck({ ...editTruck, trailerPlate: e.target.value })} className="mt-1" placeholder="Optional" /></div>
+                <div>
+                  <Label>Linked Trailer</Label>
+                  <Select value={editLinkedTrailerId} onValueChange={setEditLinkedTrailerId}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="No trailer" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— No trailer —</SelectItem>
+                      {(trailers as any[])
+                        .filter(t => t.status !== "retired" && (!t.currentHorseId || t.id === editTruck.linkedTrailer?.id))
+                        .map((t: any) => <SelectItem key={t.id} value={String(t.id)}>{t.plateNumber}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div>
                 <Label>Ownership</Label>
