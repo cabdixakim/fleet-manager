@@ -425,7 +425,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {user?.role === "owner" && (
+          {user?.role === "owner" && !loading && (!testDataCleared || !fleetDataDestroyed) && (
             <div className="bg-card border border-destructive/40 rounded-xl p-6">
               <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4" />Danger Zone
