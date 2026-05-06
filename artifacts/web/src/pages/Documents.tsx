@@ -48,7 +48,8 @@ import {
 import { format, parseISO, differenceInDays } from "date-fns";
 
 const TRUCK_DOC_TYPES = [
-  { value: "c29",          label: "C29 Cross-Border Permit" },
+  { value: "c29",          label: "C29 – Trailer Cross-Border Permit" },
+  { value: "comesa",       label: "COMESA Yellow Card" },
   { value: "white_book",   label: "White Book (Registration)" },
   { value: "insurance",    label: "Insurance Certificate" },
   { value: "road_tax",     label: "Road Tax Disc" },
