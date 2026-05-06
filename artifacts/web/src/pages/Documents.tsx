@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -134,8 +134,6 @@ export default function Documents() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const { uploadFile, isUploading } = useDocUpload();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const editFileRef = useRef<HTMLInputElement>(null);
 
   const [search, setSearch] = useState("");
   const [filterEntity, setFilterEntity] = useState("all");
@@ -503,16 +501,16 @@ export default function Documents() {
 
             <div className="space-y-1.5">
               <Label>Attach File (PDF / Image)</Label>
-              <div
+              <label
+                htmlFor="doc-file-input"
                 className="border border-dashed border-border rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-primary/40 transition-colors"
-                onClick={() => fileRef.current?.click()}
               >
                 <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-sm text-muted-foreground">
-                  {pendingFile ? pendingFile.name : "Click to select file"}
+                  {pendingFile ? pendingFile.name : "Tap to select file"}
                 </span>
-              </div>
-              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)} />
+              </label>
+              <input id="doc-file-input" type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)} />
             </div>
 
             <div className="space-y-1.5">
@@ -555,16 +553,16 @@ export default function Documents() {
             </div>
             <div className="space-y-1.5">
               <Label>Replace File (PDF / Image)</Label>
-              <div
+              <label
+                htmlFor="doc-edit-file-input"
                 className="border border-dashed border-border rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-primary/40 transition-colors"
-                onClick={() => editFileRef.current?.click()}
               >
                 <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-sm text-muted-foreground">
-                  {editPendingFile ? editPendingFile.name : editDoc?.fileName ? `Current: ${editDoc.fileName}` : "Click to attach a file"}
+                  {editPendingFile ? editPendingFile.name : editDoc?.fileName ? `Current: ${editDoc.fileName}` : "Tap to attach a file"}
                 </span>
-              </div>
-              <input ref={editFileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setEditPendingFile(e.target.files?.[0] ?? null)} />
+              </label>
+              <input id="doc-edit-file-input" type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setEditPendingFile(e.target.files?.[0] ?? null)} />
             </div>
             <div className="space-y-1.5">
               <Label>Notes</Label>
