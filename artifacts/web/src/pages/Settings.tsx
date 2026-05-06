@@ -9,12 +9,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Settings, Save, Upload, Building2, Globe, Phone, Mail, Hash, DollarSign, TrendingUp, ImageOff, Trash2 } from "lucide-react";
+import { Settings, Save, Upload, Building2, Globe, Phone, Mail, Hash, DollarSign, TrendingUp, ImageOff, Trash2, ShieldAlert } from "lucide-react";
 import { LogoCropDialog } from "@/components/LogoCropDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     name: "",
@@ -44,6 +46,8 @@ export default function SettingsPage() {
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [removeLogoConfirm, setRemoveLogoConfirm] = useState(false);
+  const [clearDataConfirm, setClearDataConfirm] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [truckTypes, setTruckTypes] = useState({ hasCompany: false, hasSub: false });
 
   useEffect(() => {
@@ -143,6 +147,20 @@ export default function SettingsPage() {
   const handleCloseCrop = () => {
     setCropDialogOpen(false);
     if (rawImageSrc) { URL.revokeObjectURL(rawImageSrc); setRawImageSrc(null); }
+  };
+
+  const handleClearTestData = async () => {
+    setClearing(true);
+    try {
+      await fetch("/api/admin/clear-test-data", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      qc.invalidateQueries();
+    } finally {
+      setClearing(false);
+      setClearDataConfirm(false);
+    }
   };
 
   const handleRemoveLogo = async () => {
@@ -380,6 +398,35 @@ export default function SettingsPage() {
               {saving ? "Saving..." : saved ? "Saved!" : "Save All Settings"}
             </Button>
           </div>
+
+          {user?.role === "owner" && (
+            <div className="bg-card border border-destructive/40 rounded-xl p-6">
+              <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4" />Danger Zone
+              </h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                These actions are irreversible. Trucks, drivers, subcontractors, and users are preserved.
+              </p>
+              <div className="flex items-center justify-between py-3 border-t border-border">
+                <div>
+                  <p className="text-sm font-medium">Clear Test Data</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Permanently deletes all batches, trips, invoices, clients, clearances, and related GL entries.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setClearDataConfirm(true)}
+                  disabled={clearing}
+                  className="ml-6 shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  {clearing ? "Clearing..." : "Clear Test Data"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </PageContent>
 
@@ -393,6 +440,31 @@ export default function SettingsPage() {
           loading={uploading}
         />
       )}
+
+      {/* Clear test data confirmation */}
+      <AlertDialog open={clearDataConfirm} onOpenChange={setClearDataConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear All Test Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all batches, trips, invoices, clients, clearances, and GL journal entries.
+              Trucks, drivers, subcontractors, and users will be kept.
+              <br /><br />
+              <strong>This cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleClearTestData}
+              disabled={clearing}
+            >
+              {clearing ? "Clearing..." : "Yes, Clear Everything"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Remove confirmation */}
       <AlertDialog open={removeLogoConfirm} onOpenChange={setRemoveLogoConfirm}>

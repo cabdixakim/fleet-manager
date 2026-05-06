@@ -43,6 +43,7 @@ import openingBalancesRouter from "./openingBalances";
 import insuranceClaimsRouter from "./insuranceClaims";
 import companyInsurancePoliciesRouter from "./companyInsurancePolicies";
 import lanesRouter from "./lanes";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -90,5 +91,6 @@ router.use("/opening-balances", openingBalancesRouter);
 router.use("/insurance-claims", insuranceClaimsRouter);
 router.use("/company-insurance-policies", companyInsurancePoliciesRouter);
 router.use("/lanes", lanesRouter);
+router.use("/admin", adminRouter);
 
 export default router;
