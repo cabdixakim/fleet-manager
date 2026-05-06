@@ -1,6 +1,4 @@
 import { pgTable, serial, text, date, integer, timestamp } from "drizzle-orm/pg-core";
-import { trucksTable } from "./trucks";
-import { driversTable } from "./drivers";
 
 export const TRUCK_DOC_TYPES = [
   { value: "c29",          label: "C29 Cross-Border Permit" },
@@ -24,37 +22,23 @@ export const DRIVER_DOC_TYPES = [
   { value: "other",        label: "Other" },
 ] as const;
 
-export const TRIP_DOC_TYPES = [
-  { value: "delivery_note",    label: "Delivery Note" },
-  { value: "pod",              label: "Proof of Delivery (POD)" },
-  { value: "loading_order",    label: "Loading Order" },
-  { value: "weigh_bridge",     label: "Weigh Bridge Certificate" },
-  { value: "gate_pass",        label: "Gate Pass" },
-  { value: "customs_entry",    label: "Customs Entry / IM4" },
-  { value: "transit_bond",     label: "Transit Bond" },
-  { value: "other",            label: "Other" },
-] as const;
-
-export const BATCH_DOC_TYPES = [
-  { value: "loading_order",    label: "Loading Order" },
-  { value: "packing_list",     label: "Packing List" },
-  { value: "contract",         label: "Contract / Agreement" },
-  { value: "quota_allocation", label: "Quota Allocation" },
-  { value: "other",            label: "Other" },
-] as const;
-
-export const GENERAL_DOC_TYPES = [
-  { value: "insurance",        label: "Insurance Policy" },
-  { value: "contract",         label: "Contract / Agreement" },
-  { value: "correspondence",   label: "Correspondence" },
-  { value: "report",           label: "Report" },
-  { value: "other",            label: "Other" },
+export const COMPANY_DOC_TYPES = [
+  { value: "rental_agreement",   label: "Rental / Lease Agreement" },
+  { value: "tpin",               label: "TPIN Certificate" },
+  { value: "company_reg",        label: "Certificate of Incorporation" },
+  { value: "tax_clearance",      label: "Tax Clearance Certificate" },
+  { value: "operating_license",  label: "Operating Licence" },
+  { value: "bank_guarantee",     label: "Bank Guarantee" },
+  { value: "insurance",          label: "Company Insurance Policy" },
+  { value: "fuel_license",       label: "Fuel Dealer / Handling Licence" },
+  { value: "cross_border_ops",   label: "Cross-Border Operating Permit" },
+  { value: "other",              label: "Other" },
 ] as const;
 
 export const documentsTable = pgTable("documents", {
   id: serial("id").primaryKey(),
-  entityType: text("entity_type").notNull(), // "truck" | "driver"
-  entityId: integer("entity_id").notNull(),
+  entityType: text("entity_type").notNull(), // "truck" | "driver" | "company"
+  entityId: integer("entity_id"),            // null for company-level documents
   docType: text("doc_type").notNull(),
   docLabel: text("doc_label").notNull(),
   issueDate: date("issue_date"),

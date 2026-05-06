@@ -43,39 +43,57 @@ import {
   Filter,
   Upload,
   Pencil,
+  Building2,
 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 
-const ALL_DOC_TYPES = [
-  { value: "delivery_note",    label: "Delivery Note",              group: "Trip" },
-  { value: "pod",              label: "Proof of Delivery (POD)",    group: "Trip" },
-  { value: "loading_order",    label: "Loading Order",              group: "Trip" },
-  { value: "weigh_bridge",     label: "Weigh Bridge Certificate",   group: "Trip" },
-  { value: "gate_pass",        label: "Gate Pass",                  group: "Trip" },
-  { value: "customs_entry",    label: "Customs Entry / IM4",        group: "Trip" },
-  { value: "transit_bond",     label: "Transit Bond",               group: "Trip" },
-  { value: "insurance",        label: "Insurance Certificate",      group: "Truck" },
-  { value: "roadworthy",       label: "Roadworthy",                 group: "Truck" },
-  { value: "license_disc",     label: "Licence Disc",               group: "Truck" },
-  { value: "customs_bond",     label: "Customs Bond",               group: "Truck" },
-  { value: "license",          label: "Driver's Licence",           group: "Driver" },
-  { value: "passport",         label: "Passport",                   group: "Driver" },
-  { value: "medical",          label: "Medical Certificate",        group: "Driver" },
-  { value: "work_permit",      label: "Work Permit",                group: "Driver" },
-  { value: "driver_card",      label: "Driver Card",                group: "Driver" },
-  { value: "nrc",              label: "NRC / National ID",          group: "Driver" },
-  { value: "contract",         label: "Contract / Agreement",       group: "Batch" },
-  { value: "packing_list",     label: "Packing List",               group: "Batch" },
-  { value: "quota_allocation", label: "Quota Allocation",           group: "Batch" },
-  { value: "other",            label: "Other",                      group: "General" },
+const TRUCK_DOC_TYPES = [
+  { value: "c29",          label: "C29 Cross-Border Permit" },
+  { value: "white_book",   label: "White Book (Registration)" },
+  { value: "insurance",    label: "Insurance Certificate" },
+  { value: "road_tax",     label: "Road Tax Disc" },
+  { value: "fitness",      label: "Fitness Certificate" },
+  { value: "tare_cert",    label: "Tare Certificate" },
+  { value: "route_permit", label: "Route Permit" },
+  { value: "customs_bond", label: "Customs Bond" },
+  { value: "other",        label: "Other" },
 ];
 
-const ENTITY_TYPES = [
-  { value: "all",    label: "All Sources" },
-  { value: "truck",  label: "Trucks" },
-  { value: "driver", label: "Drivers" },
-  { value: "trip",   label: "Trips" },
-  { value: "batch",  label: "Batches" },
+const DRIVER_DOC_TYPES = [
+  { value: "license",     label: "Driver's Licence" },
+  { value: "passport",    label: "Passport" },
+  { value: "medical",     label: "Medical Certificate" },
+  { value: "work_permit", label: "Work Permit" },
+  { value: "driver_card", label: "Driver Card" },
+  { value: "nrc",         label: "NRC / National ID" },
+  { value: "other",       label: "Other" },
+];
+
+const COMPANY_DOC_TYPES = [
+  { value: "rental_agreement",  label: "Rental / Lease Agreement" },
+  { value: "tpin",              label: "TPIN Certificate" },
+  { value: "company_reg",       label: "Certificate of Incorporation" },
+  { value: "tax_clearance",     label: "Tax Clearance Certificate" },
+  { value: "operating_license", label: "Operating Licence" },
+  { value: "bank_guarantee",    label: "Bank Guarantee" },
+  { value: "insurance",         label: "Company Insurance Policy" },
+  { value: "fuel_license",      label: "Fuel Dealer / Handling Licence" },
+  { value: "cross_border_ops",  label: "Cross-Border Operating Permit" },
+  { value: "other",             label: "Other" },
+];
+
+function docTypesFor(entityType: string) {
+  if (entityType === "truck")   return TRUCK_DOC_TYPES;
+  if (entityType === "driver")  return DRIVER_DOC_TYPES;
+  if (entityType === "company") return COMPANY_DOC_TYPES;
+  return [];
+}
+
+const ENTITY_FILTER_OPTIONS = [
+  { value: "all",     label: "All Sources" },
+  { value: "truck",   label: "Trucks" },
+  { value: "driver",  label: "Drivers" },
+  { value: "company", label: "Company" },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -97,15 +115,15 @@ function statusLabel(s: string) {
   return { expired: "Expired", expiring: "Expiring Soon", valid: "Valid", none: "No Expiry" }[s] ?? s;
 }
 
-function docTypeLabel(v: string) {
-  return ALL_DOC_TYPES.find((t) => t.value === v)?.label ?? v;
+function docTypeLabel(entityType: string, docTypeValue: string) {
+  return docTypesFor(entityType).find((t) => t.value === docTypeValue)?.label ?? docTypeValue;
 }
 
 const emptyForm = {
   entityType: "truck",
   entityId: "",
-  docType: "other",
-  docLabel: "",
+  docType: "c29",
+  docLabel: "C29 Cross-Border Permit",
   issueDate: "",
   expiryDate: "",
   notes: "",
@@ -128,58 +146,32 @@ export default function Documents() {
   const [editDoc, setEditDoc] = useState<any | null>(null);
   const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
   const [editForm, setEditForm] = useState({ docLabel: "", issueDate: "", expiryDate: "", notes: "" });
-
   const [form, setForm] = useState(emptyForm);
 
   const { data: docs = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/documents", "vault"],
     queryFn: () =>
-      fetch("/api/documents?limit=500", { credentials: "include" }).then((r) =>
-        r.json()
-      ),
+      fetch("/api/documents", { credentials: "include" }).then((r) => r.json()),
   });
 
-  // Fetch entity options for the Add dialog based on selected entity type
+  // Fetch truck or driver options for the entity picker (company has no entity picker)
   const { data: entityOptions = [] } = useQuery<{ id: number; label: string }[]>({
     queryKey: ["/api/entity-options", form.entityType],
     queryFn: async () => {
       if (form.entityType === "truck") {
-        const r = await fetch("/api/trucks", { credentials: "include" });
-        const data = await r.json();
+        const data = await fetch("/api/trucks", { credentials: "include" }).then((r) => r.json());
         return (Array.isArray(data) ? data : []).map((t: any) => ({ id: t.id, label: t.plateNumber ?? `Truck #${t.id}` }));
       }
       if (form.entityType === "driver") {
-        const r = await fetch("/api/drivers", { credentials: "include" });
-        const data = await r.json();
+        const data = await fetch("/api/drivers", { credentials: "include" }).then((r) => r.json());
         return (Array.isArray(data) ? data : []).map((d: any) => ({ id: d.id, label: d.name ?? `Driver #${d.id}` }));
-      }
-      if (form.entityType === "trip") {
-        const r = await fetch("/api/trips?limit=300", { credentials: "include" });
-        const data = await r.json();
-        const trips = Array.isArray(data) ? data : (data.trips ?? []);
-        return trips.map((t: any) => ({ id: t.id, label: `Trip #${t.id}${t.product ? ` — ${t.product}` : ""}${t.batchName ? ` (${t.batchName})` : ""}` }));
-      }
-      if (form.entityType === "batch") {
-        const r = await fetch("/api/batches", { credentials: "include" });
-        const data = await r.json();
-        const batches = Array.isArray(data) ? data : (data.batches ?? []);
-        return batches.map((b: any) => ({ id: b.id, label: b.name ?? `Batch #${b.id}` }));
       }
       return [];
     },
-    enabled: showAdd,
+    enabled: showAdd && form.entityType !== "company",
   });
 
-  const entityDocTypes = ALL_DOC_TYPES.filter(
-    (t) =>
-      form.entityType === "trip"
-        ? ["Trip", "General"].includes(t.group)
-        : form.entityType === "batch"
-        ? ["Batch", "General"].includes(t.group)
-        : form.entityType === "truck"
-        ? ["Truck", "General"].includes(t.group)
-        : ["Driver", "General"].includes(t.group)
-  );
+  const currentDocTypes = docTypesFor(form.entityType);
 
   const addDoc = useMutation({
     mutationFn: async (body: any) => {
@@ -264,15 +256,15 @@ export default function Documents() {
   };
 
   const handleAddSubmit = () => {
-    if (!form.entityId) {
-      toast({ variant: "destructive", title: "Entity required", description: "Please select the truck, driver, trip, or batch this document belongs to." });
+    if (form.entityType !== "company" && !form.entityId) {
+      toast({ variant: "destructive", title: "Required", description: "Please select the truck or driver this document belongs to." });
       return;
     }
     addDoc.mutate({
       entityType: form.entityType,
-      entityId: parseInt(form.entityId),
+      entityId: form.entityType === "company" ? undefined : parseInt(form.entityId),
       docType: form.docType,
-      docLabel: form.docLabel || docTypeLabel(form.docType),
+      docLabel: form.docLabel || currentDocTypes.find((t) => t.value === form.docType)?.label || form.docType,
       issueDate: form.issueDate || null,
       expiryDate: form.expiryDate || null,
       notes: form.notes || null,
@@ -285,11 +277,9 @@ export default function Documents() {
       !q ||
       (d.docLabel ?? "").toLowerCase().includes(q) ||
       (d.entityName ?? "").toLowerCase().includes(q) ||
-      docTypeLabel(d.docType).toLowerCase().includes(q);
-    const matchEntity =
-      filterEntity === "all" || d.entityType === filterEntity;
-    const matchStatus =
-      filterStatus === "all" || docStatus(d.expiryDate) === filterStatus;
+      (d.docType ?? "").toLowerCase().includes(q);
+    const matchEntity = filterEntity === "all" || d.entityType === filterEntity;
+    const matchStatus = filterStatus === "all" || docStatus(d.expiryDate) === filterStatus;
     return matchSearch && matchEntity && matchStatus;
   });
 
@@ -297,7 +287,7 @@ export default function Documents() {
     <Layout>
       <PageHeader
         title="Document Vault"
-        subtitle="All compliance, trip, and fleet documents in one place"
+        subtitle="Compliance documents for trucks, drivers and the company"
         actions={
           <Button size="sm" onClick={() => setShowAdd(true)}>
             <Plus className="w-4 h-4 mr-1" /> Add Document
@@ -317,20 +307,18 @@ export default function Documents() {
             />
           </div>
           <Select value={filterEntity} onValueChange={setFilterEntity}>
-            <SelectTrigger className="w-[140px] h-9">
+            <SelectTrigger className="w-[150px] h-9">
               <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ENTITY_TYPES.map((e) => (
-                <SelectItem key={e.value} value={e.value}>
-                  {e.label}
-                </SelectItem>
+              {ENTITY_FILTER_OPTIONS.map((e) => (
+                <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[150px] h-9">
+            <SelectTrigger className="w-[155px] h-9">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -364,29 +352,22 @@ export default function Documents() {
             {filtered.map((doc) => {
               const status = docStatus(doc.expiryDate);
               return (
-                <div
-                  key={doc.id}
-                  className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-4"
-                >
-                  <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
+                <div key={doc.id} className="bg-card border border-border rounded-xl px-4 py-3 flex items-center gap-4">
+                  {doc.entityType === "company"
+                    ? <Building2 className="w-5 h-5 text-muted-foreground shrink-0" />
+                    : <FileText className="w-5 h-5 text-muted-foreground shrink-0" />
+                  }
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm truncate">
-                        {doc.docLabel ?? docTypeLabel(doc.docType)}
-                      </span>
+                      <span className="font-medium text-sm truncate">{doc.docLabel}</span>
                       <span className="text-xs text-muted-foreground bg-secondary rounded px-1.5 py-0.5 capitalize">
-                        {doc.entityType}
+                        {doc.entityType === "company" ? "Company" : doc.entityType}
                       </span>
-                      {doc.entityName && (
-                        <span className="text-xs text-muted-foreground truncate">
-                          — {doc.entityName}
-                        </span>
+                      {doc.entityName && doc.entityType !== "company" && (
+                        <span className="text-xs text-muted-foreground truncate">— {doc.entityName}</span>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
-                      <span className="text-[11px] text-muted-foreground">
-                        {docTypeLabel(doc.docType)}
-                      </span>
                       {doc.issueDate && (
                         <span className="text-[11px] text-muted-foreground">
                           Issued: {format(parseISO(doc.issueDate), "dd MMM yyyy")}
@@ -397,52 +378,30 @@ export default function Documents() {
                           Expires: {format(parseISO(doc.expiryDate), "dd MMM yyyy")}
                         </span>
                       )}
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 h-4 ${STATUS_COLORS[status]}`}
-                      >
+                      <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${STATUS_COLORS[status]}`}>
                         {statusLabel(status)}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0">
                     {doc.fileUrl && (
-                      <a
-                        href={`/api/storage${doc.fileUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        download
-                      >
+                      <a href={`/api/storage${doc.fileUrl}`} target="_blank" rel="noreferrer" download>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <Download className="w-4 h-4" />
                         </Button>
                       </a>
                     )}
                     {doc.fileUrl && (
-                      <a
-                        href={`/api/storage${doc.fileUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <a href={`/api/storage${doc.fileUrl}`} target="_blank" rel="noreferrer">
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <ExternalLink className="w-4 h-4" />
                         </Button>
                       </a>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                      onClick={() => openEdit(doc)}
-                    >
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(doc)}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => setConfirmDelete(doc)}
-                    >
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setConfirmDelete(doc)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -460,63 +419,65 @@ export default function Documents() {
             <DialogTitle>Add Document</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-1">
+            {/* Entity type */}
             <div className="space-y-1.5">
-              <Label>Entity Type *</Label>
+              <Label>Category *</Label>
               <Select
                 value={form.entityType}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, entityType: v, entityId: "", docType: "other", docLabel: "" }))
-                }
+                onValueChange={(v) => {
+                  const firstType = docTypesFor(v)[0];
+                  setForm((p) => ({ ...p, entityType: v, entityId: "", docType: firstType?.value ?? "other", docLabel: firstType?.label ?? "" }));
+                }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="truck">Truck</SelectItem>
                   <SelectItem value="driver">Driver</SelectItem>
-                  <SelectItem value="trip">Trip</SelectItem>
-                  <SelectItem value="batch">Batch</SelectItem>
+                  <SelectItem value="company">Company</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label>
-                {form.entityType === "truck" ? "Truck" :
-                 form.entityType === "driver" ? "Driver" :
-                 form.entityType === "trip" ? "Trip" : "Batch"} *
-              </Label>
-              <Select
-                value={form.entityId || "none"}
-                onValueChange={(v) => setForm((p) => ({ ...p, entityId: v === "none" ? "" : v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={entityOptions.length === 0 ? "Loading…" : "Select…"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {entityOptions.map((opt) => (
-                    <SelectItem key={opt.id} value={String(opt.id)}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Entity picker — only for truck / driver */}
+            {form.entityType !== "company" && (
+              <div className="space-y-1.5">
+                <Label>{form.entityType === "truck" ? "Truck" : "Driver"} *</Label>
+                <Select
+                  value={form.entityId || "none"}
+                  onValueChange={(v) => setForm((p) => ({ ...p, entityId: v === "none" ? "" : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={entityOptions.length === 0 ? "Loading…" : "Select…"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {entityOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={String(opt.id)}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
+            {/* Document type */}
             <div className="space-y-1.5">
               <Label>Document Type *</Label>
               <Select
                 value={form.docType}
                 onValueChange={(v) => {
-                  const lbl = entityDocTypes.find((t) => t.value === v)?.label ?? "";
+                  const lbl = currentDocTypes.find((t) => t.value === v)?.label ?? "";
                   setForm((p) => ({ ...p, docType: v, docLabel: lbl }));
                 }}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {entityDocTypes.map((t) => (
+                  {currentDocTypes.map((t) => (
                     <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Custom label for "other" */}
             {form.docType === "other" && (
               <div className="space-y-1.5">
                 <Label>Custom Label *</Label>
@@ -560,7 +521,10 @@ export default function Documents() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAdd(false); setPendingFile(null); setForm(emptyForm); }}>Cancel</Button>
-            <Button onClick={handleAddSubmit} disabled={addDoc.isPending || isUploading || !form.entityId}>
+            <Button
+              onClick={handleAddSubmit}
+              disabled={addDoc.isPending || isUploading || (form.entityType !== "company" && !form.entityId)}
+            >
               {isUploading ? "Uploading…" : addDoc.isPending ? "Saving…" : "Add Document"}
             </Button>
           </DialogFooter>
@@ -619,16 +583,12 @@ export default function Documents() {
       </Dialog>
 
       {/* Delete Confirm */}
-      <AlertDialog
-        open={!!confirmDelete}
-        onOpenChange={(o) => !o && setConfirmDelete(null)}
-      >
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete document?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove &ldquo;
-              {confirmDelete?.docLabel ?? docTypeLabel(confirmDelete?.docType ?? "")}&rdquo; and delete the attached file from storage.
+              This will permanently remove &ldquo;{confirmDelete?.docLabel}&rdquo; and delete the attached file from storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
