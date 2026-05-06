@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+import { usersTable, companySettingsTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -20,6 +19,13 @@ router.delete("/clear-test-data", async (req, res, next) => {
       return res.status(403).json({ error: "Only the owner can clear test data." });
     }
 
+    // Check it hasn't already been used
+    const [settings] = await db.select({ testDataCleared: companySettingsTable.testDataCleared, id: companySettingsTable.id })
+      .from(companySettingsTable).limit(1);
+    if (settings?.testDataCleared) {
+      return res.status(409).json({ error: "Test data has already been cleared. This action is one-time only." });
+    }
+
     // Delete in FK-safe order, most-dependent tables first
     await db.execute(sql`DELETE FROM gl_journal_entry_lines`);
     await db.execute(sql`DELETE FROM gl_journal_entries`);
@@ -34,7 +40,14 @@ router.delete("/clear-test-data", async (req, res, next) => {
     await db.execute(sql`DELETE FROM batches`);
     await db.execute(sql`DELETE FROM clients`);
 
-    res.json({ success: true, message: "Test data cleared successfully." });
+    // Stamp the flag — self-destruct
+    if (settings?.id) {
+      await db.update(companySettingsTable)
+        .set({ testDataCleared: true })
+        .where(eq(companySettingsTable.id, settings.id));
+    }
+
+    res.json({ success: true, message: "Test data cleared. This button has been permanently disabled." });
   } catch (e) { next(e); }
 });
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, numeric, integer, boolean } from "drizzle-orm/pg-core";
 
 // --- Modernized and documented company settings schema ---
 export const companySettingsTable = pgTable("company_settings", {
@@ -19,6 +19,7 @@ export const companySettingsTable = pgTable("company_settings", {
   t1ClearanceFeeUsd: numeric("t1_clearance_fee_usd", { precision: 10, scale: 2 }).notNull().default("80.00"), // Configurable T1 Zambia Entry Clearance Fee
   activeClearanceAgencyId: integer("active_clearance_agency_id"), // FK → suppliers.id — which clearing agency is currently contracted
   fleetMode: text("fleet_mode").notNull().default("subcontractor"), // subcontractor | company | mixed
+  testDataCleared: boolean("test_data_cleared").notNull().default(false),
 });
 
 /**

@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [removeLogoConfirm, setRemoveLogoConfirm] = useState(false);
   const [clearDataConfirm, setClearDataConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [testDataCleared, setTestDataCleared] = useState(false);
   const [truckTypes, setTruckTypes] = useState({ hasCompany: false, hasSub: false });
 
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function SettingsPage() {
           activeClearanceAgencyId: data.activeClearanceAgencyId != null ? String(data.activeClearanceAgencyId) : "",
           fleetMode: data.fleetMode ?? "subcontractor",
         });
+        setTestDataCleared(!!data.testDataCleared);
         if (Array.isArray(trucks)) {
           setTruckTypes({
             hasCompany: trucks.some((t: { companyOwned: boolean }) => t.companyOwned),
@@ -152,11 +154,14 @@ export default function SettingsPage() {
   const handleClearTestData = async () => {
     setClearing(true);
     try {
-      await fetch("/api/admin/clear-test-data", {
+      const res = await fetch("/api/admin/clear-test-data", {
         method: "DELETE",
         credentials: "include",
       });
-      qc.invalidateQueries();
+      if (res.ok) {
+        setTestDataCleared(true);
+        qc.invalidateQueries();
+      }
     } finally {
       setClearing(false);
       setClearDataConfirm(false);
@@ -399,7 +404,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {user?.role === "owner" && (
+          {user?.role === "owner" && !testDataCleared && (
             <div className="bg-card border border-destructive/40 rounded-xl p-6">
               <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4" />Danger Zone
