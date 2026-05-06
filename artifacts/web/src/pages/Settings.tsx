@@ -179,10 +179,15 @@ export default function SettingsPage() {
         method: "DELETE",
         credentials: "include",
       });
+      const json = await res.json().catch(() => ({}));
       if (res.ok) {
         setFleetDataDestroyed(true);
         qc.invalidateQueries();
+      } else {
+        alert(json.error ?? `Server error ${res.status} — please try again.`);
       }
+    } catch (e: any) {
+      alert(e?.message ?? "Network error — please try again.");
     } finally {
       setDestroyingFleet(false);
       setDestroyFleetConfirm(false);

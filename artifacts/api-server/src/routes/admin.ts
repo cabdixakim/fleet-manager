@@ -67,15 +67,15 @@ router.delete("/destroy-fleet", async (req, res, next) => {
     // Notifications
     await db.execute(sql`DELETE FROM notifications`);
 
-    // Expenses + their GL lines/entries
-    await db.execute(sql`DELETE FROM gl_journal_entry_lines WHERE entry_id IN (SELECT id FROM gl_journal_entries WHERE reference_type = 'trip_expense')`);
-    await db.execute(sql`DELETE FROM gl_journal_entries WHERE reference_type = 'trip_expense'`);
+    // Expenses — GL lines best-effort (table may not exist in all envs)
+    try { await db.execute(sql`DELETE FROM gl_journal_entry_lines WHERE entry_id IN (SELECT id FROM gl_journal_entries WHERE reference_type = 'trip_expense')`); } catch {}
+    try { await db.execute(sql`DELETE FROM gl_journal_entries WHERE reference_type = 'trip_expense'`); } catch {}
     await db.execute(sql`DELETE FROM trip_expenses`);
 
-    // Truck-linked records
-    await db.execute(sql`DELETE FROM truck_driver_assignments`);
-    await db.execute(sql`DELETE FROM maintenance`);
-    await db.execute(sql`DELETE FROM insurance_claims`);
+    // Truck-linked records — best-effort for tables that may not exist in all envs
+    try { await db.execute(sql`DELETE FROM truck_driver_assignments`); } catch {}
+    try { await db.execute(sql`DELETE FROM maintenance`); } catch {}
+    try { await db.execute(sql`DELETE FROM insurance_claims`); } catch {}
 
     // Self-referential FK on trailers (current_horse_id)
     await db.execute(sql`UPDATE trucks SET current_horse_id = NULL`);
