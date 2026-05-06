@@ -58,6 +58,12 @@ router.delete("/destroy-fleet", async (req, res, next) => {
       return res.status(403).json({ error: "Only the owner can do this." });
     }
 
+    const [settings] = await db.select({ fleetDataDestroyed: companySettingsTable.fleetDataDestroyed, id: companySettingsTable.id })
+      .from(companySettingsTable).limit(1);
+    if (settings?.fleetDataDestroyed) {
+      return res.status(409).json({ error: "Fleet data has already been destroyed. This action is one-time only." });
+    }
+
     // Notifications
     await db.execute(sql`DELETE FROM notifications`);
 
@@ -80,7 +86,14 @@ router.delete("/destroy-fleet", async (req, res, next) => {
     // All trucks (horses + trailers)
     await db.execute(sql`DELETE FROM trucks`);
 
-    res.json({ success: true, message: "All trucks, notifications, and expenses have been deleted." });
+    // Stamp the flag — self-destruct
+    if (settings?.id) {
+      await db.update(companySettingsTable)
+        .set({ fleetDataDestroyed: true })
+        .where(eq(companySettingsTable.id, settings.id));
+    }
+
+    res.json({ success: true, message: "Fleet data destroyed. This button has been permanently disabled." });
   } catch (e) { next(e); }
 });
 

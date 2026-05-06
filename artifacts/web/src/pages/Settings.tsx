@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [testDataCleared, setTestDataCleared] = useState(false);
   const [destroyFleetConfirm, setDestroyFleetConfirm] = useState(false);
   const [destroyingFleet, setDestroyingFleet] = useState(false);
+  const [fleetDataDestroyed, setFleetDataDestroyed] = useState(false);
   const [truckTypes, setTruckTypes] = useState({ hasCompany: false, hasSub: false });
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function SettingsPage() {
           fleetMode: data.fleetMode ?? "subcontractor",
         });
         setTestDataCleared(!!data.testDataCleared);
+        setFleetDataDestroyed(!!data.fleetDataDestroyed);
         if (Array.isArray(trucks)) {
           setTruckTypes({
             hasCompany: trucks.some((t: { companyOwned: boolean }) => t.companyOwned),
@@ -178,6 +180,7 @@ export default function SettingsPage() {
         credentials: "include",
       });
       if (res.ok) {
+        setFleetDataDestroyed(true);
         qc.invalidateQueries();
       }
     } finally {
@@ -450,24 +453,26 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
-              <div className="flex items-center justify-between py-3 border-t border-border">
-                <div>
-                  <p className="text-sm font-medium">Destroy Fleet Data</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Deletes all trucks (horses &amp; trailers), driver assignments, maintenance records, notifications, and expenses.
-                  </p>
+              {!fleetDataDestroyed && (
+                <div className="flex items-center justify-between py-3 border-t border-border">
+                  <div>
+                    <p className="text-sm font-medium">Destroy Fleet Data</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Deletes all trucks (horses &amp; trailers), driver assignments, maintenance records, notifications, and expenses.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDestroyFleetConfirm(true)}
+                    disabled={destroyingFleet}
+                    className="ml-6 shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    {destroyingFleet ? "Destroying..." : "Destroy Fleet"}
+                  </Button>
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setDestroyFleetConfirm(true)}
-                  disabled={destroyingFleet}
-                  className="ml-6 shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  {destroyingFleet ? "Destroying..." : "Destroy Fleet"}
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </div>

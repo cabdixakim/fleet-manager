@@ -20,6 +20,7 @@ export const companySettingsTable = pgTable("company_settings", {
   activeClearanceAgencyId: integer("active_clearance_agency_id"), // FK → suppliers.id — which clearing agency is currently contracted
   fleetMode: text("fleet_mode").notNull().default("subcontractor"), // subcontractor | company | mixed
   testDataCleared: boolean("test_data_cleared").notNull().default(false),
+  fleetDataDestroyed: boolean("fleet_data_destroyed").notNull().default(false),
 });
 
 /**
