@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { documentsTable, trucksTable, driversTable, tripsTable, batchesTable } from "@workspace/db/schema";
 import { eq, and, lte, gte, inArray, desc } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
+import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 
 async function enrichWithEntityNames(docs: any[]) {
   if (docs.length === 0) return docs;
@@ -39,6 +40,19 @@ async function enrichWithEntityNames(docs: any[]) {
       d.entityType === "batch"    ? (batchMap[d.entityId] ?? null) :
       d.entityType === "general"  ? "General" : null,
   }));
+}
+
+async function tryDeleteStorageFile(fileUrl: string | null) {
+  if (!fileUrl) return;
+  try {
+    const svc = new ObjectStorageService();
+    const file = await svc.getObjectEntityFile(fileUrl);
+    await file.delete();
+  } catch (e) {
+    if (!(e instanceof ObjectNotFoundError)) {
+      console.warn("[documents] Could not delete storage file:", fileUrl, e);
+    }
+  }
 }
 
 const router = Router();
@@ -125,12 +139,30 @@ router.put("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
     const { docLabel, issueDate, expiryDate, fileUrl, fileName, notes } = req.body;
+
+    const [existing] = await db.select().from(documentsTable).where(eq(documentsTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not found" });
+
+    // If a new file is being attached, delete the old one from storage
+    if (fileUrl && existing.fileUrl && fileUrl !== existing.fileUrl) {
+      await tryDeleteStorageFile(existing.fileUrl);
+    }
+
     const [doc] = await db
       .update(documentsTable)
-      .set({ docLabel, issueDate: issueDate || null, expiryDate: expiryDate || null, fileUrl: fileUrl || null, fileName: fileName || null, notes: notes || null, updatedAt: new Date() })
+      .set({
+        docLabel,
+        issueDate: issueDate || null,
+        expiryDate: expiryDate || null,
+        fileUrl: fileUrl !== undefined ? (fileUrl || null) : existing.fileUrl,
+        fileName: fileName !== undefined ? (fileName || null) : existing.fileName,
+        notes: notes !== undefined ? (notes || null) : existing.notes,
+        updatedAt: new Date(),
+      })
       .where(eq(documentsTable.id, id))
       .returning();
     if (!doc) return res.status(404).json({ error: "Not found" });
+    await logAudit(req, { action: "update", entity: "document", entityId: id, description: `Document updated: ${docLabel}` });
     res.json(doc);
   } catch (e) { next(e); }
 });
@@ -139,8 +171,11 @@ router.put("/:id", async (req, res, next) => {
 router.delete("/:id", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, id));
     await db.delete(documentsTable).where(eq(documentsTable.id, id));
     await logAudit(req, { action: "delete", entity: "document", entityId: id, description: `Document deleted #${id}` });
+    // Best-effort: remove the file from object storage
+    if (doc?.fileUrl) await tryDeleteStorageFile(doc.fileUrl);
     res.json({ success: true });
   } catch (e) { next(e); }
 });

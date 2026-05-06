@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, differenceInDays, parseISO } from "date-fns";
-import { Plus, FileText, Trash2, Upload, ExternalLink, AlertTriangle, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Plus, FileText, Trash2, Upload, ExternalLink, AlertTriangle, CheckCircle, XCircle, Clock, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,10 +80,14 @@ export function DocumentsPanel({ entityType, entityId, entityName }: Props) {
   const { toast } = useToast();
   const { uploadFile, isUploading } = useDocUpload();
   const fileRef = useRef<HTMLInputElement>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
 
   const [showAdd, setShowAdd] = useState(false);
+  const [editDoc, setEditDoc] = useState<any | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [editPendingFile, setEditPendingFile] = useState<File | null>(null);
+
   const docTypes =
     entityType === "truck"   ? TRUCK_DOC_TYPES :
     entityType === "trip"    ? TRIP_DOC_TYPES :
@@ -92,6 +96,7 @@ export function DocumentsPanel({ entityType, entityId, entityName }: Props) {
 
   const emptyForm = { docType: docTypes[0].value, docLabel: docTypes[0].label, issueDate: "", expiryDate: "", notes: "" };
   const [form, setForm] = useState(emptyForm);
+  const [editForm, setEditForm] = useState({ docLabel: "", issueDate: "", expiryDate: "", notes: "" });
 
   const { data: docs = [] } = useQuery<any[]>({
     queryKey: [`/api/documents`, entityType, entityId],
@@ -123,15 +128,54 @@ export function DocumentsPanel({ entityType, entityId, entityName }: Props) {
     onError: () => toast({ title: "Failed to save document", variant: "destructive" }),
   });
 
+  const updateDoc = useMutation({
+    mutationFn: async (body: any) => {
+      let fileUrl = editDoc?.fileUrl;
+      let fileName = editDoc?.fileName;
+      if (editPendingFile) {
+        const result = await uploadFile(editPendingFile);
+        if (result) { fileUrl = result.objectPath; fileName = result.fileName; }
+      }
+      const res = await fetch(`/api/documents/${editDoc.id}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, fileUrl, fileName }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/documents`, entityType, entityId] });
+      qc.invalidateQueries({ queryKey: ["/api/documents/expiring"] });
+      qc.invalidateQueries({ queryKey: ["/api/documents", "vault"] });
+      setEditDoc(null);
+      setEditPendingFile(null);
+      toast({ title: "Document updated" });
+    },
+    onError: () => toast({ title: "Failed to update document", variant: "destructive" }),
+  });
+
   const deleteDoc = useMutation({
     mutationFn: (id: number) => fetch(`/api/documents/${id}`, { method: "DELETE", credentials: "include" }).then((r) => r.json()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [`/api/documents`, entityType, entityId] });
       qc.invalidateQueries({ queryKey: ["/api/documents/expiring"] });
+      qc.invalidateQueries({ queryKey: ["/api/documents", "vault"] });
       setConfirmDelete(null);
       toast({ title: "Document removed" });
     },
   });
+
+  const openEdit = (doc: any) => {
+    setEditDoc(doc);
+    setEditForm({
+      docLabel: doc.docLabel ?? "",
+      issueDate: doc.issueDate ? doc.issueDate.slice(0, 10) : "",
+      expiryDate: doc.expiryDate ? doc.expiryDate.slice(0, 10) : "",
+      notes: doc.notes ?? "",
+    });
+    setEditPendingFile(null);
+  };
 
   // Sort: expired → expiring → valid → no-expiry
   const sorted = [...docs].sort((a, b) => {
@@ -194,14 +238,24 @@ export function DocumentsPanel({ entityType, entityId, entityName }: Props) {
                     </a>
                   )}
                 </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="shrink-0 text-muted-foreground hover:text-red-400"
-                  onClick={() => setConfirmDelete(doc)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    onClick={() => openEdit(doc)}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                    onClick={() => setConfirmDelete(doc)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             );
           })}
@@ -274,13 +328,68 @@ export function DocumentsPanel({ entityType, entityId, entityName }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Document Dialog */}
+      <Dialog open={!!editDoc} onOpenChange={(o) => { if (!o) { setEditDoc(null); setEditPendingFile(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit Document</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Label *</Label>
+              <Input value={editForm.docLabel} onChange={(e) => setEditForm({ ...editForm, docLabel: e.target.value })} className="mt-1" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Issue Date</Label>
+                <Input type="date" value={editForm.issueDate} onChange={(e) => setEditForm({ ...editForm, issueDate: e.target.value })} className="mt-1" />
+              </div>
+              <div>
+                <Label>Expiry Date</Label>
+                <Input type="date" value={editForm.expiryDate} onChange={(e) => setEditForm({ ...editForm, expiryDate: e.target.value })} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label>Replace File (PDF / Image)</Label>
+              <div
+                className="mt-1 border border-dashed border-border rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer hover:border-primary/40 transition-colors"
+                onClick={() => editFileRef.current?.click()}
+              >
+                <Upload className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-sm text-muted-foreground">
+                  {editPendingFile ? editPendingFile.name : editDoc?.fileName ? `Current: ${editDoc.fileName}` : "Click to attach a file"}
+                </span>
+              </div>
+              <input
+                ref={editFileRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={(e) => setEditPendingFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} className="mt-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEditDoc(null); setEditPendingFile(null); }}>Cancel</Button>
+            <Button
+              onClick={() => updateDoc.mutate({ docLabel: editForm.docLabel, issueDate: editForm.issueDate || null, expiryDate: editForm.expiryDate || null, notes: editForm.notes || null })}
+              disabled={updateDoc.isPending || isUploading || !editForm.docLabel}
+            >
+              {isUploading ? "Uploading…" : updateDoc.isPending ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirm Delete */}
       <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove document?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove <strong>{confirmDelete?.docLabel}</strong> from the records. The uploaded file will remain in storage.
+              This will permanently remove <strong>{confirmDelete?.docLabel}</strong> and delete the attached file from storage.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
