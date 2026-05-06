@@ -207,6 +207,29 @@ export default function Fleet() {
     refetchInterval: 30_000,
   });
 
+  const createTrailerMutation = useMutation({
+    mutationFn: async (body: { trailerPlate: string; status: string; notes: string }) => {
+      const res = await fetch("/api/trucks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ registering: "trailer", trailerPlate: body.trailerPlate, status: body.status, notes: body.notes }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `Server error ${res.status}`);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/trucks"] });
+      toast({ title: "Trailer registered" });
+      setShowCreate(false);
+      setForm(emptyForm);
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "Failed to register trailer", description: e.message }),
+  });
+
   const assignHorseMutation = useMutation({
     mutationFn: async ({ trailerId, horseId }: { trailerId: number; horseId: number | null }) => {
       const res = await fetch(`/api/trucks/${trailerId}/assign-horse`, { method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ horseId }) });
@@ -263,10 +286,7 @@ export default function Fleet() {
 
     if (registering === "trailer") {
       if (!trailerPlate) return;
-      await fetch("/api/trucks", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ registering: "trailer", trailerPlate, status, notes }) });
-      qc.invalidateQueries({ queryKey: ["/api/trucks"] });
-      setShowCreate(false);
-      setForm(emptyForm);
+      createTrailerMutation.mutate({ trailerPlate, status, notes });
       return;
     }
 
@@ -551,13 +571,13 @@ export default function Fleet() {
             <Button
               onClick={handleCreate}
               disabled={
-                creating ||
+                creating || createTrailerMutation.isPending ||
                 (form.registering === "trailer" && !form.trailerPlate) ||
                 (form.registering !== "trailer" && !form.plateNumber) ||
                 (form.registering !== "trailer" && !form.companyOwned && !form.subcontractorId && fleetMode !== "company")
               }
             >
-              {creating ? "Saving..." : "Register"}
+              {(creating || createTrailerMutation.isPending) ? "Saving..." : "Register"}
             </Button>
           </DialogFooter>
         </DialogContent>
