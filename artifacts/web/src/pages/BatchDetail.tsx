@@ -923,7 +923,7 @@ export default function BatchDetail() {
                   return (
                     <div
                       key={trip.id}
-                      className={`bg-card border rounded-xl px-5 py-4 flex items-center gap-4 transition-colors ${
+                      className={`bg-card border rounded-xl px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 transition-colors ${
                         isCancelled ? "border-border/40 opacity-60" : "border-border hover:border-border/80"
                       }`}
                     >
@@ -988,50 +988,53 @@ export default function BatchDetail() {
                         </div>
                       </div>
 
-                      {/* Status pill */}
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${trip.status.startsWith("at_checkpoint_") ? "bg-orange-500/20 text-orange-400" : TRIP_STATUS_COLOR[trip.status] ?? "bg-muted text-muted-foreground"}`}>
-                        {getTripStatusLabel(trip)}
-                      </span>
+                      {/* Status + actions: single row on mobile, inline siblings on desktop */}
+                      <div className="flex items-center gap-2 sm:contents">
+                        {/* Status pill */}
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${trip.status.startsWith("at_checkpoint_") ? "bg-orange-500/20 text-orange-400" : TRIP_STATUS_COLOR[trip.status] ?? "bg-muted text-muted-foreground"}`}>
+                          {getTripStatusLabel(trip)}
+                        </span>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        {next && !isCancelled && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleTripAdvance(trip)}
-                            disabled={updatingTrip}
-                            className="text-xs border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground"
-                          >
-                            {next.label}
-                            <ChevronRight className="w-3 h-3 ml-1" />
-                          </Button>
-                        )}
-                        {!isCancelled && ["nominated", "loading"].includes(trip.status) && (
+                        {/* Actions */}
+                        <div className="flex items-center gap-2 ml-auto sm:ml-0 shrink-0">
+                          {next && !isCancelled && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleTripAdvance(trip)}
+                              disabled={updatingTrip}
+                              className="text-xs border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              {next.label}
+                              <ChevronRight className="w-3 h-3 ml-1" />
+                            </Button>
+                          )}
+                          {!isCancelled && ["nominated", "loading"].includes(trip.status) && (
+                            <button
+                              onClick={() => { setCancelReason(""); setCancelDialog({ tripId: trip.id, plate: trip.truckPlate }); }}
+                              className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
+                              title="Cancel trip"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                          {!isCancelled && (
+                            <button
+                              onClick={() => openTripRates(trip)}
+                              className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
+                              title="Override rates for this trip"
+                            >
+                              <SlidersHorizontal className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
-                            onClick={() => { setCancelReason(""); setCancelDialog({ tripId: trip.id, plate: trip.truckPlate }); }}
-                            className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
-                            title="Cancel trip"
+                            onClick={() => navigate(`/trips/${trip.id}`)}
+                            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
+                            title="View trip detail"
                           >
-                            <X className="w-4 h-4" />
+                            <ArrowRight className="w-4 h-4" />
                           </button>
-                        )}
-                        {!isCancelled && (
-                          <button
-                            onClick={() => openTripRates(trip)}
-                            className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
-                            title="Override rates for this trip"
-                          >
-                            <SlidersHorizontal className="w-4 h-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => navigate(`/trips/${trip.id}`)}
-                          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
-                          title="View trip detail"
-                        >
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
+                        </div>
                       </div>
                     </div>
                   );
