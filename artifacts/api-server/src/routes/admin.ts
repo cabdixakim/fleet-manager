@@ -51,4 +51,37 @@ router.delete("/clear-test-data", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.delete("/destroy-fleet", async (req, res, next) => {
+  try {
+    const callerRole = await getCallerRole(req);
+    if (callerRole !== "owner") {
+      return res.status(403).json({ error: "Only the owner can do this." });
+    }
+
+    // Notifications
+    await db.execute(sql`DELETE FROM notifications`);
+
+    // Expenses + their GL lines/entries
+    await db.execute(sql`DELETE FROM gl_journal_entry_lines WHERE entry_id IN (SELECT id FROM gl_journal_entries WHERE reference_type = 'trip_expense')`);
+    await db.execute(sql`DELETE FROM gl_journal_entries WHERE reference_type = 'trip_expense'`);
+    await db.execute(sql`DELETE FROM trip_expenses`);
+
+    // Truck-linked records
+    await db.execute(sql`DELETE FROM truck_driver_assignments`);
+    await db.execute(sql`DELETE FROM maintenance`);
+    await db.execute(sql`DELETE FROM insurance_claims`);
+
+    // Self-referential FK on trailers (current_horse_id)
+    await db.execute(sql`UPDATE trucks SET current_horse_id = NULL`);
+
+    // Also clear denorm on horses
+    await db.execute(sql`UPDATE trucks SET trailer_plate = NULL`);
+
+    // All trucks (horses + trailers)
+    await db.execute(sql`DELETE FROM trucks`);
+
+    res.json({ success: true, message: "All trucks, notifications, and expenses have been deleted." });
+  } catch (e) { next(e); }
+});
+
 export default router;

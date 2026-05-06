@@ -49,6 +49,8 @@ export default function SettingsPage() {
   const [clearDataConfirm, setClearDataConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [testDataCleared, setTestDataCleared] = useState(false);
+  const [destroyFleetConfirm, setDestroyFleetConfirm] = useState(false);
+  const [destroyingFleet, setDestroyingFleet] = useState(false);
   const [truckTypes, setTruckTypes] = useState({ hasCompany: false, hasSub: false });
 
   useEffect(() => {
@@ -165,6 +167,22 @@ export default function SettingsPage() {
     } finally {
       setClearing(false);
       setClearDataConfirm(false);
+    }
+  };
+
+  const handleDestroyFleet = async () => {
+    setDestroyingFleet(true);
+    try {
+      const res = await fetch("/api/admin/destroy-fleet", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        qc.invalidateQueries();
+      }
+    } finally {
+      setDestroyingFleet(false);
+      setDestroyFleetConfirm(false);
     }
   };
 
@@ -404,30 +422,50 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {user?.role === "owner" && !testDataCleared && (
+          {user?.role === "owner" && (
             <div className="bg-card border border-destructive/40 rounded-xl p-6">
               <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4" />Danger Zone
               </h2>
               <p className="text-xs text-muted-foreground mb-4">
-                These actions are irreversible. Trucks, drivers, subcontractors, and users are preserved.
+                These actions are irreversible. Users and subcontractors are preserved.
               </p>
+              {!testDataCleared && (
+                <div className="flex items-center justify-between py-3 border-t border-border">
+                  <div>
+                    <p className="text-sm font-medium">Clear Test Data</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Permanently deletes all batches, trips, invoices, clients, clearances, and related GL entries.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setClearDataConfirm(true)}
+                    disabled={clearing}
+                    className="ml-6 shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    {clearing ? "Clearing..." : "Clear Test Data"}
+                  </Button>
+                </div>
+              )}
               <div className="flex items-center justify-between py-3 border-t border-border">
                 <div>
-                  <p className="text-sm font-medium">Clear Test Data</p>
+                  <p className="text-sm font-medium">Destroy Fleet Data</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Permanently deletes all batches, trips, invoices, clients, clearances, and related GL entries.
+                    Deletes all trucks (horses &amp; trailers), driver assignments, maintenance records, notifications, and expenses.
                   </p>
                 </div>
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => setClearDataConfirm(true)}
-                  disabled={clearing}
+                  onClick={() => setDestroyFleetConfirm(true)}
+                  disabled={destroyingFleet}
                   className="ml-6 shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  {clearing ? "Clearing..." : "Clear Test Data"}
+                  {destroyingFleet ? "Destroying..." : "Destroy Fleet"}
                 </Button>
               </div>
             </div>
@@ -466,6 +504,30 @@ export default function SettingsPage() {
               disabled={clearing}
             >
               {clearing ? "Clearing..." : "Yes, Clear Everything"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Destroy fleet confirmation */}
+      <AlertDialog open={destroyFleetConfirm} onOpenChange={setDestroyFleetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Destroy All Fleet Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete every horse, trailer, driver assignment, maintenance record, notification, and expense from the database.
+              <br /><br />
+              Users and subcontractors are kept. <strong>This cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={destroyingFleet}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDestroyFleet}
+              disabled={destroyingFleet}
+            >
+              {destroyingFleet ? "Destroying..." : "Yes, Destroy Everything"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
