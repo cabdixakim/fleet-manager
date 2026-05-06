@@ -231,11 +231,19 @@ router.get("/:id", async (req, res, next) => {
       })
     );
 
-    // Fetch client transactions for this batch to build the account statement
+    // Fetch client transactions for this invoice's account statement:
+    // - Invoice-specific transactions (invoiceId matches this invoice)
+    // - Batch-level transactions with no specific invoice linked (advances, adjustments)
+    // This prevents payments against one invoice from bleeding onto sibling invoices in the same batch.
     const batchTransactions = await db
       .select()
       .from(clientTransactionsTable)
-      .where(eq(clientTransactionsTable.batchId, invoice.batchId))
+      .where(
+        and(
+          eq(clientTransactionsTable.batchId, invoice.batchId),
+          sql`(${clientTransactionsTable.invoiceId} = ${id} OR ${clientTransactionsTable.invoiceId} IS NULL OR ${clientTransactionsTable.type} IN ('advance', 'adjustment'))`
+        )
+      )
       .orderBy(clientTransactionsTable.transactionDate);
 
     const advances = batchTransactions
