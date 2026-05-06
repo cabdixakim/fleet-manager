@@ -455,14 +455,13 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
 
             {txForm.type === "payment" && (
               <div className="space-y-2">
-                <Label>Invoice <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Label>Invoice *</Label>
                 <Select value={txForm.invoiceId || "none"} onValueChange={(v) => {
                   const inv = (outstandingInvoices as any[]).find((i: any) => String(i.id) === v);
                   setTxForm({ ...txForm, invoiceId: v === "none" ? "" : v, amount: inv ? String(inv.outstanding.toFixed(2)) : "" });
                 }}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Select outstanding invoice..." /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No specific invoice — general payment</SelectItem>
                     {(outstandingInvoices as any[]).map((inv: any) => (
                       <SelectItem key={inv.id} value={String(inv.id)}>
                         <div className="flex flex-col gap-0.5 py-0.5">
@@ -555,7 +554,7 @@ function ClientDetail({ id, onBack }: { id: number; onBack: () => void }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTx(false)}>Cancel</Button>
-            <Button onClick={handleTx} disabled={isPending || !txForm.amount || !txForm.transactionDate}>
+            <Button onClick={handleTx} disabled={isPending || !txForm.amount || !txForm.transactionDate || (txForm.type === "payment" && !txForm.invoiceId)}>
               {isPending ? "Saving..." : "Record"}
             </Button>
           </DialogFooter>
