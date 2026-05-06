@@ -5,6 +5,22 @@ import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage"
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
+// POST /api/storage/uploads/request-url
+// Returns a short-lived signed GCS PUT URL for a new document upload,
+// plus the normalized objectPath used to serve/store the file reference.
+router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
+  const session = (req as any).session;
+  if (!session?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const uploadURL = await objectStorageService.getObjectEntityUploadURL("documents");
+    const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+    res.json({ uploadURL, objectPath });
+  } catch (err: any) {
+    console.error("[storage] request-url error:", err?.message ?? err);
+    res.status(500).json({ error: err?.message ?? "Failed to generate upload URL" });
+  }
+});
+
 router.get("/storage/public-objects/*filePath", async (req: Request, res: Response) => {
   try {
     const raw = req.params.filePath;
