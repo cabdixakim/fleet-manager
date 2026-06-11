@@ -558,88 +558,117 @@ export default function BatchDetail() {
 
   const parseImportFile = (file: File) => {
     const reader = new FileReader();
+    reader.onerror = () => toast({ variant: "destructive", title: "Could not read file", description: "File may be corrupt, password-protected, or an unsupported format." });
     reader.onload = (e) => {
-      const wb = XLSX.read(new Uint8Array(e.target!.result as ArrayBuffer), { type: "array" });
-      // Try each sheet — use the first one that contains fleet data
-      let grid: any[][] = [];
-      for (const sheetName of wb.SheetNames) {
-        const candidate = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[sheetName], { header: 1, defval: "" });
-        if (candidate.length > grid.length) grid = candidate;
-      }
-      if (!grid.length) return;
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target!.result as ArrayBuffer), { type: "array", password: "" });
 
-      const allTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
-      const allDrivers = (drivers as any[]).filter((d: any) => d.status === "active");
-      const plateSet = new Set(allTrucks.map((t: any) => t.plateNumber.toLowerCase()));
-      const driverSet = new Set(allDrivers.map((d: any) => d.name.toLowerCase()));
-
-      // Normalize: strip extra whitespace, dashes, dots for fuzzy plate match
-      const normalize = (s: string) => s.toLowerCase().replace(/[\s\-\.]/g, "");
-      const plateNorm = new Map(allTrucks.map((t: any) => [normalize(t.plateNumber), t]));
-      const driverNorm = new Map(allDrivers.map((d: any) => [normalize(d.name), d]));
-
-      const numCols = Math.max(...grid.map((r) => r.length));
-
-      // Score every column index across ALL rows (handles title rows at top)
-      const colScores: { plateHits: number; driverHits: number; numericCount: number }[] = Array.from({ length: numCols }, () => ({ plateHits: 0, driverHits: 0, numericCount: 0 }));
-      for (const row of grid) {
-        for (let c = 0; c < row.length; c++) {
-          const val = String(row[c] ?? "").trim();
-          if (!val) continue;
-          if (plateSet.has(val.toLowerCase()) || plateNorm.has(normalize(val))) colScores[c].plateHits++;
-          if (driverSet.has(val.toLowerCase()) || driverNorm.has(normalize(val))) colScores[c].driverHits++;
-          const n = parseFloat(val);
-          if (!isNaN(n) && n > 0 && n < 500) colScores[c].numericCount++;
+        // Pick the sheet with the most rows
+        let grid: any[][] = [];
+        for (const sheetName of wb.SheetNames) {
+          const c = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[sheetName], { header: 1, defval: "" });
+          if (c.length > grid.length) grid = c;
         }
-      }
+        if (!grid.length) { toast({ variant: "destructive", title: "Empty file", description: "No data found in the uploaded file." }); return; }
 
-      // Best column index per role
-      const bestCol = (key: "plateHits" | "driverHits" | "numericCount", exclude: number[] = []) =>
-        colScores.reduce((best, s, i) => (!exclude.includes(i) && s[key] > (colScores[best]?.[key] ?? -1) ? i : best), -1);
+        const norm = (s: string) => s.toLowerCase().replace(/[\s\-\._\/\\]/g, "");
+        const allTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
+        const allDrivers = (drivers as any[]).filter((d: any) => d.status === "active");
+        const plateNorm = new Map(allTrucks.map((t: any) => [norm(t.plateNumber), String(t.id)]));
+        const driverNorm = new Map(allDrivers.map((d: any) => [norm(d.name), String(d.id)]));
 
-      const plateColIdx = bestCol("plateHits");
-      const driverColIdx = bestCol("driverHits", [plateColIdx]);
-      const capacityColIdx = bestCol("numericCount", [plateColIdx, driverColIdx]);
+        const numCols = Math.max(0, ...grid.map((r) => r.length));
+        if (numCols === 0) { toast({ variant: "destructive", title: "Empty file", description: "No columns found." }); return; }
 
-      if (colScores[plateColIdx]?.plateHits === 0) {
-        // No plate matches at all — fall through to column picker with raw headers
-        const headerRow = grid[0] ?? [];
-        const headers = headerRow.map((h: any, i: number) => String(h || `Col ${i + 1}`));
-        const dataRows = grid.slice(1).map((row) => Object.fromEntries(headers.map((h: string, i: number) => [h, row[i] ?? ""])));
+        // ── SCORE 1: fleet value matches (works when file plates match DB) ──
+        const fleetScore: { plateHits: number; driverHits: number; numericCount: number }[] =
+          Array.from({ length: numCols }, () => ({ plateHits: 0, driverHits: 0, numericCount: 0 }));
+        for (const row of grid) {
+          for (let c = 0; c < row.length; c++) {
+            const v = String(row[c] ?? "").trim();
+            if (!v) continue;
+            if (plateNorm.has(norm(v))) fleetScore[c].plateHits++;
+            if (driverNorm.has(norm(v))) fleetScore[c].driverHits++;
+            const n = parseFloat(v);
+            if (!isNaN(n) && n > 0 && n < 500) fleetScore[c].numericCount++;
+          }
+        }
+
+        // ── SCORE 2: column header keyword match (works even with zero fleet overlap) ──
+        // Find the most-likely header row: row whose cells are mostly short non-numeric text
+        const plateKw  = /horse|truck|vehicle|plate|reg|fleet|unit|tractor/i;
+        const driverKw = /driver|operator|name/i;
+        const capKw    = /qty|quant|capacity|volume|litre|liter|\bmt\b|metric|load|mass|kl/i;
+        let headerRowIdx = 0;
+        let bestHeaderScore = -1;
+        for (let r = 0; r < Math.min(grid.length, 15); r++) {
+          const textCells = grid[r].filter((c: any) => {
+            const v = String(c ?? "").trim();
+            return v && isNaN(Number(v)) && v.length < 60;
+          }).length;
+          if (textCells > bestHeaderScore) { bestHeaderScore = textCells; headerRowIdx = r; }
+        }
+        const headerRow = grid[headerRowIdx] ?? [];
+        const nameScore: number[] = Array(numCols).fill(0);
+        for (let c = 0; c < headerRow.length; c++) {
+          const h = String(headerRow[c] ?? "").trim();
+          if (plateKw.test(h))  nameScore[c] += 10;
+          if (driverKw.test(h)) nameScore[c] += 8;
+          if (capKw.test(h))    nameScore[c] += 6;
+        }
+
+        // ── COMBINED: fleet hits win if present, keyword wins otherwise ──
+        const combinedPlate  = Array.from({ length: numCols }, (_, i) => fleetScore[i].plateHits  * 5 + nameScore[i]);
+        const combinedDriver = Array.from({ length: numCols }, (_, i) => fleetScore[i].driverHits  * 5 + (nameScore[i] >= 8 ? nameScore[i] : 0));
+        const combinedCap    = Array.from({ length: numCols }, (_, i) => fleetScore[i].numericCount * 3 + (nameScore[i] === 6 ? 6 : 0));
+
+        const argmax = (arr: number[], exclude: number[] = []) =>
+          arr.reduce((best, v, i) => (!exclude.includes(i) && v > arr[best] ? i : best), 0);
+
+        const plateColIdx    = argmax(combinedPlate);
+        const driverColIdx   = argmax(combinedDriver, [plateColIdx]);
+        const capacityColIdx = argmax(combinedCap,    [plateColIdx, driverColIdx]);
+
+        const plateConfident  = combinedPlate[plateColIdx]  > 0;
+        const capConfident    = combinedCap[capacityColIdx]  > 0;
+
+        // ── Build named headers from the detected header row ──
+        const headers = Array.from({ length: numCols }, (_, i) =>
+          String(headerRow[i] ?? "").trim() || `Col ${i + 1}`
+        );
+
+        // ── Find first actual data row (below headerRowIdx, skip empties) ──
+        let dataStartRow = headerRowIdx + 1;
+        while (dataStartRow < grid.length && !grid[dataStartRow].some((c: any) => String(c ?? "").trim())) dataStartRow++;
+
+        const dataRows = grid.slice(dataStartRow)
+          .filter((row) => row.some((c: any) => String(c ?? "").trim()))
+          .map((row) => Object.fromEntries(headers.map((h, i) => [h, String(row[i] ?? "").trim()])));
+
+        const detectedCols = {
+          plate:    plateConfident  ? headers[plateColIdx]    : "",
+          driver:   combinedDriver[driverColIdx]   > 0 ? headers[driverColIdx]   : "",
+          capacity: capConfident    ? headers[capacityColIdx] : "",
+        };
+
         setImportRaw({ headers, rows: dataRows });
-        setImportCols({ plate: "", driver: "", capacity: "" });
-        setImportStep("pick");
-        return;
+        setImportCols(detectedCols);
+
+        if (plateConfident) {
+          // Auto-detected — go straight to review
+          setImportRows(buildImportRows(dataRows, detectedCols));
+          setImportStep("review");
+          const matched = buildImportRows(dataRows, detectedCols).filter((r) => r.plateMatch === "ok").length;
+          const total   = dataRows.length;
+          toast({ title: `File parsed — ${total} row${total !== 1 ? "s" : ""} found`, description: matched > 0 ? `${matched} truck${matched !== 1 ? "s" : ""} matched your fleet.` : "No plates matched your fleet — fix the amber rows manually." });
+        } else {
+          // Column not confidently found — show picker with preview
+          setImportStep("pick");
+          toast({ title: `${dataRows.length} rows extracted`, description: "We couldn't identify the truck plate column. Pick it below." });
+        }
+      } catch (err: any) {
+        toast({ variant: "destructive", title: "Failed to parse file", description: err?.message ?? "Unknown error. Try saving the file as .xlsx and re-uploading." });
       }
-
-      // Find first data row: the first row where the plate column has a fleet match
-      let dataStartRow = grid.findIndex((row) => {
-        const val = String(row[plateColIdx] ?? "").trim();
-        return plateSet.has(val.toLowerCase()) || plateNorm.has(normalize(val));
-      });
-      if (dataStartRow < 0) dataStartRow = 1;
-
-      // Header row is the row immediately before first data row (or row 0 if data starts at row 0)
-      const headerRowIdx = dataStartRow > 0 ? dataStartRow - 1 : 0;
-      const headerRow = grid[headerRowIdx] ?? [];
-      const headers = headerRow.map((h: any, i: number) => String(h || `Col ${i + 1}`).trim() || `Col ${i + 1}`);
-
-      // Build named column keys from detected indices
-      const detectedCols = {
-        plate: colScores[plateColIdx].plateHits > 0 ? (headers[plateColIdx] ?? `Col ${plateColIdx + 1}`) : "",
-        driver: colScores[driverColIdx]?.driverHits > 0 ? (headers[driverColIdx] ?? `Col ${driverColIdx + 1}`) : "",
-        capacity: colScores[capacityColIdx]?.numericCount > 0 ? (headers[capacityColIdx] ?? `Col ${capacityColIdx + 1}`) : "",
-      };
-
-      // Build data rows from dataStartRow onwards
-      const dataRows = grid.slice(dataStartRow)
-        .filter((row) => row.some((c: any) => String(c ?? "").trim()))
-        .map((row) => Object.fromEntries(headers.map((h: string, i: number) => [h, String(row[i] ?? "").trim()])));
-
-      setImportRaw({ headers, rows: dataRows });
-      setImportCols(detectedCols);
-      setImportRows(buildImportRows(dataRows, detectedCols));
-      setImportStep("review");
     };
     reader.readAsArrayBuffer(file);
   };
@@ -1398,19 +1427,54 @@ export default function BatchDetail() {
                 <div className="space-y-4">
                   <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>We couldn't automatically detect the truck plates in your file. Tell us which columns contain the data and we'll match them.</span>
+                    <span>We read <strong>{importRaw.rows.length} rows</strong> from your file but couldn't identify the truck plate column automatically. Use the preview below to find the right columns, then assign them.</span>
                   </div>
+
+                  {/* Raw data preview — first 5 rows */}
+                  {importRaw.rows.length > 0 && (
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <p className="text-xs text-muted-foreground px-3 py-1.5 bg-secondary/40 border-b border-border font-medium">File preview (first 5 rows)</p>
+                      <div className="overflow-x-auto">
+                        <table className="text-xs w-full">
+                          <thead>
+                            <tr className="bg-secondary/30 border-b border-border">
+                              {importRaw.headers.map((h) => (
+                                <th key={h} className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap max-w-[120px] truncate">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {importRaw.rows.slice(0, 5).map((row, i) => (
+                              <tr key={i}>
+                                {importRaw.headers.map((h) => (
+                                  <td key={h} className="px-2 py-1.5 text-foreground/80 whitespace-nowrap max-w-[120px] truncate font-mono text-[11px]">{String(row[h] ?? "")}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3">
                     {(["plate", "driver", "capacity"] as const).map((role) => (
-                      <div key={role} className="grid grid-cols-[140px_1fr] items-center gap-3">
-                        <Label className="text-sm text-right">
+                      <div key={role} className="grid grid-cols-[130px_1fr] items-center gap-3">
+                        <Label className="text-sm text-right font-medium">
                           {role === "plate" ? "Horse Plate *" : role === "driver" ? "Driver Name" : "Capacity (MT) *"}
                         </Label>
                         <Select value={importCols[role] || "__none__"} onValueChange={(v) => setImportCols((p) => ({ ...p, [role]: v === "__none__" ? "" : v }))}>
                           <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— pick column —" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="__none__">— none —</SelectItem>
-                            {importRaw.headers.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                            {importRaw.headers.map((h) => (
+                              <SelectItem key={h} value={h}>
+                                <span className="font-medium">{h}</span>
+                                <span className="text-muted-foreground ml-2 font-mono text-[10px]">
+                                  e.g. {String(importRaw.rows[0]?.[h] ?? "—")}
+                                </span>
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1418,8 +1482,8 @@ export default function BatchDetail() {
                   </div>
                   <div className="flex gap-2 pt-1">
                     <Button variant="outline" size="sm" onClick={() => { setImportStep("upload"); setImportRaw({ headers: [], rows: [] }); }}>Re-upload</Button>
-                    <Button size="sm" disabled={!importCols.plate || !importCols.capacity} onClick={applyColPick}>
-                      <CheckCheck className="w-4 h-4 mr-1.5" /> Analyse
+                    <Button size="sm" disabled={!importCols.plate} onClick={applyColPick}>
+                      <CheckCheck className="w-4 h-4 mr-1.5" /> Load rows
                     </Button>
                   </div>
                 </div>
