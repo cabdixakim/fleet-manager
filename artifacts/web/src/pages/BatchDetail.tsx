@@ -1372,10 +1372,10 @@ export default function BatchDetail() {
                         <Label className="text-sm text-right">
                           {role === "plate" ? "Horse Plate *" : role === "driver" ? "Driver Name" : "Capacity (MT) *"}
                         </Label>
-                        <Select value={importCols[role]} onValueChange={(v) => setImportCols((p) => ({ ...p, [role]: v }))}>
+                        <Select value={importCols[role] || "__none__"} onValueChange={(v) => setImportCols((p) => ({ ...p, [role]: v === "__none__" ? "" : v }))}>
                           <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— pick column —" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">— none —</SelectItem>
+                            <SelectItem value="__none__">— none —</SelectItem>
                             {importRaw.headers.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -1450,16 +1450,17 @@ export default function BatchDetail() {
                                       ? <span className="text-muted-foreground italic">—</span>
                                       : (
                                         <div className="space-y-0.5">
-                                          <Select value={row.driverId} onValueChange={(v) => updateImportRow(i, "driverId", v)}>
+                                          <Select value={row.driverId || "__skip__"} onValueChange={(v) => updateImportRow(i, "driverId", v === "__skip__" ? "" : v)}>
                                             <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
                                               <SelectValue placeholder={row.rawDriver ? `"${row.rawDriver}" — not found` : "Pick driver"} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                              <SelectItem value="">— Skip driver —</SelectItem>
+                                              <SelectItem value="__skip__">— Skip driver —</SelectItem>
                                               {(drivers as any[]).filter((d: any) => d.status === "active").map((d: any) => (
                                                 <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
                                               ))}
                                             </SelectContent>
+                                            
                                           </Select>
                                           {row.rawDriver && <p className="text-[10px] text-amber-400 pl-1">"{row.rawDriver}"</p>}
                                         </div>
