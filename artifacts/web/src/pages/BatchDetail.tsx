@@ -530,13 +530,18 @@ export default function BatchDetail() {
   const buildImportRows = (rawRows: Record<string, any>[], cols: { plate: string; driver: string; capacity: string }): ImportRow[] => {
     const availTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
     const activeDrvs = (drivers as any[]).filter((d: any) => d.status === "active");
+    const norm = (s: string) => s.toLowerCase().replace(/[\s\-\.]/g, "");
     return rawRows
       .map((row) => {
         const rawPlate = cols.plate ? String(row[cols.plate] ?? "").trim() : "";
         const rawDriver = cols.driver ? String(row[cols.driver] ?? "").trim() : "";
         const rawCapacity = cols.capacity ? String(row[cols.capacity] ?? "").trim() : "";
-        const truckMatch = rawPlate ? availTrucks.find((t: any) => t.plateNumber.toLowerCase() === rawPlate.toLowerCase()) : null;
-        const driverMatch = rawDriver ? activeDrvs.find((d: any) => d.name.toLowerCase() === rawDriver.toLowerCase()) : null;
+        const truckMatch = rawPlate
+          ? availTrucks.find((t: any) => t.plateNumber.toLowerCase() === rawPlate.toLowerCase() || norm(t.plateNumber) === norm(rawPlate))
+          : null;
+        const driverMatch = rawDriver
+          ? activeDrvs.find((d: any) => d.name.toLowerCase() === rawDriver.toLowerCase() || norm(d.name) === norm(rawDriver))
+          : null;
         return {
           rawPlate,
           rawDriver,
@@ -555,57 +560,86 @@ export default function BatchDetail() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const wb = XLSX.read(new Uint8Array(e.target!.result as ArrayBuffer), { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
-      if (!rawRows.length) return;
+      // Try each sheet — use the first one that contains fleet data
+      let grid: any[][] = [];
+      for (const sheetName of wb.SheetNames) {
+        const candidate = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[sheetName], { header: 1, defval: "" });
+        if (candidate.length > grid.length) grid = candidate;
+      }
+      if (!grid.length) return;
 
-      const headers = Object.keys(rawRows[0]);
       const allTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
       const allDrivers = (drivers as any[]).filter((d: any) => d.status === "active");
       const plateSet = new Set(allTrucks.map((t: any) => t.plateNumber.toLowerCase()));
       const driverSet = new Set(allDrivers.map((d: any) => d.name.toLowerCase()));
 
-      // Score each column
-      const scores: Record<string, { plateHits: number; driverHits: number; numericCount: number }> = {};
-      for (const h of headers) {
-        let plateHits = 0, driverHits = 0, numericCount = 0;
-        for (const row of rawRows) {
-          const val = String(row[h] ?? "").trim();
+      // Normalize: strip extra whitespace, dashes, dots for fuzzy plate match
+      const normalize = (s: string) => s.toLowerCase().replace(/[\s\-\.]/g, "");
+      const plateNorm = new Map(allTrucks.map((t: any) => [normalize(t.plateNumber), t]));
+      const driverNorm = new Map(allDrivers.map((d: any) => [normalize(d.name), d]));
+
+      const numCols = Math.max(...grid.map((r) => r.length));
+
+      // Score every column index across ALL rows (handles title rows at top)
+      const colScores: { plateHits: number; driverHits: number; numericCount: number }[] = Array.from({ length: numCols }, () => ({ plateHits: 0, driverHits: 0, numericCount: 0 }));
+      for (const row of grid) {
+        for (let c = 0; c < row.length; c++) {
+          const val = String(row[c] ?? "").trim();
           if (!val) continue;
-          if (plateSet.has(val.toLowerCase())) plateHits++;
-          if (driverSet.has(val.toLowerCase())) driverHits++;
+          if (plateSet.has(val.toLowerCase()) || plateNorm.has(normalize(val))) colScores[c].plateHits++;
+          if (driverSet.has(val.toLowerCase()) || driverNorm.has(normalize(val))) colScores[c].driverHits++;
           const n = parseFloat(val);
-          if (!isNaN(n) && n > 0 && n < 500) numericCount++;
+          if (!isNaN(n) && n > 0 && n < 500) colScores[c].numericCount++;
         }
-        scores[h] = { plateHits, driverHits, numericCount };
       }
 
-      // Pick best column per role (highest score wins, 0 = no candidate)
-      const plateCol = headers.reduce((best, h) => scores[h].plateHits > (scores[best]?.plateHits ?? -1) ? h : best, "");
-      const driverCol = headers
-        .filter((h) => h !== plateCol)
-        .reduce((best, h) => scores[h].driverHits > (scores[best]?.driverHits ?? -1) ? h : best, "");
-      const capacityCol = headers
-        .filter((h) => h !== plateCol && h !== driverCol)
-        .reduce((best, h) => scores[h].numericCount > (scores[best]?.numericCount ?? -1) ? h : best, "");
+      // Best column index per role
+      const bestCol = (key: "plateHits" | "driverHits" | "numericCount", exclude: number[] = []) =>
+        colScores.reduce((best, s, i) => (!exclude.includes(i) && s[key] > (colScores[best]?.[key] ?? -1) ? i : best), -1);
 
+      const plateColIdx = bestCol("plateHits");
+      const driverColIdx = bestCol("driverHits", [plateColIdx]);
+      const capacityColIdx = bestCol("numericCount", [plateColIdx, driverColIdx]);
+
+      if (colScores[plateColIdx]?.plateHits === 0) {
+        // No plate matches at all — fall through to column picker with raw headers
+        const headerRow = grid[0] ?? [];
+        const headers = headerRow.map((h: any, i: number) => String(h || `Col ${i + 1}`));
+        const dataRows = grid.slice(1).map((row) => Object.fromEntries(headers.map((h: string, i: number) => [h, row[i] ?? ""])));
+        setImportRaw({ headers, rows: dataRows });
+        setImportCols({ plate: "", driver: "", capacity: "" });
+        setImportStep("pick");
+        return;
+      }
+
+      // Find first data row: the first row where the plate column has a fleet match
+      let dataStartRow = grid.findIndex((row) => {
+        const val = String(row[plateColIdx] ?? "").trim();
+        return plateSet.has(val.toLowerCase()) || plateNorm.has(normalize(val));
+      });
+      if (dataStartRow < 0) dataStartRow = 1;
+
+      // Header row is the row immediately before first data row (or row 0 if data starts at row 0)
+      const headerRowIdx = dataStartRow > 0 ? dataStartRow - 1 : 0;
+      const headerRow = grid[headerRowIdx] ?? [];
+      const headers = headerRow.map((h: any, i: number) => String(h || `Col ${i + 1}`).trim() || `Col ${i + 1}`);
+
+      // Build named column keys from detected indices
       const detectedCols = {
-        plate: scores[plateCol]?.plateHits > 0 ? plateCol : "",
-        driver: scores[driverCol]?.driverHits > 0 ? driverCol : "",
-        capacity: scores[capacityCol]?.numericCount > 0 ? capacityCol : "",
+        plate: colScores[plateColIdx].plateHits > 0 ? (headers[plateColIdx] ?? `Col ${plateColIdx + 1}`) : "",
+        driver: colScores[driverColIdx]?.driverHits > 0 ? (headers[driverColIdx] ?? `Col ${driverColIdx + 1}`) : "",
+        capacity: colScores[capacityColIdx]?.numericCount > 0 ? (headers[capacityColIdx] ?? `Col ${capacityColIdx + 1}`) : "",
       };
 
-      setImportRaw({ headers, rows: rawRows });
-      setImportCols(detectedCols);
+      // Build data rows from dataStartRow onwards
+      const dataRows = grid.slice(dataStartRow)
+        .filter((row) => row.some((c: any) => String(c ?? "").trim()))
+        .map((row) => Object.fromEntries(headers.map((h: string, i: number) => [h, String(row[i] ?? "").trim()])));
 
-      // If we found at least a plate column, go straight to review
-      if (detectedCols.plate) {
-        setImportRows(buildImportRows(rawRows, detectedCols));
-        setImportStep("review");
-      } else {
-        // Couldn't confidently find plate column — let user pick
-        setImportStep("pick");
-      }
+      setImportRaw({ headers, rows: dataRows });
+      setImportCols(detectedCols);
+      setImportRows(buildImportRows(dataRows, detectedCols));
+      setImportStep("review");
     };
     reader.readAsArrayBuffer(file);
   };
