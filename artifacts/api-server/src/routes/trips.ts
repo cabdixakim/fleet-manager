@@ -912,4 +912,35 @@ router.post("/:id/delivery-note", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PATCH /api/trips/:id/capacity — update capacity for a nominated trip (before loading starts)
+router.patch("/:id/capacity", async (req, res, next) => {
+  try {
+    const tripId = parseInt(req.params.id);
+    const capacity = parseFloat(req.body.capacity);
+    if (isNaN(capacity) || capacity <= 0) return res.status(400).json({ error: "A valid positive capacity is required." });
+
+    const [trip] = await db.select({ id: tripsTable.id, status: tripsTable.status, capacity: tripsTable.capacity })
+      .from(tripsTable).where(eq(tripsTable.id, tripId));
+    if (!trip) return res.status(404).json({ error: "Trip not found." });
+    if (!["nominated", "loading"].includes(trip.status)) {
+      return res.status(400).json({ error: "Capacity can only be changed before loading is complete." });
+    }
+
+    const [updated] = await db.update(tripsTable)
+      .set({ capacity: String(capacity) })
+      .where(eq(tripsTable.id, tripId))
+      .returning();
+
+    await logAudit(req, {
+      action: "update",
+      entity: "trip",
+      entityId: tripId,
+      description: `Capacity updated from ${trip.capacity} → ${capacity} MT`,
+      metadata: { from: trip.capacity, to: capacity },
+    });
+
+    res.json(updated);
+  } catch (e) { next(e); }
+});
+
 export default router;

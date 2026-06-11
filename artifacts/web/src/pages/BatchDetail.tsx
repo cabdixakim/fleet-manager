@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import {
   useGetBatch, useNominateTrucks, useGetBatchFinancials, useUpdateBatch,
-  useGetTrucks, useGetDrivers, useUpdateTrip, usePatchDriver, useGetAgents,
+  useGetTrucks, useGetDrivers, useUpdateTrip, usePatchDriver, useGetAgents, usePatchTripCapacity,
 } from "@workspace/api-client-react";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -461,6 +461,9 @@ export default function BatchDetail() {
   const [tripRatesDialog, setTripRatesDialog] = useState<{ trip: any; subRatePerMt: string; clientShortRate: string; subShortRate: string } | null>(null);
   const [savingRates, setSavingRates] = useState(false);
 
+  const [editCapDialog, setEditCapDialog] = useState<{ tripId: number; plate: string; capacity: string } | null>(null);
+  const { mutateAsync: patchCapacity, isPending: savingCap } = usePatchTripCapacity();
+
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [invoiceRef, setInvoiceRef] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -791,6 +794,23 @@ export default function BatchDetail() {
     await advanceTripStatus(qtyDialog.tripId, nextStatus, data);
     setQtyDialog(null);
     setQty("");
+  };
+
+  const handleCapacityEdit = async () => {
+    if (!editCapDialog) return;
+    const cap = parseFloat(editCapDialog.capacity);
+    if (isNaN(cap) || cap <= 0) {
+      toast({ variant: "destructive", title: "Invalid capacity", description: "Enter a positive number." });
+      return;
+    }
+    try {
+      await patchCapacity({ id: editCapDialog.tripId, capacity: cap });
+      invalidate();
+      setEditCapDialog(null);
+      toast({ title: "Capacity updated", description: `${editCapDialog.plate} → ${formatNumber(cap)} MT` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Could not update", description: err?.data?.error ?? err?.message ?? "Unknown error" });
+    }
   };
 
   const handleSaveDriver = async () => {
@@ -1198,6 +1218,15 @@ export default function BatchDetail() {
                               {next.label}
                               <ChevronRight className="w-3 h-3 ml-1" />
                             </Button>
+                          )}
+                          {!isCancelled && ["nominated", "loading"].includes(trip.status) && (
+                            <button
+                              onClick={() => setEditCapDialog({ tripId: trip.id, plate: trip.truckPlate, capacity: String(trip.capacity ?? "") })}
+                              className="text-muted-foreground hover:text-primary transition-colors p-1 rounded"
+                              title="Edit capacity"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
                           )}
                           {!isCancelled && ["nominated", "loading"].includes(trip.status) && (
                             <button
@@ -1632,6 +1661,35 @@ export default function BatchDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setQtyDialog(null)}>Cancel</Button>
             <Button onClick={handleQtyConfirm} disabled={!qty || isNaN(parseFloat(qty))}>Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Capacity Dialog ── */}
+      <Dialog open={!!editCapDialog} onOpenChange={(o) => { if (!o) setEditCapDialog(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Capacity</DialogTitle>
+          </DialogHeader>
+          <div className="py-3">
+            <p className="text-sm text-muted-foreground mb-3">Truck: <span className="font-semibold text-foreground">{editCapDialog?.plate}</span></p>
+            <Label>Nominated Capacity (MT)</Label>
+            <Input
+              type="number"
+              value={editCapDialog?.capacity ?? ""}
+              onChange={(e) => setEditCapDialog((p) => p ? { ...p, capacity: e.target.value } : p)}
+              className="mt-1"
+              placeholder="0.000"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleCapacityEdit(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditCapDialog(null)}>Cancel</Button>
+            <Button onClick={handleCapacityEdit} disabled={savingCap || !editCapDialog?.capacity}>
+              {savingCap && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -52,6 +52,8 @@ export default function SettingsPage() {
   const [destroyFleetConfirm, setDestroyFleetConfirm] = useState(false);
   const [destroyingFleet, setDestroyingFleet] = useState(false);
   const [fleetDataDestroyed, setFleetDataDestroyed] = useState(false);
+  const [resetTripsBatchesConfirm, setResetTripsBatchesConfirm] = useState(false);
+  const [resettingTripsBatches, setResettingTripsBatches] = useState(false);
   const [truckTypes, setTruckTypes] = useState({ hasCompany: false, hasSub: false });
 
   useEffect(() => {
@@ -169,6 +171,27 @@ export default function SettingsPage() {
     } finally {
       setClearing(false);
       setClearDataConfirm(false);
+    }
+  };
+
+  const handleResetTripsBatches = async () => {
+    setResettingTripsBatches(true);
+    try {
+      const res = await fetch("/api/admin/reset-trips-batches", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) {
+        qc.invalidateQueries();
+      } else {
+        alert(json.error ?? `Server error ${res.status} — please try again.`);
+      }
+    } catch (e: any) {
+      alert(e?.message ?? "Network error — please try again.");
+    } finally {
+      setResettingTripsBatches(false);
+      setResetTripsBatchesConfirm(false);
     }
   };
 
@@ -430,7 +453,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {user?.role === "owner" && !loading && (!testDataCleared || !fleetDataDestroyed) && (
+          {user?.role === "owner" && !loading && (
             <div className="bg-card border border-destructive/40 rounded-xl p-6">
               <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4" />Danger Zone
@@ -438,6 +461,24 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground mb-4">
                 These actions are irreversible. Users and subcontractors are preserved.
               </p>
+              <div className="flex items-center justify-between py-3 border-t border-border">
+                <div>
+                  <p className="text-sm font-medium">Reset Trips &amp; Batches</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Deletes all batches, trips, nominations, invoices, clearances, payroll, and related records. Trucks, drivers, clients, and subcontractors are kept.
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setResetTripsBatchesConfirm(true)}
+                  disabled={resettingTripsBatches}
+                  className="ml-6 shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  {resettingTripsBatches ? "Resetting..." : "Reset Trips & Batches"}
+                </Button>
+              </div>
               {!testDataCleared && (
                 <div className="flex items-center justify-between py-3 border-t border-border">
                   <div>
@@ -514,6 +555,30 @@ export default function SettingsPage() {
               disabled={clearing}
             >
               {clearing ? "Clearing..." : "Yes, Clear Everything"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset trips & batches confirmation */}
+      <AlertDialog open={resetTripsBatchesConfirm} onOpenChange={setResetTripsBatchesConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset All Trips &amp; Batches?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete every batch, trip, nomination, invoice, clearance, payroll record, and related financial entry.
+              <br /><br />
+              Trucks, drivers, clients, subcontractors, and users will be kept. <strong>This cannot be undone.</strong>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resettingTripsBatches}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleResetTripsBatches}
+              disabled={resettingTripsBatches}
+            >
+              {resettingTripsBatches ? "Resetting..." : "Yes, Delete All Trips & Batches"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

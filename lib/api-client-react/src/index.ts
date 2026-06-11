@@ -402,6 +402,25 @@ export function useGetCompanyFleetSummary() {
   });
 }
 
+export function usePatchTripCapacity() {
+  return useMutation({
+    mutationFn: async ({ id, capacity }: { id: number; capacity: number }) => {
+      const res = await fetch(`/api/trips/${id}/capacity`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ capacity }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err: any = new Error(data?.error ?? "Failed to update capacity");
+        err.status = res.status; err.data = data; throw err;
+      }
+      return res.json();
+    },
+  });
+}
+
 export function useGetEntityAnalytics(params: { entity: string; ids: number[]; period?: string; year?: number; month?: number }) {
   const { entity, ids, period = "all", year, month } = params;
   const idsStr = ids.join(",");

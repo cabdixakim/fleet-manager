@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, companySettingsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { logAudit } from "../lib/audit";
 
 const router = Router();
 
@@ -94,6 +95,44 @@ router.delete("/destroy-fleet", async (req, res, next) => {
     }
 
     res.json({ success: true, message: "Fleet data destroyed. This button has been permanently disabled." });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/admin/reset-trips-batches
+// Owner-only. Deletes all trips, batches, nominations and all child records.
+// Trucks, drivers, subcontractors, clients, GL accounts — all untouched.
+router.delete("/reset-trips-batches", async (req, res, next) => {
+  try {
+    const callerRole = await getCallerRole(req);
+    if (callerRole !== "owner") {
+      return res.status(403).json({ error: "Only the owner can reset trips and batches." });
+    }
+
+    await db.execute(sql`DELETE FROM driver_payroll_allocations`);
+    await db.execute(sql`DELETE FROM driver_payroll`);
+    await db.execute(sql`DELETE FROM gl_journal_entry_lines`);
+    await db.execute(sql`DELETE FROM gl_journal_entries`);
+    await db.execute(sql`DELETE FROM insurance_claims`);
+    await db.execute(sql`DELETE FROM subcontractor_transactions`);
+    await db.execute(sql`DELETE FROM client_transactions`);
+    await db.execute(sql`DELETE FROM trip_amendments`);
+    await db.execute(sql`DELETE FROM delivery_notes`);
+    await db.execute(sql`DELETE FROM trip_checkpoints`);
+    await db.execute(sql`DELETE FROM trip_expenses`);
+    await db.execute(sql`DELETE FROM clearances`);
+    await db.execute(sql`DELETE FROM invoices`);
+    await db.execute(sql`DELETE FROM trips`);
+    await db.execute(sql`DELETE FROM batches`);
+
+    await logAudit(db, {
+      userId: (req.session as any)?.userId ?? null,
+      action: "reset_trips_batches",
+      entity: "admin",
+      entityId: null,
+      details: { message: "All trips and batches deleted by owner" },
+    });
+
+    res.json({ success: true, message: "All trips and batches have been deleted. Trucks, drivers, clients and other data are untouched." });
   } catch (e) { next(e); }
 });
 
