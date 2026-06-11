@@ -13,7 +13,7 @@ import * as XLSX from "xlsx";
 import {
   Plus, Truck, ChevronLeft, Download, X, ChevronRight,
   ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle, SlidersHorizontal, Phone, MessageCircle,
-  FileSpreadsheet, Upload, CheckCheck,
+  FileSpreadsheet, Upload, CheckCheck, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -464,6 +464,12 @@ export default function BatchDetail() {
   const [editCapDialog, setEditCapDialog] = useState<{ tripId: number; plate: string; capacity: string } | null>(null);
   const { mutateAsync: patchCapacity, isPending: savingCap } = usePatchTripCapacity();
 
+  type QuickPostRow = { tripId: number; plate: string; status: string; include: boolean; loadedQty: string; deliveredQty: string; deliveredDate: string; alreadyLoaded: boolean; alreadyDelivered: boolean };
+  const [quickPostOpen, setQuickPostOpen] = useState(false);
+  const [quickPostRows, setQuickPostRows] = useState<QuickPostRow[]>([]);
+  const [quickPosting, setQuickPosting] = useState(false);
+  const [quickPostResults, setQuickPostResults] = useState<{ tripId: number; outcome: string; error?: string }[] | null>(null);
+
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [invoiceRef, setInvoiceRef] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -796,6 +802,57 @@ export default function BatchDetail() {
     setQty("");
   };
 
+  const openQuickPost = () => {
+    const today = new Date().toISOString().split("T")[0];
+    const ALREADY_LOADED = ["loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered"];
+    const rows: QuickPostRow[] = (batch.trips ?? [])
+      .filter((t: any) => !["cancelled", "amended_out", "completed"].includes(t.status))
+      .map((t: any) => ({
+        tripId: t.id,
+        plate: t.truckPlate ?? String(t.id),
+        status: t.status,
+        include: true,
+        loadedQty: t.loadedQty ? String(parseFloat(t.loadedQty)) : "",
+        deliveredQty: t.deliveredQty ? String(parseFloat(t.deliveredQty)) : "",
+        deliveredDate: today,
+        alreadyLoaded: ALREADY_LOADED.includes(t.status),
+        alreadyDelivered: t.status === "delivered",
+      }));
+    setQuickPostRows(rows);
+    setQuickPostResults(null);
+    setQuickPostOpen(true);
+  };
+
+  const handleQuickPost = async () => {
+    const toPost = quickPostRows.filter((r) => r.include && !r.alreadyDelivered);
+    if (!toPost.length) return;
+    setQuickPosting(true);
+    try {
+      const items = toPost.map((r) => ({
+        tripId: r.tripId,
+        loadedQty:    r.loadedQty    ? parseFloat(r.loadedQty)    : null,
+        deliveredQty: r.deliveredQty ? parseFloat(r.deliveredQty) : null,
+        deliveredAt:  r.deliveredQty ? r.deliveredDate : null,
+      }));
+      const res = await fetch("/api/trips/bulk-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      setQuickPostResults(data.results ?? []);
+      invalidate();
+      const ok  = (data.results ?? []).filter((r: any) => r.outcome === "ok").length;
+      const err = (data.results ?? []).filter((r: any) => r.outcome === "error").length;
+      toast({ title: `Quick Post complete`, description: `${ok} trip${ok !== 1 ? "s" : ""} updated${err ? `, ${err} failed` : ""}.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Quick Post failed", description: e?.message ?? "Unknown error" });
+    } finally {
+      setQuickPosting(false);
+    }
+  };
+
   const handleCapacityEdit = async () => {
     if (!editCapDialog) return;
     const cap = parseFloat(editCapDialog.capacity);
@@ -1116,6 +1173,13 @@ export default function BatchDetail() {
         {/* ── Trip Board ── */}
         {activeTab === "trips" && (
           <div className="space-y-3">
+            {!!(batch.trips?.length) && (
+              <div className="flex justify-end">
+                <Button size="sm" variant="outline" onClick={openQuickPost}>
+                  <Zap className="w-3.5 h-3.5 mr-1.5" />Quick Post
+                </Button>
+              </div>
+            )}
             {!batch.trips?.length ? (
               <div className="bg-card border border-border rounded-xl flex flex-col items-center justify-center py-16 text-center">
                 <Truck className="w-12 h-12 text-muted-foreground/30 mb-4" />
@@ -1661,6 +1725,99 @@ export default function BatchDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setQtyDialog(null)}>Cancel</Button>
             <Button onClick={handleQtyConfirm} disabled={!qty || isNaN(parseFloat(qty))}>Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Quick Post Dialog ── */}
+      <Dialog open={quickPostOpen} onOpenChange={(o) => { if (!o) setQuickPostOpen(false); }}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Zap className="w-4 h-4 text-primary" />Quick Post</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Enter loaded and/or delivered quantities for multiple trucks at once. Delivered qty sets the trip as delivered immediately, skipping intermediate steps.</p>
+          </DialogHeader>
+
+          <div className="overflow-auto flex-1 min-h-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-secondary/40 border-b border-border text-xs text-muted-foreground">
+                  <th className="px-3 py-2 w-8"><input type="checkbox" checked={quickPostRows.every((r) => r.include || r.alreadyDelivered)} onChange={(e) => setQuickPostRows((p) => p.map((r) => r.alreadyDelivered ? r : { ...r, include: e.target.checked }))} className="accent-primary" /></th>
+                  <th className="px-3 py-2 text-left">Truck</th>
+                  <th className="px-3 py-2 text-left w-28">Status</th>
+                  <th className="px-3 py-2 text-left w-32">Loaded Qty (MT)</th>
+                  <th className="px-3 py-2 text-left w-32">Delivered Qty (MT)</th>
+                  <th className="px-3 py-2 text-left w-36">Delivered Date</th>
+                  {quickPostResults && <th className="px-3 py-2 w-20">Result</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {quickPostRows.map((row, i) => {
+                  const result = quickPostResults?.find((r) => r.tripId === row.tripId);
+                  return (
+                    <tr key={row.tripId} className={`${row.alreadyDelivered ? "opacity-40" : ""} ${result?.outcome === "ok" ? "bg-emerald-500/5" : result?.outcome === "error" ? "bg-destructive/5" : ""}`}>
+                      <td className="px-3 py-2 text-center">
+                        <input type="checkbox" checked={row.include} disabled={row.alreadyDelivered} onChange={(e) => setQuickPostRows((p) => p.map((r, idx) => idx === i ? { ...r, include: e.target.checked } : r))} className="accent-primary" />
+                      </td>
+                      <td className="px-3 py-2 font-mono font-semibold text-xs">{row.plate}</td>
+                      <td className="px-3 py-2">
+                        <span className="text-xs bg-secondary px-1.5 py-0.5 rounded capitalize">{row.status.replace(/_/g, " ")}</span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number"
+                          value={row.loadedQty}
+                          onChange={(e) => setQuickPostRows((p) => p.map((r, idx) => idx === i ? { ...r, loadedQty: e.target.value } : r))}
+                          disabled={row.alreadyLoaded || row.alreadyDelivered}
+                          className="h-7 text-xs w-full"
+                          placeholder="0.000"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="number"
+                          value={row.deliveredQty}
+                          onChange={(e) => setQuickPostRows((p) => p.map((r, idx) => idx === i ? { ...r, deliveredQty: e.target.value } : r))}
+                          disabled={row.alreadyDelivered}
+                          className="h-7 text-xs w-full"
+                          placeholder="0.000"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <Input
+                          type="date"
+                          value={row.deliveredDate}
+                          onChange={(e) => setQuickPostRows((p) => p.map((r, idx) => idx === i ? { ...r, deliveredDate: e.target.value } : r))}
+                          disabled={row.alreadyDelivered}
+                          className="h-7 text-xs w-full"
+                        />
+                      </td>
+                      {quickPostResults && (
+                        <td className="px-3 py-2 text-xs">
+                          {result?.outcome === "ok" && <span className="text-emerald-400 font-medium">✓ Done</span>}
+                          {result?.outcome === "error" && <span className="text-destructive" title={result.error}>✗ Err</span>}
+                          {result?.outcome === "skipped" && <span className="text-muted-foreground">—</span>}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter className="border-t border-border pt-3 mt-2 shrink-0">
+            <div className="flex items-center gap-2 w-full">
+              <p className="text-xs text-muted-foreground flex-1">
+                {quickPostRows.filter((r) => r.include && !r.alreadyDelivered).length} trip{quickPostRows.filter((r) => r.include && !r.alreadyDelivered).length !== 1 ? "s" : ""} selected
+              </p>
+              <Button variant="outline" onClick={() => setQuickPostOpen(false)}>Close</Button>
+              <Button
+                onClick={handleQuickPost}
+                disabled={quickPosting || quickPostRows.filter((r) => r.include && !r.alreadyDelivered).length === 0}
+              >
+                {quickPosting ? <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Posting...</> : <><Zap className="w-4 h-4 mr-1.5" />Post Selected</>}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

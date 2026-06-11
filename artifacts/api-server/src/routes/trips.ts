@@ -164,6 +164,84 @@ async function buildTripDetail(tripId: number) {
   };
 }
 
+// POST /api/trips/bulk-post — quick-post multiple trips to loaded or delivered in one call.
+// Bypasses intermediate status steps and clearance gates (for retroactive batch entry).
+router.post("/bulk-post", async (req, res, next) => {
+  try {
+    const items: { tripId: number; loadedQty?: number | null; deliveredQty?: number | null; deliveredAt?: string | null }[] = req.body.items ?? [];
+    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: "items array is required." });
+
+    const results: { tripId: number; outcome: string; error?: string }[] = [];
+
+    for (const item of items) {
+      const { tripId, loadedQty, deliveredQty, deliveredAt } = item;
+      try {
+        const [trip] = await db.select().from(tripsTable).where(eq(tripsTable.id, tripId));
+        if (!trip) { results.push({ tripId, outcome: "error", error: "Not found" }); continue; }
+        if (["cancelled", "amended_out", "completed"].includes(trip.status)) {
+          results.push({ tripId, outcome: "skipped", error: `Already ${trip.status}` }); continue;
+        }
+
+        // Already fully delivered — only update qty if provided
+        const alreadyDelivered = trip.status === "delivered";
+        const alreadyLoaded    = ["loaded", "in_transit", "at_zambia_entry", "at_drc_entry", "delivered"].includes(trip.status);
+
+        // Determine target status
+        let targetStatus = trip.status;
+        if (deliveredQty != null && !alreadyDelivered) targetStatus = "delivered";
+        else if (loadedQty != null && !alreadyLoaded)  targetStatus = "loaded";
+
+        const updateData: Record<string, any> = { status: targetStatus };
+        if (loadedQty  != null) updateData.loadedQty   = String(loadedQty);
+        if (deliveredQty != null) updateData.deliveredQty = String(deliveredQty);
+        if (targetStatus === "delivered" && !alreadyDelivered) {
+          updateData.deliveredAt = deliveredAt ? new Date(deliveredAt) : new Date();
+        }
+
+        const [updated] = await db.update(tripsTable).set(updateData).where(eq(tripsTable.id, tripId)).returning();
+        if (!updated) { results.push({ tripId, outcome: "error", error: "Update failed" }); continue; }
+
+        // Agent fee — only once, when trip first enters loaded
+        if (!alreadyLoaded && loadedQty != null && loadedQty > 0) {
+          try {
+            const [batchInfo] = await db.select({ agentId: batchesTable.agentId, agentFeePerMt: batchesTable.agentFeePerMt, name: batchesTable.name })
+              .from(batchesTable).where(eq(batchesTable.id, trip.batchId));
+            if (batchInfo?.agentId && batchInfo?.agentFeePerMt) {
+              const feePerMt = parseFloat(batchInfo.agentFeePerMt);
+              if (feePerMt > 0) {
+                await db.insert(agentTransactionsTable).values({
+                  agentId: batchInfo.agentId, batchId: trip.batchId, tripId,
+                  type: "fee_earned", amount: (loadedQty * feePerMt).toFixed(2),
+                  description: `Fee earned — Trip #${tripId} (${batchInfo.name ?? ""})`,
+                  transactionDate: new Date(),
+                });
+              }
+            }
+          } catch { /* non-critical */ }
+        }
+
+        // Free the truck when delivered
+        if (targetStatus === "delivered" && !alreadyDelivered) {
+          const truckToFree = (trip.incidentFlag && trip.incidentReplacementTruckId) ? trip.incidentReplacementTruckId : trip.truckId;
+          await db.update(trucksTable).set({ status: "available" }).where(eq(trucksTable.id, truckToFree));
+        }
+
+        await logAudit(req, {
+          action: "status_change", entity: "trip", entityId: tripId,
+          description: `Quick-post: trip #${tripId} ${trip.status} → ${targetStatus}`,
+          metadata: { from: trip.status, to: targetStatus, loadedQty: loadedQty ?? undefined, deliveredQty: deliveredQty ?? undefined },
+        });
+
+        results.push({ tripId, outcome: "ok" });
+      } catch (e: any) {
+        results.push({ tripId, outcome: "error", error: e?.message ?? "Unknown error" });
+      }
+    }
+
+    res.json({ results });
+  } catch (e) { next(e); }
+});
+
 router.get("/:id", async (req, res, next) => {
   try {
     const detail = await buildTripDetail(parseInt(req.params.id));
