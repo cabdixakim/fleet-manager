@@ -445,9 +445,11 @@ export default function BatchDetail() {
   const [showNominate, setShowNominate] = useState(false);
   const [nominations, setNominations] = useState([{ truckId: "", driverId: "", product: "AGO", capacity: "" }]);
   const [nominateTab, setNominateTab] = useState<"manual" | "import">("manual");
-  const [importStep, setImportStep] = useState<"upload" | "review">("upload");
+  const [importStep, setImportStep] = useState<"upload" | "pick" | "review">("upload");
   type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no"; driverMatch: "ok" | "none" | "no" };
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importRaw, setImportRaw] = useState<{ headers: string[]; rows: Record<string, any>[] }>({ headers: [], rows: [] });
+  const [importCols, setImportCols] = useState({ plate: "", driver: "", capacity: "" });
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const [qtyDialog, setQtyDialog] = useState<{ tripId: number; type: "loaded" | "delivered"; plate: string } | null>(null);
@@ -525,15 +527,28 @@ export default function BatchDetail() {
     }
   };
 
-  const downloadNominationTemplate = () => {
-    exportToExcel(
-      [
-        { "Horse Plate": "ABC 123 ZM", "Driver Name": "John Banda", "Capacity (MT)": 34.5 },
-        { "Horse Plate": "XYZ 456 ZM", "Driver Name": "", "Capacity (MT)": 34.5 },
-      ],
-      "nomination-template",
-      "Nomination"
-    );
+  const buildImportRows = (rawRows: Record<string, any>[], cols: { plate: string; driver: string; capacity: string }): ImportRow[] => {
+    const availTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
+    const activeDrvs = (drivers as any[]).filter((d: any) => d.status === "active");
+    return rawRows
+      .map((row) => {
+        const rawPlate = cols.plate ? String(row[cols.plate] ?? "").trim() : "";
+        const rawDriver = cols.driver ? String(row[cols.driver] ?? "").trim() : "";
+        const rawCapacity = cols.capacity ? String(row[cols.capacity] ?? "").trim() : "";
+        const truckMatch = rawPlate ? availTrucks.find((t: any) => t.plateNumber.toLowerCase() === rawPlate.toLowerCase()) : null;
+        const driverMatch = rawDriver ? activeDrvs.find((d: any) => d.name.toLowerCase() === rawDriver.toLowerCase()) : null;
+        return {
+          rawPlate,
+          rawDriver,
+          rawCapacity,
+          truckId: truckMatch ? String(truckMatch.id) : "",
+          driverId: driverMatch ? String(driverMatch.id) : "",
+          capacity: rawCapacity,
+          plateMatch: (truckMatch ? "ok" : "no") as "ok" | "no",
+          driverMatch: (rawDriver === "" ? "none" : driverMatch ? "ok" : "no") as "ok" | "none" | "no",
+        };
+      })
+      .filter((r) => r.rawPlate || r.rawCapacity);
   };
 
   const parseImportFile = (file: File) => {
@@ -541,32 +556,63 @@ export default function BatchDetail() {
     reader.onload = (e) => {
       const wb = XLSX.read(new Uint8Array(e.target!.result as ArrayBuffer), { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
-      const availTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
-      const activeDrvs = (drivers as any[]).filter((d: any) => d.status === "active");
-      const mapped: ImportRow[] = rows
-        .map((row) => {
-          const rawPlate = String(row["Horse Plate"] ?? row["Plate"] ?? row["Truck"] ?? row["HORSE PLATE"] ?? "").trim();
-          const rawDriver = String(row["Driver Name"] ?? row["Driver"] ?? row["DRIVER"] ?? row["DRIVER NAME"] ?? "").trim();
-          const rawCapacity = String(row["Capacity (MT)"] ?? row["Capacity"] ?? row["capacity"] ?? row["CAPACITY"] ?? "").trim();
-          const truckMatch = availTrucks.find((t: any) => t.plateNumber.toLowerCase() === rawPlate.toLowerCase());
-          const driverMatch = rawDriver ? activeDrvs.find((d: any) => d.name.toLowerCase() === rawDriver.toLowerCase()) : null;
-          return {
-            rawPlate,
-            rawDriver,
-            rawCapacity,
-            truckId: truckMatch ? String(truckMatch.id) : "",
-            driverId: driverMatch ? String(driverMatch.id) : "",
-            capacity: rawCapacity,
-            plateMatch: (truckMatch ? "ok" : "no") as "ok" | "no",
-            driverMatch: (rawDriver === "" ? "none" : driverMatch ? "ok" : "no") as "ok" | "none" | "no",
-          };
-        })
-        .filter((r) => r.rawPlate || r.rawCapacity);
-      setImportRows(mapped);
-      setImportStep("review");
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+      if (!rawRows.length) return;
+
+      const headers = Object.keys(rawRows[0]);
+      const allTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
+      const allDrivers = (drivers as any[]).filter((d: any) => d.status === "active");
+      const plateSet = new Set(allTrucks.map((t: any) => t.plateNumber.toLowerCase()));
+      const driverSet = new Set(allDrivers.map((d: any) => d.name.toLowerCase()));
+
+      // Score each column
+      const scores: Record<string, { plateHits: number; driverHits: number; numericCount: number }> = {};
+      for (const h of headers) {
+        let plateHits = 0, driverHits = 0, numericCount = 0;
+        for (const row of rawRows) {
+          const val = String(row[h] ?? "").trim();
+          if (!val) continue;
+          if (plateSet.has(val.toLowerCase())) plateHits++;
+          if (driverSet.has(val.toLowerCase())) driverHits++;
+          const n = parseFloat(val);
+          if (!isNaN(n) && n > 0 && n < 500) numericCount++;
+        }
+        scores[h] = { plateHits, driverHits, numericCount };
+      }
+
+      // Pick best column per role (highest score wins, 0 = no candidate)
+      const plateCol = headers.reduce((best, h) => scores[h].plateHits > (scores[best]?.plateHits ?? -1) ? h : best, "");
+      const driverCol = headers
+        .filter((h) => h !== plateCol)
+        .reduce((best, h) => scores[h].driverHits > (scores[best]?.driverHits ?? -1) ? h : best, "");
+      const capacityCol = headers
+        .filter((h) => h !== plateCol && h !== driverCol)
+        .reduce((best, h) => scores[h].numericCount > (scores[best]?.numericCount ?? -1) ? h : best, "");
+
+      const detectedCols = {
+        plate: scores[plateCol]?.plateHits > 0 ? plateCol : "",
+        driver: scores[driverCol]?.driverHits > 0 ? driverCol : "",
+        capacity: scores[capacityCol]?.numericCount > 0 ? capacityCol : "",
+      };
+
+      setImportRaw({ headers, rows: rawRows });
+      setImportCols(detectedCols);
+
+      // If we found at least a plate column, go straight to review
+      if (detectedCols.plate) {
+        setImportRows(buildImportRows(rawRows, detectedCols));
+        setImportStep("review");
+      } else {
+        // Couldn't confidently find plate column — let user pick
+        setImportStep("pick");
+      }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const applyColPick = () => {
+    setImportRows(buildImportRows(importRaw.rows, importCols));
+    setImportStep("review");
   };
 
   const updateImportRow = (i: number, field: keyof ImportRow, value: string) => {
@@ -1291,42 +1337,56 @@ export default function BatchDetail() {
 
               {/* STEP 1 — Upload */}
               {importStep === "upload" && (
-                <div className="space-y-5">
-                  <div className="rounded-lg border border-dashed border-border p-5 bg-secondary/20 space-y-3">
-                    <div className="flex items-start gap-3">
-                      <FileSpreadsheet className="w-8 h-8 text-primary shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-sm">How it works</p>
-                        <ol className="text-sm text-muted-foreground mt-1 space-y-1 list-decimal list-inside">
-                          <li>Download the template below</li>
-                          <li>Fill in Horse Plate, Driver Name and Capacity for each truck</li>
-                          <li>Upload the completed file — we'll match it against your fleet</li>
-                          <li>Review matches and fix any unmatched rows before submitting</li>
-                        </ol>
-                      </div>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">Upload your own nomination file. We'll automatically detect the truck plates, drivers and capacities from it.</p>
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) parseImportFile(f); e.target.value = ""; }}
+                  />
+                  <label
+                    onClick={() => importFileRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-3 h-40 w-full rounded-xl border-2 border-dashed border-border hover:border-primary/60 hover:bg-primary/5 cursor-pointer transition-colors"
+                  >
+                    <FileSpreadsheet className="w-10 h-10 text-muted-foreground/60" />
+                    <div className="text-center">
+                      <p className="text-sm font-medium">Drop your nomination file here or click to browse</p>
+                      <p className="text-xs text-muted-foreground mt-1">.xlsx · .xls · .csv</p>
                     </div>
-                    <Button variant="outline" size="sm" onClick={downloadNominationTemplate} className="gap-2">
-                      <Download className="w-4 h-4" /> Download Template
-                    </Button>
-                  </div>
+                  </label>
+                </div>
+              )}
 
-                  <div>
-                    <input
-                      ref={importFileRef}
-                      type="file"
-                      accept=".xlsx,.xls,.csv"
-                      className="hidden"
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) parseImportFile(f); e.target.value = ""; }}
-                    />
-                    <label
-                      htmlFor="import-nomination-file"
-                      onClick={() => importFileRef.current?.click()}
-                      className="flex flex-col items-center justify-center gap-2 h-32 w-full rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-colors"
-                    >
-                      <Upload className="w-6 h-6 text-muted-foreground" />
-                      <span className="text-sm font-medium">Click to upload your filled Excel file</span>
-                      <span className="text-xs text-muted-foreground">.xlsx · .xls · .csv</span>
-                    </label>
+              {/* STEP 1b — Column picker (auto-detect failed) */}
+              {importStep === "pick" && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>We couldn't automatically detect the truck plates in your file. Tell us which columns contain the data and we'll match them.</span>
+                  </div>
+                  <div className="space-y-3">
+                    {(["plate", "driver", "capacity"] as const).map((role) => (
+                      <div key={role} className="grid grid-cols-[140px_1fr] items-center gap-3">
+                        <Label className="text-sm text-right">
+                          {role === "plate" ? "Horse Plate *" : role === "driver" ? "Driver Name" : "Capacity (MT) *"}
+                        </Label>
+                        <Select value={importCols[role]} onValueChange={(v) => setImportCols((p) => ({ ...p, [role]: v }))}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— pick column —" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">— none —</SelectItem>
+                            {importRaw.headers.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" size="sm" onClick={() => { setImportStep("upload"); setImportRaw({ headers: [], rows: [] }); }}>Re-upload</Button>
+                    <Button size="sm" disabled={!importCols.plate || !importCols.capacity} onClick={applyColPick}>
+                      <CheckCheck className="w-4 h-4 mr-1.5" /> Analyse
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1335,9 +1395,12 @@ export default function BatchDetail() {
               {importStep === "review" && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">{importRows.length} row{importRows.length !== 1 ? "s" : ""} found — review matches before submitting</p>
-                    <button onClick={() => { setImportStep("upload"); setImportRows([]); }} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                      <Upload className="w-3 h-3" /> Re-upload
+                    <div>
+                      <p className="text-sm font-medium">{importRows.length} truck{importRows.length !== 1 ? "s" : ""} found</p>
+                      {importCols.plate && <p className="text-xs text-muted-foreground mt-0.5">Plate from <span className="font-mono">"{importCols.plate}"</span>{importCols.driver ? ` · Driver from "${importCols.driver}"` : ""}{importCols.capacity ? ` · Capacity from "${importCols.capacity}"` : ""}</p>}
+                    </div>
+                    <button onClick={() => { setImportStep("upload"); setImportRows([]); setImportRaw({ headers: [], rows: [] }); }} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                      <Upload className="w-3 h-3" /> New file
                     </button>
                   </div>
 
@@ -1350,7 +1413,7 @@ export default function BatchDetail() {
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Horse Plate</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground">Driver</th>
                             <th className="px-3 py-2 text-left font-medium text-muted-foreground w-28">Capacity (MT)</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground w-6"></th>
+                            <th className="px-3 py-2 w-6"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -1359,58 +1422,52 @@ export default function BatchDetail() {
                             return (
                               <tr key={i} className={isReady ? "bg-emerald-500/5" : "bg-amber-500/5"}>
                                 <td className="px-3 py-2">
-                                  {isReady
-                                    ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                    : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                                  {isReady ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
                                 </td>
-                                {/* Truck plate */}
                                 <td className="px-3 py-2">
                                   {row.plateMatch === "ok"
                                     ? <span className="font-mono font-semibold text-foreground">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
                                     : (
-                                      <Select value={row.truckId} onValueChange={(v) => updateImportRow(i, "truckId", v)}>
-                                        <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[140px]">
-                                          <SelectValue placeholder={row.rawPlate || "Pick truck"} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {(trucks as any[]).filter((t: any) => (t.status === "available" || t.status === "idle") && !nominatedTruckIds.has(String(t.id))).map((t: any) => (
-                                            <SelectItem key={t.id} value={String(t.id)}>{t.plateNumber}</SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
+                                      <div className="space-y-0.5">
+                                        <Select value={row.truckId} onValueChange={(v) => updateImportRow(i, "truckId", v)}>
+                                          <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
+                                            <SelectValue placeholder={row.rawPlate ? `"${row.rawPlate}" — not found` : "Pick truck"} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {(trucks as any[]).filter((t: any) => (t.status === "available" || t.status === "idle") && !nominatedTruckIds.has(String(t.id))).map((t: any) => (
+                                              <SelectItem key={t.id} value={String(t.id)}>{t.plateNumber}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        {row.rawPlate && <p className="text-[10px] text-amber-400 font-mono pl-1">"{row.rawPlate}"</p>}
+                                      </div>
                                     )}
                                 </td>
-                                {/* Driver */}
                                 <td className="px-3 py-2">
                                   {row.driverMatch === "ok"
                                     ? <span className="text-foreground">{(drivers as any[]).find((d: any) => String(d.id) === row.driverId)?.name ?? row.rawDriver}</span>
                                     : row.driverMatch === "none"
                                       ? <span className="text-muted-foreground italic">—</span>
                                       : (
-                                        <Select value={row.driverId} onValueChange={(v) => updateImportRow(i, "driverId", v)}>
-                                          <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[140px]">
-                                            <SelectValue placeholder={row.rawDriver || "Pick driver"} />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="">— Skip driver —</SelectItem>
-                                            {(drivers as any[]).filter((d: any) => d.status === "active").map((d: any) => (
-                                              <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                        <div className="space-y-0.5">
+                                          <Select value={row.driverId} onValueChange={(v) => updateImportRow(i, "driverId", v)}>
+                                            <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
+                                              <SelectValue placeholder={row.rawDriver ? `"${row.rawDriver}" — not found` : "Pick driver"} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="">— Skip driver —</SelectItem>
+                                              {(drivers as any[]).filter((d: any) => d.status === "active").map((d: any) => (
+                                                <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                          {row.rawDriver && <p className="text-[10px] text-amber-400 pl-1">"{row.rawDriver}"</p>}
+                                        </div>
                                       )}
                                 </td>
-                                {/* Capacity */}
                                 <td className="px-3 py-2">
-                                  <Input
-                                    type="number"
-                                    value={row.capacity}
-                                    onChange={(e) => updateImportRow(i, "capacity", e.target.value)}
-                                    className="h-7 text-xs w-24"
-                                    placeholder="0.000"
-                                  />
+                                  <Input type="number" value={row.capacity} onChange={(e) => updateImportRow(i, "capacity", e.target.value)} className="h-7 text-xs w-24" placeholder="0.000" />
                                 </td>
-                                {/* Remove row */}
                                 <td className="px-3 py-2">
                                   <button onClick={() => setImportRows((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive transition-colors">
                                     <X className="w-3.5 h-3.5" />
@@ -1427,7 +1484,7 @@ export default function BatchDetail() {
                   {importRows.some((r) => !r.truckId || !r.capacity) && (
                     <p className="text-xs text-amber-400 flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      Amber rows are missing a truck or capacity and will be skipped. Fix them or remove them.
+                      Amber rows won't be submitted. Fix the truck or remove the row.
                     </p>
                   )}
                 </div>
