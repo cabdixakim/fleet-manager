@@ -453,7 +453,7 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {user?.role === "owner" && !loading && (
+          {user?.role === "owner" && !loading && !testDataCleared && (
             <div className="bg-card border border-destructive/40 rounded-xl p-6">
               <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4" />Danger Zone
@@ -463,62 +463,22 @@ export default function SettingsPage() {
               </p>
               <div className="flex items-center justify-between py-3 border-t border-border">
                 <div>
-                  <p className="text-sm font-medium">Reset Trips &amp; Batches</p>
+                  <p className="text-sm font-medium">Clear Test Data</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Deletes all batches, trips, nominations, invoices, clearances, payroll, and related records. Trucks, drivers, clients, and subcontractors are kept.
+                    Permanently deletes all batches, trips, invoices, clients, clearances, and related GL entries.
                   </p>
                 </div>
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => setResetTripsBatchesConfirm(true)}
-                  disabled={resettingTripsBatches}
+                  onClick={() => setClearDataConfirm(true)}
+                  disabled={clearing}
                   className="ml-6 shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  {resettingTripsBatches ? "Resetting..." : "Reset Trips & Batches"}
+                  {clearing ? "Clearing..." : "Clear Test Data"}
                 </Button>
               </div>
-              {!testDataCleared && (
-                <div className="flex items-center justify-between py-3 border-t border-border">
-                  <div>
-                    <p className="text-sm font-medium">Clear Test Data</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Permanently deletes all batches, trips, invoices, clients, clearances, and related GL entries.
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setClearDataConfirm(true)}
-                    disabled={clearing}
-                    className="ml-6 shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                    {clearing ? "Clearing..." : "Clear Test Data"}
-                  </Button>
-                </div>
-              )}
-              {!fleetDataDestroyed && (
-                <div className="flex items-center justify-between py-3 border-t border-border">
-                  <div>
-                    <p className="text-sm font-medium">Destroy Fleet Data</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Deletes all trucks (horses &amp; trailers), driver assignments, maintenance records, notifications, and expenses.
-                    </p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setDestroyFleetConfirm(true)}
-                    disabled={destroyingFleet}
-                    className="ml-6 shrink-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                    {destroyingFleet ? "Destroying..." : "Destroy Fleet"}
-                  </Button>
-                </div>
-              )}
             </div>
           )}
         </div>
