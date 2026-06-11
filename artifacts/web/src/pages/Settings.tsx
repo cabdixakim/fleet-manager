@@ -453,34 +453,6 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          {user?.role === "owner" && !loading && !testDataCleared && (
-            <div className="bg-card border border-destructive/40 rounded-xl p-6">
-              <h2 className="text-sm font-semibold text-destructive mb-1 flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4" />Danger Zone
-              </h2>
-              <p className="text-xs text-muted-foreground mb-4">
-                These actions are irreversible. Users and subcontractors are preserved.
-              </p>
-              <div className="flex items-center justify-between py-3 border-t border-border">
-                <div>
-                  <p className="text-sm font-medium">Clear Test Data</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Permanently deletes all batches, trips, invoices, clients, clearances, and related GL entries.
-                  </p>
-                </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setClearDataConfirm(true)}
-                  disabled={clearing}
-                  className="ml-6 shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  {clearing ? "Clearing..." : "Clear Test Data"}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       </PageContent>
 
