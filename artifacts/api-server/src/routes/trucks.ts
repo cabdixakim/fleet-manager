@@ -162,17 +162,26 @@ router.post("/register-with-driver", async (req, res, next) => {
     const plate = plateNumber.trim().toUpperCase();
 
     const { truckId, driverId } = await db.transaction(async (tx) => {
-      // 1. Subcontractor (outside unique-catch — sub names are not unique-constrained)
+      // 1. Subcontractor — find-or-create by name to prevent duplicates on retry
       let subcontractorId: number | null = existingSubId ? Number(existingSubId) : null;
       if (!companyOwned && newSubName?.trim()) {
-        const [newSub] = await tx
-          .insert(subcontractorsTable)
-          .values({ name: newSubName.trim() })
-          .returning({ id: subcontractorsTable.id });
-        subcontractorId = newSub.id;
+        const existing = await tx
+          .select({ id: subcontractorsTable.id })
+          .from(subcontractorsTable)
+          .where(eq(subcontractorsTable.name, newSubName.trim()))
+          .limit(1);
+        if (existing.length) {
+          subcontractorId = existing[0].id;
+        } else {
+          const [newSub] = await tx
+            .insert(subcontractorsTable)
+            .values({ name: newSubName.trim() })
+            .returning({ id: subcontractorsTable.id });
+          subcontractorId = newSub.id;
+        }
       }
 
-      // 2. Truck — on duplicate plate just return the existing truck's id
+      // 2. Truck — find-or-create by plate to handle retries gracefully
       let truckId: number;
       try {
         const [truck] = await tx
@@ -190,15 +199,24 @@ router.post("/register-with-driver", async (req, res, next) => {
         }
       }
 
-      // 3. Driver (optional)
+      // 3. Driver — only create if truck has no active driver assignment yet
       let driverId: number | null = null;
       if (driverName?.trim()) {
-        const [driver] = await tx
-          .insert(driversTable)
-          .values({ name: driverName.trim(), phone: driverPhone?.trim() || null, passportNumber: driverPassport?.trim() || null, licenseNumber: driverLicense?.trim() || null, status: "active" })
-          .returning({ id: driversTable.id });
-        driverId = driver.id;
-        await tx.insert(truckDriverAssignmentsTable).values({ truckId, driverId, assignedAt: new Date() });
+        const existingAssignment = await tx
+          .select({ driverId: truckDriverAssignmentsTable.driverId })
+          .from(truckDriverAssignmentsTable)
+          .where(eq(truckDriverAssignmentsTable.truckId, truckId))
+          .limit(1);
+        if (existingAssignment.length) {
+          driverId = existingAssignment[0].driverId;
+        } else {
+          const [driver] = await tx
+            .insert(driversTable)
+            .values({ name: driverName.trim(), phone: driverPhone?.trim() || null, passportNumber: driverPassport?.trim() || null, licenseNumber: driverLicense?.trim() || null, status: "active" })
+            .returning({ id: driversTable.id });
+          driverId = driver.id;
+          await tx.insert(truckDriverAssignmentsTable).values({ truckId, driverId, assignedAt: new Date() });
+        }
       }
 
       return { truckId, driverId };
