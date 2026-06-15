@@ -633,24 +633,30 @@ export default function BatchDetail() {
           if (textCells > bestHeaderScore) { bestHeaderScore = textCells; headerRowIdx = r; }
         }
         const headerRow = grid[headerRowIdx] ?? [];
-        const nameScore: number[] = Array(numCols).fill(0);
+        // Separate score arrays per field — avoids cross-contamination
+        const plateNameScore: number[]    = Array(numCols).fill(0);
+        const driverNameScore: number[]   = Array(numCols).fill(0);
+        const capNameScore: number[]      = Array(numCols).fill(0);
+        const phoneNameScore: number[]    = Array(numCols).fill(0);
+        const passportNameScore: number[] = Array(numCols).fill(0);
+        const licenseNameScore: number[]  = Array(numCols).fill(0);
         for (let c = 0; c < headerRow.length; c++) {
           const h = String(headerRow[c] ?? "").trim();
-          if (plateKw.test(h))    nameScore[c] += 10;
-          if (driverKw.test(h))   nameScore[c] += 8;
-          if (capKw.test(h))      nameScore[c] += 6;
-          if (phoneKw.test(h))    nameScore[c] += 7;
-          if (passportKw.test(h)) nameScore[c] += 7;
-          if (licenseKw.test(h))  nameScore[c] += 7;
+          if (plateKw.test(h))    plateNameScore[c]    = 10;
+          if (driverKw.test(h))   driverNameScore[c]   = 8;
+          if (capKw.test(h))      capNameScore[c]      = 6;
+          if (phoneKw.test(h))    phoneNameScore[c]    = 7;
+          if (passportKw.test(h)) passportNameScore[c] = 7;
+          if (licenseKw.test(h))  licenseNameScore[c]  = 7;
         }
 
         // ── COMBINED: fleet hits win if present, keyword wins otherwise ──
-        const combinedPlate    = Array.from({ length: numCols }, (_, i) => fleetScore[i].plateHits  * 5 + nameScore[i]);
-        const combinedDriver   = Array.from({ length: numCols }, (_, i) => fleetScore[i].driverHits  * 5 + (nameScore[i] >= 8 ? nameScore[i] : 0));
-        const combinedCap      = Array.from({ length: numCols }, (_, i) => fleetScore[i].numericCount * 3 + (nameScore[i] === 6 ? 6 : 0));
-        const combinedPhone    = Array.from({ length: numCols }, (_, i) => (nameScore[i] === 7 && phoneKw.test(String(headerRow[i] ?? "")) ? 7 : 0));
-        const combinedPassport = Array.from({ length: numCols }, (_, i) => (nameScore[i] >= 7 && passportKw.test(String(headerRow[i] ?? "")) ? 7 : 0));
-        const combinedLicense  = Array.from({ length: numCols }, (_, i) => (nameScore[i] >= 7 && licenseKw.test(String(headerRow[i] ?? "")) ? 7 : 0));
+        const combinedPlate    = Array.from({ length: numCols }, (_, i) => fleetScore[i].plateHits   * 5 + plateNameScore[i]);
+        const combinedDriver   = Array.from({ length: numCols }, (_, i) => fleetScore[i].driverHits  * 5 + driverNameScore[i]);
+        const combinedCap      = Array.from({ length: numCols }, (_, i) => fleetScore[i].numericCount * 3 + capNameScore[i]);
+        const combinedPhone    = Array.from({ length: numCols }, (_, i) => phoneNameScore[i]);
+        const combinedPassport = Array.from({ length: numCols }, (_, i) => passportNameScore[i]);
+        const combinedLicense  = Array.from({ length: numCols }, (_, i) => licenseNameScore[i]);
 
         const argmax = (arr: number[], exclude: number[] = []) =>
           arr.reduce((best, v, i) => (!exclude.includes(i) && v > arr[best] ? i : best), 0);
