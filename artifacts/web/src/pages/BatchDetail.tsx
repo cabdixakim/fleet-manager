@@ -12,7 +12,7 @@ import { exportToExcel } from "@/lib/export";
 import * as XLSX from "xlsx";
 import {
   Plus, Truck, ChevronLeft, Download, X, ChevronRight,
-  ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle, SlidersHorizontal, Phone, MessageCircle,
+  ArrowRight, CheckCircle2, Circle, Loader2, FileText, Printer, Pencil, AlertTriangle, AlertCircle, SlidersHorizontal, Phone, MessageCircle,
   FileSpreadsheet, Upload, CheckCheck, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -795,6 +795,20 @@ export default function BatchDetail() {
   const handleNominate = async () => {
     const valid = nominations.filter((n) => n.truckId && n.capacity);
     if (!valid.length) return;
+    // Pre-flight: catch duplicate trucks before hitting the server
+    const dupOnBatch = valid.find((n) => nominatedTruckIds.has(n.truckId));
+    if (dupOnBatch) {
+      const plate = (trucks as any[]).find((t: any) => String(t.id) === dupOnBatch.truckId)?.plateNumber ?? dupOnBatch.truckId;
+      toast({ variant: "destructive", title: "Duplicate truck", description: `${plate} is already nominated on this batch.` });
+      return;
+    }
+    const seenIds = new Set<string>();
+    const dupInForm = valid.find((n) => { if (seenIds.has(n.truckId)) return true; seenIds.add(n.truckId); return false; });
+    if (dupInForm) {
+      const plate = (trucks as any[]).find((t: any) => String(t.id) === dupInForm.truckId)?.plateNumber ?? dupInForm.truckId;
+      toast({ variant: "destructive", title: "Duplicate truck", description: `${plate} appears more than once. Remove the duplicate row.` });
+      return;
+    }
     // batchProduct is the product already locked for this batch (from existing trips).
     // Always use it when present so the form state default of "AGO" never sneaks through.
     const resolvedProduct = batchProduct;
@@ -1490,7 +1504,9 @@ export default function BatchDetail() {
                   <div>
                     <Label className="text-xs">Truck *</Label>
                     <Select value={n.truckId} onValueChange={(v) => updateNomination(i, "truckId", v)}>
-                      <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue placeholder="Select truck" /></SelectTrigger>
+                      <SelectTrigger className={`mt-1 h-8 text-xs ${n.truckId && (nominatedTruckIds.has(n.truckId) || nominations.some((nom, j) => j !== i && nom.truckId === n.truckId)) ? "border-destructive focus:ring-destructive" : ""}`}>
+                        <SelectValue placeholder="Select truck" />
+                      </SelectTrigger>
                       <SelectContent>
                         {(trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle").map((t: any) => {
                           const alreadyOnBatch = nominatedTruckIds.has(String(t.id));
@@ -1508,6 +1524,12 @@ export default function BatchDetail() {
                         })}
                       </SelectContent>
                     </Select>
+                    {n.truckId && nominatedTruckIds.has(n.truckId) && (
+                      <p className="text-xs text-destructive mt-0.5 flex items-center gap-1"><AlertCircle className="w-3 h-3 shrink-0" /> Already on this batch</p>
+                    )}
+                    {n.truckId && !nominatedTruckIds.has(n.truckId) && nominations.some((nom, j) => j !== i && nom.truckId === n.truckId) && (
+                      <p className="text-xs text-destructive mt-0.5 flex items-center gap-1"><AlertCircle className="w-3 h-3 shrink-0" /> Duplicate row</p>
+                    )}
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs">Driver</Label>
