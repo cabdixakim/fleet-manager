@@ -454,7 +454,7 @@ export default function BatchDetail() {
   type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no" | "new"; driverMatch: "ok" | "none" | "no"; newTruck?: NewTruckInfo; };
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importRaw, setImportRaw] = useState<{ headers: string[]; rows: Record<string, any>[] }>({ headers: [], rows: [] });
-  const [importCols, setImportCols] = useState({ plate: "", driver: "", capacity: "" });
+  const [importCols, setImportCols] = useState({ plate: "", driver: "", capacity: "", phone: "", passport: "", license: "" });
   const importFileRef = useRef<HTMLInputElement>(null);
   const [expandedNewTrucks, setExpandedNewTrucks] = useState<Set<number>>(new Set());
   const toggleNewTruck = (i: number) => setExpandedNewTrucks((prev) => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; });
@@ -543,15 +543,18 @@ export default function BatchDetail() {
     }
   };
 
-  const buildImportRows = (rawRows: Record<string, any>[], cols: { plate: string; driver: string; capacity: string }): ImportRow[] => {
+  const buildImportRows = (rawRows: Record<string, any>[], cols: { plate: string; driver: string; capacity: string; phone?: string; passport?: string; license?: string }): ImportRow[] => {
     const availTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
     const activeDrvs = (drivers as any[]).filter((d: any) => d.status === "active");
     const norm = (s: string) => s.toLowerCase().replace(/[\s\-\.]/g, "");
     return rawRows
       .map((row) => {
-        const rawPlate = cols.plate ? String(row[cols.plate] ?? "").trim() : "";
-        const rawDriver = cols.driver ? String(row[cols.driver] ?? "").trim() : "";
+        const rawPlate    = cols.plate    ? String(row[cols.plate]    ?? "").trim() : "";
+        const rawDriver   = cols.driver   ? String(row[cols.driver]   ?? "").trim() : "";
         const rawCapacity = cols.capacity ? String(row[cols.capacity] ?? "").trim() : "";
+        const rawPhone    = cols.phone    ? String(row[cols.phone]    ?? "").trim() : "";
+        const rawPassport = cols.passport ? String(row[cols.passport] ?? "").trim() : "";
+        const rawLicense  = cols.license  ? String(row[cols.license]  ?? "").trim() : "";
         const truckMatch = rawPlate
           ? availTrucks.find((t: any) => t.plateNumber.toLowerCase() === rawPlate.toLowerCase() || norm(t.plateNumber) === norm(rawPlate))
           : null;
@@ -568,7 +571,7 @@ export default function BatchDetail() {
           capacity: rawCapacity,
           plateMatch: (truckMatch ? "ok" : isNewTruck ? "new" : "no") as "ok" | "no" | "new",
           driverMatch: (rawDriver === "" ? "none" : driverMatch ? "ok" : "no") as "ok" | "none" | "no",
-          newTruck: isNewTruck ? { unitType: "horse", companyOwned: false, subcontractorId: "", newSubName: "", driverName: rawDriver, driverPhone: "", driverPassport: "", driverLicense: "" } : undefined,
+          newTruck: isNewTruck ? { unitType: "horse", companyOwned: false, subcontractorId: "", newSubName: "", driverName: rawDriver, driverPhone: rawPhone, driverPassport: rawPassport, driverLicense: rawLicense } : undefined,
         };
       })
       .filter((r) => r.rawPlate || r.rawCapacity);
@@ -614,9 +617,12 @@ export default function BatchDetail() {
 
         // ── SCORE 2: column header keyword match (works even with zero fleet overlap) ──
         // Find the most-likely header row: row whose cells are mostly short non-numeric text
-        const plateKw  = /horse|truck|vehicle|plate|reg|fleet|unit|tractor/i;
-        const driverKw = /driver|operator|name/i;
-        const capKw    = /qty|quant|capacity|volume|litre|liter|\bmt\b|metric|load|mass|kl/i;
+        const plateKw    = /horse|truck|vehicle|plate|reg|fleet|unit|tractor/i;
+        const driverKw   = /driver|operator|name/i;
+        const capKw      = /qty|quant|capacity|volume|litre|liter|\bmt\b|metric|load|mass|kl/i;
+        const phoneKw    = /phone|mobile|cell|contact|tel/i;
+        const passportKw = /passport|pass\s*no|pass\s*num/i;
+        const licenseKw  = /licen[sc]e|lic\s*no|driving/i;
         let headerRowIdx = 0;
         let bestHeaderScore = -1;
         for (let r = 0; r < Math.min(grid.length, 15); r++) {
@@ -630,22 +636,31 @@ export default function BatchDetail() {
         const nameScore: number[] = Array(numCols).fill(0);
         for (let c = 0; c < headerRow.length; c++) {
           const h = String(headerRow[c] ?? "").trim();
-          if (plateKw.test(h))  nameScore[c] += 10;
-          if (driverKw.test(h)) nameScore[c] += 8;
-          if (capKw.test(h))    nameScore[c] += 6;
+          if (plateKw.test(h))    nameScore[c] += 10;
+          if (driverKw.test(h))   nameScore[c] += 8;
+          if (capKw.test(h))      nameScore[c] += 6;
+          if (phoneKw.test(h))    nameScore[c] += 7;
+          if (passportKw.test(h)) nameScore[c] += 7;
+          if (licenseKw.test(h))  nameScore[c] += 7;
         }
 
         // ── COMBINED: fleet hits win if present, keyword wins otherwise ──
-        const combinedPlate  = Array.from({ length: numCols }, (_, i) => fleetScore[i].plateHits  * 5 + nameScore[i]);
-        const combinedDriver = Array.from({ length: numCols }, (_, i) => fleetScore[i].driverHits  * 5 + (nameScore[i] >= 8 ? nameScore[i] : 0));
-        const combinedCap    = Array.from({ length: numCols }, (_, i) => fleetScore[i].numericCount * 3 + (nameScore[i] === 6 ? 6 : 0));
+        const combinedPlate    = Array.from({ length: numCols }, (_, i) => fleetScore[i].plateHits  * 5 + nameScore[i]);
+        const combinedDriver   = Array.from({ length: numCols }, (_, i) => fleetScore[i].driverHits  * 5 + (nameScore[i] >= 8 ? nameScore[i] : 0));
+        const combinedCap      = Array.from({ length: numCols }, (_, i) => fleetScore[i].numericCount * 3 + (nameScore[i] === 6 ? 6 : 0));
+        const combinedPhone    = Array.from({ length: numCols }, (_, i) => (nameScore[i] === 7 && phoneKw.test(String(headerRow[i] ?? "")) ? 7 : 0));
+        const combinedPassport = Array.from({ length: numCols }, (_, i) => (nameScore[i] >= 7 && passportKw.test(String(headerRow[i] ?? "")) ? 7 : 0));
+        const combinedLicense  = Array.from({ length: numCols }, (_, i) => (nameScore[i] >= 7 && licenseKw.test(String(headerRow[i] ?? "")) ? 7 : 0));
 
         const argmax = (arr: number[], exclude: number[] = []) =>
           arr.reduce((best, v, i) => (!exclude.includes(i) && v > arr[best] ? i : best), 0);
 
         const plateColIdx    = argmax(combinedPlate);
-        const driverColIdx   = argmax(combinedDriver, [plateColIdx]);
-        const capacityColIdx = argmax(combinedCap,    [plateColIdx, driverColIdx]);
+        const driverColIdx   = argmax(combinedDriver,   [plateColIdx]);
+        const capacityColIdx = argmax(combinedCap,      [plateColIdx, driverColIdx]);
+        const phoneColIdx    = combinedPhone.some((v) => v > 0)    ? argmax(combinedPhone,    [plateColIdx, driverColIdx, capacityColIdx]) : -1;
+        const passportColIdx = combinedPassport.some((v) => v > 0) ? argmax(combinedPassport, [plateColIdx, driverColIdx, capacityColIdx]) : -1;
+        const licenseColIdx  = combinedLicense.some((v) => v > 0)  ? argmax(combinedLicense,  [plateColIdx, driverColIdx, capacityColIdx]) : -1;
 
         const plateConfident  = combinedPlate[plateColIdx]  > 0;
         const capConfident    = combinedCap[capacityColIdx]  > 0;
@@ -664,9 +679,12 @@ export default function BatchDetail() {
           .map((row) => Object.fromEntries(headers.map((h, i) => [h, String(row[i] ?? "").trim()])));
 
         const detectedCols = {
-          plate:    plateConfident  ? headers[plateColIdx]    : "",
-          driver:   combinedDriver[driverColIdx]   > 0 ? headers[driverColIdx]   : "",
-          capacity: capConfident    ? headers[capacityColIdx] : "",
+          plate:    plateConfident ? headers[plateColIdx]    : "",
+          driver:   combinedDriver[driverColIdx] > 0 ? headers[driverColIdx]   : "",
+          capacity: capConfident   ? headers[capacityColIdx] : "",
+          phone:    phoneColIdx    >= 0 ? headers[phoneColIdx]    : "",
+          passport: passportColIdx >= 0 ? headers[passportColIdx] : "",
+          license:  licenseColIdx  >= 0 ? headers[licenseColIdx]  : "",
         };
 
         setImportRaw({ headers, rows: dataRows });
