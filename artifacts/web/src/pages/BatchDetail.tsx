@@ -450,7 +450,7 @@ export default function BatchDetail() {
   const [nominations, setNominations] = useState([{ truckId: "", driverId: "", product: "AGO", capacity: "" }]);
   const [nominateTab, setNominateTab] = useState<"manual" | "import">("manual");
   const [importStep, setImportStep] = useState<"upload" | "pick" | "review">("upload");
-  type NewTruckInfo = { unitType: "horse" | "trailer"; companyOwned: boolean; subcontractorId: string; newSubName: string; driverName: string; driverPhone: string; };
+  type NewTruckInfo = { unitType: "horse" | "trailer"; companyOwned: boolean; subcontractorId: string; newSubName: string; driverName: string; driverPhone: string; driverPassport: string; driverLicense: string; };
   type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no" | "new"; driverMatch: "ok" | "none" | "no"; newTruck?: NewTruckInfo; };
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importRaw, setImportRaw] = useState<{ headers: string[]; rows: Record<string, any>[] }>({ headers: [], rows: [] });
@@ -566,7 +566,7 @@ export default function BatchDetail() {
           capacity: rawCapacity,
           plateMatch: (truckMatch ? "ok" : isNewTruck ? "new" : "no") as "ok" | "no" | "new",
           driverMatch: (rawDriver === "" ? "none" : driverMatch ? "ok" : "no") as "ok" | "none" | "no",
-          newTruck: isNewTruck ? { unitType: "horse", companyOwned: false, subcontractorId: "", newSubName: "", driverName: rawDriver, driverPhone: "" } : undefined,
+          newTruck: isNewTruck ? { unitType: "horse", companyOwned: false, subcontractorId: "", newSubName: "", driverName: rawDriver, driverPhone: "", driverPassport: "", driverLicense: "" } : undefined,
         };
       })
       .filter((r) => r.rawPlate || r.rawCapacity);
@@ -726,6 +726,8 @@ export default function BatchDetail() {
             newSubName: nt.newSubName.trim() || undefined,
             driverName: nt.driverName.trim() || undefined,
             driverPhone: nt.driverPhone.trim() || undefined,
+            driverPassport: nt.driverPassport.trim() || undefined,
+            driverLicense: nt.driverLicense.trim() || undefined,
           }),
         });
         if (!res.ok) {
@@ -1751,13 +1753,17 @@ export default function BatchDetail() {
                                 {/* ── Driver column ── */}
                                 <td className="px-3 py-2 align-top">
                                   {isNew ? (
-                                    /* For new trucks: editable name + phone */
-                                    <div className="space-y-1 min-w-[160px]">
+                                    /* For new trucks: editable driver details */
+                                    <div className="space-y-1 min-w-[180px]">
                                       <Input value={nt?.driverName ?? ""} onChange={(e) => updateNewTruck(i, "driverName", e.target.value)}
                                         placeholder="Driver name (optional)" className={`h-7 text-xs ${missingDriver ? "border-sky-400/50" : ""}`} />
                                       <Input value={nt?.driverPhone ?? ""} onChange={(e) => updateNewTruck(i, "driverPhone", e.target.value)}
                                         placeholder="Phone" className="h-7 text-xs" />
-                                      {missingDriver && <p className="text-[10px] text-sky-400">No driver — will warn</p>}
+                                      <Input value={nt?.driverPassport ?? ""} onChange={(e) => updateNewTruck(i, "driverPassport", e.target.value)}
+                                        placeholder="Passport no." className="h-7 text-xs" />
+                                      <Input value={nt?.driverLicense ?? ""} onChange={(e) => updateNewTruck(i, "driverLicense", e.target.value)}
+                                        placeholder="License no." className="h-7 text-xs" />
+                                      {missingDriver && <p className="text-[10px] text-sky-400">No driver — can assign later</p>}
                                     </div>
                                   ) : row.driverMatch === "ok" ? (
                                     <span className="text-foreground text-xs">{(drivers as any[]).find((d: any) => String(d.id) === row.driverId)?.name ?? row.rawDriver}</span>

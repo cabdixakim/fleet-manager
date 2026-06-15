@@ -146,6 +146,8 @@ router.post("/register-with-driver", async (req, res, next) => {
       newSubName,
       driverName,
       driverPhone,
+      driverPassport,
+      driverLicense,
     } = req.body;
 
     if (!plateNumber?.trim()) return res.status(400).json({ error: "Plate number is required." });
@@ -179,7 +181,7 @@ router.post("/register-with-driver", async (req, res, next) => {
     if (driverName?.trim()) {
       const [driver] = await db
         .insert(driversTable)
-        .values({ name: driverName.trim(), phone: driverPhone?.trim() ?? null, status: "active" })
+        .values({ name: driverName.trim(), phone: driverPhone?.trim() ?? null, passportNumber: driverPassport?.trim() ?? null, licenseNumber: driverLicense?.trim() ?? null, status: "active" })
         .returning({ id: driversTable.id });
       driverId = driver.id;
       // Link driver to truck
