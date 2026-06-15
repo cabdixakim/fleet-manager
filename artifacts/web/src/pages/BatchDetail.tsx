@@ -456,6 +456,8 @@ export default function BatchDetail() {
   const [importRaw, setImportRaw] = useState<{ headers: string[]; rows: Record<string, any>[] }>({ headers: [], rows: [] });
   const [importCols, setImportCols] = useState({ plate: "", driver: "", capacity: "" });
   const importFileRef = useRef<HTMLInputElement>(null);
+  const [expandedNewTrucks, setExpandedNewTrucks] = useState<Set<number>>(new Set());
+  const toggleNewTruck = (i: number) => setExpandedNewTrucks((prev) => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s; });
 
   const [qtyDialog, setQtyDialog] = useState<{ tripId: number; type: "loaded" | "delivered"; plate: string } | null>(null);
   const [qty, setQty] = useState("");
@@ -757,6 +759,7 @@ export default function BatchDetail() {
       invalidate();
       setShowNominate(false);
       setImportRows([]);
+      setExpandedNewTrucks(new Set());
       setImportStep("upload");
       setNominateTab("manual");
     } catch (err: any) {
@@ -1434,7 +1437,7 @@ export default function BatchDetail() {
       </PageContent>
 
       {/* ── Nominate Trucks Modal ── */}
-      <Dialog open={showNominate} onOpenChange={(o) => { setShowNominate(o); if (!o) { setNominateTab("manual"); setImportStep("upload"); setImportRows([]); } }}>
+      <Dialog open={showNominate} onOpenChange={(o) => { setShowNominate(o); if (!o) { setNominateTab("manual"); setImportStep("upload"); setImportRows([]); setExpandedNewTrucks(new Set()); } }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Nominate Trucks to Batch</DialogTitle>
@@ -1637,7 +1640,7 @@ export default function BatchDetail() {
                       <p className="text-sm font-medium">{importRows.length} truck{importRows.length !== 1 ? "s" : ""} found</p>
                       {importCols.plate && <p className="text-xs text-muted-foreground mt-0.5">Plate from <span className="font-mono">"{importCols.plate}"</span>{importCols.driver ? ` · Driver from "${importCols.driver}"` : ""}{importCols.capacity ? ` · Capacity from "${importCols.capacity}"` : ""}</p>}
                     </div>
-                    <button onClick={() => { setImportStep("upload"); setImportRows([]); setImportRaw({ headers: [], rows: [] }); }} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                    <button onClick={() => { setImportStep("upload"); setImportRows([]); setImportRaw({ headers: [], rows: [] }); setExpandedNewTrucks(new Set()); }} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
                       <Upload className="w-3 h-3" /> New file
                     </button>
                   </div>
@@ -1677,61 +1680,73 @@ export default function BatchDetail() {
                                   {row.plateMatch === "ok" ? (
                                     <span className="font-mono font-semibold text-foreground text-xs">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
                                   ) : row.plateMatch === "new" ? (
-                                    /* ─── NEW TRUCK INLINE REGISTRATION ─── */
-                                    <div className="space-y-2 min-w-[220px]">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="font-mono font-semibold text-xs text-foreground">{row.rawPlate}</span>
-                                        <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-medium">New truck</span>
-                                      </div>
+                                    /* ─── NEW TRUCK — collapsible registration ─── */
+                                    (() => {
+                                      const expanded = expandedNewTrucks.has(i);
+                                      const subLabel = nt?.companyOwned ? "Company" : nt?.subcontractorId ? (subcontractors as any[]).find((s: any) => String(s.id) === nt.subcontractorId)?.name : nt?.newSubName?.trim() || null;
+                                      return (
+                                        <div className="space-y-1.5">
+                                          {/* ── Always-visible summary row ── */}
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-mono font-semibold text-xs text-foreground">{row.rawPlate}</span>
+                                            <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-medium">New</span>
+                                            {subLabel && <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">{subLabel}</span>}
+                                            <button onClick={() => toggleNewTruck(i)}
+                                              className="text-[10px] text-primary hover:underline ml-auto whitespace-nowrap">
+                                              {expanded ? "▲ Collapse" : "▸ Register"}
+                                            </button>
+                                          </div>
 
-                                      {/* Unit type */}
-                                      <div className="flex gap-1">
-                                        {(["horse", "trailer"] as const).map((ut) => (
-                                          <button key={ut} onClick={() => updateNewTruck(i, "unitType", ut)}
-                                            className={`text-[10px] px-2 py-0.5 rounded border capitalize transition-colors ${nt?.unitType === ut ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
-                                            {ut}
-                                          </button>
-                                        ))}
-                                      </div>
+                                          {/* ── Expandable form ── */}
+                                          {expanded && (
+                                            <div className="space-y-2 pt-1 border-t border-border/50">
+                                              {/* Unit type */}
+                                              <div className="flex gap-1">
+                                                {(["horse", "trailer"] as const).map((ut) => (
+                                                  <button key={ut} onClick={() => updateNewTruck(i, "unitType", ut)}
+                                                    className={`text-[10px] px-2 py-0.5 rounded border capitalize transition-colors ${nt?.unitType === ut ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
+                                                    {ut}
+                                                  </button>
+                                                ))}
+                                              </div>
 
-                                      {/* Ownership toggle */}
-                                      <div className="flex gap-1">
-                                        <button onClick={() => updateNewTruck(i, "companyOwned", true)}
-                                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${nt?.companyOwned ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
-                                          Company
-                                        </button>
-                                        <button onClick={() => updateNewTruck(i, "companyOwned", false)}
-                                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${!nt?.companyOwned ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
-                                          Subcontractor
-                                        </button>
-                                      </div>
+                                              {/* Ownership toggle */}
+                                              <div className="flex gap-1">
+                                                <button onClick={() => updateNewTruck(i, "companyOwned", true)}
+                                                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${nt?.companyOwned ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
+                                                  Company
+                                                </button>
+                                                <button onClick={() => updateNewTruck(i, "companyOwned", false)}
+                                                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${!nt?.companyOwned ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
+                                                  Subcontractor
+                                                </button>
+                                              </div>
 
-                                      {/* Subcontractor section */}
-                                      {!nt?.companyOwned && (
-                                        <div className="space-y-1">
-                                          <Select value={nt?.subcontractorId || "__new__"} onValueChange={(v) => updateNewTruck(i, "subcontractorId", v === "__new__" ? "" : v)}>
-                                            <SelectTrigger className="h-7 text-xs">
-                                              <SelectValue placeholder="Select subcontractor…" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="__new__">+ New subcontractor</SelectItem>
-                                              {(subcontractors as any[]).filter((s: any) => s.isActive !== false).map((s: any) => (
-                                                <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                          {/* New sub name field — shown when "+ New" is selected */}
-                                          {!nt?.subcontractorId && (
-                                            <Input
-                                              value={nt?.newSubName ?? ""}
-                                              onChange={(e) => updateNewTruck(i, "newSubName", e.target.value)}
-                                              placeholder="New subcontractor name…"
-                                              className="h-7 text-xs"
-                                            />
+                                              {/* Subcontractor section */}
+                                              {!nt?.companyOwned && (
+                                                <div className="space-y-1">
+                                                  <Select value={nt?.subcontractorId || "__new__"} onValueChange={(v) => updateNewTruck(i, "subcontractorId", v === "__new__" ? "" : v)}>
+                                                    <SelectTrigger className="h-7 text-xs">
+                                                      <SelectValue placeholder="Select subcontractor…" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      <SelectItem value="__new__">+ New subcontractor</SelectItem>
+                                                      {(subcontractors as any[]).filter((s: any) => s.isActive !== false).map((s: any) => (
+                                                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                  {!nt?.subcontractorId && (
+                                                    <Input value={nt?.newSubName ?? ""} onChange={(e) => updateNewTruck(i, "newSubName", e.target.value)}
+                                                      placeholder="New subcontractor name…" className="h-7 text-xs" />
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
                                           )}
                                         </div>
-                                      )}
-                                    </div>
+                                      );
+                                    })()
                                   ) : (
                                     /* ── Unrecognized — pick existing ── */
                                     <div className="space-y-0.5">
@@ -1753,18 +1768,25 @@ export default function BatchDetail() {
                                 {/* ── Driver column ── */}
                                 <td className="px-3 py-2 align-top">
                                   {isNew ? (
-                                    /* For new trucks: editable driver details */
-                                    <div className="space-y-1 min-w-[180px]">
-                                      <Input value={nt?.driverName ?? ""} onChange={(e) => updateNewTruck(i, "driverName", e.target.value)}
-                                        placeholder="Driver name (optional)" className={`h-7 text-xs ${missingDriver ? "border-sky-400/50" : ""}`} />
-                                      <Input value={nt?.driverPhone ?? ""} onChange={(e) => updateNewTruck(i, "driverPhone", e.target.value)}
-                                        placeholder="Phone" className="h-7 text-xs" />
-                                      <Input value={nt?.driverPassport ?? ""} onChange={(e) => updateNewTruck(i, "driverPassport", e.target.value)}
-                                        placeholder="Passport no." className="h-7 text-xs" />
-                                      <Input value={nt?.driverLicense ?? ""} onChange={(e) => updateNewTruck(i, "driverLicense", e.target.value)}
-                                        placeholder="License no." className="h-7 text-xs" />
-                                      {missingDriver && <p className="text-[10px] text-sky-400">No driver — can assign later</p>}
-                                    </div>
+                                    expandedNewTrucks.has(i) ? (
+                                      /* Expanded: full driver fields */
+                                      <div className="space-y-1 min-w-[180px]">
+                                        <Input value={nt?.driverName ?? ""} onChange={(e) => updateNewTruck(i, "driverName", e.target.value)}
+                                          placeholder="Driver name (optional)" className={`h-7 text-xs ${missingDriver ? "border-sky-400/50" : ""}`} />
+                                        <Input value={nt?.driverPhone ?? ""} onChange={(e) => updateNewTruck(i, "driverPhone", e.target.value)}
+                                          placeholder="Phone" className="h-7 text-xs" />
+                                        <Input value={nt?.driverPassport ?? ""} onChange={(e) => updateNewTruck(i, "driverPassport", e.target.value)}
+                                          placeholder="Passport no." className="h-7 text-xs" />
+                                        <Input value={nt?.driverLicense ?? ""} onChange={(e) => updateNewTruck(i, "driverLicense", e.target.value)}
+                                          placeholder="License no." className="h-7 text-xs" />
+                                        {missingDriver && <p className="text-[10px] text-sky-400">No driver — can assign later</p>}
+                                      </div>
+                                    ) : (
+                                      /* Collapsed: show driver name summary if filled, else dash */
+                                      <span className="text-xs text-muted-foreground italic">
+                                        {nt?.driverName?.trim() || "—"}
+                                      </span>
+                                    )
                                   ) : row.driverMatch === "ok" ? (
                                     <span className="text-foreground text-xs">{(drivers as any[]).find((d: any) => String(d.id) === row.driverId)?.name ?? row.rawDriver}</span>
                                   ) : row.driverMatch === "none" ? (
