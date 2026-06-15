@@ -544,7 +544,7 @@ export default function BatchDetail() {
   };
 
   const buildImportRows = (rawRows: Record<string, any>[], cols: { plate: string; driver: string; capacity: string; phone?: string; passport?: string; license?: string }): ImportRow[] => {
-    const availTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
+    const availTrucks = trucks as any[];
     const activeDrvs = (drivers as any[]).filter((d: any) => d.status === "active");
     const norm = (s: string) => s.toLowerCase().replace(/[\s\-\.]/g, "");
     return rawRows
@@ -593,7 +593,7 @@ export default function BatchDetail() {
         if (!grid.length) { toast({ variant: "destructive", title: "Empty file", description: "No data found in the uploaded file." }); return; }
 
         const norm = (s: string) => s.toLowerCase().replace(/[\s\-\._\/\\]/g, "");
-        const allTrucks = (trucks as any[]).filter((t: any) => t.status === "available" || t.status === "idle");
+        const allTrucks = trucks as any[];
         const allDrivers = (drivers as any[]).filter((d: any) => d.status === "active");
         const plateNorm = new Map(allTrucks.map((t: any) => [norm(t.plateNumber), String(t.id)]));
         const driverNorm = new Map(allDrivers.map((d: any) => [norm(d.name), String(d.id)]));
