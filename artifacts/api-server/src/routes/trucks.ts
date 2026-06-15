@@ -152,50 +152,65 @@ router.post("/register-with-driver", async (req, res, next) => {
 
     if (!plateNumber?.trim()) return res.status(400).json({ error: "Plate number is required." });
 
-    // 1. Subcontractor
-    let subcontractorId: number | null = existingSubId ?? null;
-    if (!companyOwned && newSubName?.trim()) {
-      const [newSub] = await db
-        .insert(subcontractorsTable)
-        .values({ name: newSubName.trim() })
-        .returning({ id: subcontractorsTable.id });
-      subcontractorId = newSub.id;
-      await logAudit(req, { action: "create", entity: "subcontractor", entityId: newSub.id, description: `Quick-registered subcontractor "${newSubName.trim()}" during batch import` });
+    const isUniqueViolation = (e: any) =>
+      e?.constraint?.includes("unique") ||
+      e?.cause?.constraint?.includes("unique") ||
+      e?.message?.toLowerCase().includes("unique") ||
+      e?.cause?.message?.toLowerCase().includes("unique") ||
+      String(e?.cause ?? "").toLowerCase().includes("unique");
+
+    const plate = plateNumber.trim().toUpperCase();
+
+    const { truckId, driverId } = await db.transaction(async (tx) => {
+      // 1. Subcontractor (outside unique-catch — sub names are not unique-constrained)
+      let subcontractorId: number | null = existingSubId ? Number(existingSubId) : null;
+      if (!companyOwned && newSubName?.trim()) {
+        const [newSub] = await tx
+          .insert(subcontractorsTable)
+          .values({ name: newSubName.trim() })
+          .returning({ id: subcontractorsTable.id });
+        subcontractorId = newSub.id;
+      }
+
+      // 2. Truck — on duplicate plate just return the existing truck's id
+      let truckId: number;
+      try {
+        const [truck] = await tx
+          .insert(trucksTable)
+          .values({ plateNumber: plate, unitType, companyOwned: !!companyOwned, subcontractorId: companyOwned ? null : subcontractorId, status: "available" })
+          .returning({ id: trucksTable.id });
+        truckId = truck.id;
+      } catch (e: any) {
+        if (isUniqueViolation(e)) {
+          const existing = await tx.select({ id: trucksTable.id }).from(trucksTable).where(eq(trucksTable.plateNumber, plate)).limit(1);
+          if (!existing.length) throw e;
+          truckId = existing[0].id;
+        } else {
+          throw e;
+        }
+      }
+
+      // 3. Driver (optional)
+      let driverId: number | null = null;
+      if (driverName?.trim()) {
+        const [driver] = await tx
+          .insert(driversTable)
+          .values({ name: driverName.trim(), phone: driverPhone?.trim() || null, passportNumber: driverPassport?.trim() || null, licenseNumber: driverLicense?.trim() || null, status: "active" })
+          .returning({ id: driversTable.id });
+        driverId = driver.id;
+        await tx.insert(truckDriverAssignmentsTable).values({ truckId, driverId, assignedAt: new Date() });
+      }
+
+      return { truckId, driverId };
+    });
+
+    await logAudit(req, { action: "create", entity: "truck", entityId: truckId, description: `Quick-registered truck ${plate} during batch import` });
+    if (driverId) {
+      await logAudit(req, { action: "create", entity: "driver", entityId: driverId, description: `Quick-registered driver "${driverName?.trim()}" and linked to truck ${plate}` });
     }
 
-    // 2. Truck
-    const [truck] = await db
-      .insert(trucksTable)
-      .values({
-        plateNumber: plateNumber.trim().toUpperCase(),
-        unitType,
-        companyOwned: !!companyOwned,
-        subcontractorId: companyOwned ? null : subcontractorId,
-        status: "available",
-      })
-      .returning({ id: trucksTable.id });
-    await logAudit(req, { action: "create", entity: "truck", entityId: truck.id, description: `Quick-registered truck ${plateNumber.trim().toUpperCase()} during batch import` });
-
-    // 3. Driver (optional)
-    let driverId: number | null = null;
-    if (driverName?.trim()) {
-      const [driver] = await db
-        .insert(driversTable)
-        .values({ name: driverName.trim(), phone: driverPhone?.trim() ?? null, passportNumber: driverPassport?.trim() ?? null, licenseNumber: driverLicense?.trim() ?? null, status: "active" })
-        .returning({ id: driversTable.id });
-      driverId = driver.id;
-      // Link driver to truck
-      await db.insert(truckDriverAssignmentsTable).values({
-        truckId: truck.id, driverId: driver.id, assignedAt: new Date(), isActive: true,
-      });
-      await logAudit(req, { action: "create", entity: "driver", entityId: driver.id, description: `Quick-registered driver "${driverName.trim()}" and linked to truck ${plateNumber.trim().toUpperCase()}` });
-    }
-
-    res.status(201).json({ truckId: truck.id, driverId });
+    res.status(201).json({ truckId, driverId });
   } catch (e: any) {
-    if (e?.constraint === "trucks_plate_number_unique" || e?.message?.includes("unique")) {
-      return res.status(409).json({ error: `Plate ${req.body.plateNumber} already exists.` });
-    }
     next(e);
   }
 });
