@@ -431,6 +431,10 @@ export default function BatchDetail() {
   const { data: trucks = [] } = useGetTrucks();
   const { data: drivers = [] } = useGetDrivers();
   const { data: agents = [] } = useGetAgents();
+  const { data: subcontractors = [] } = useQuery<any[]>({
+    queryKey: ["/api/subcontractors"],
+    queryFn: () => fetch("/api/subcontractors", { credentials: "include" }).then((r) => r.json()),
+  });
   const { data: company } = useQuery({
     queryKey: ["/api/company-settings"],
     queryFn: () => fetch("/api/company-settings", { credentials: "include" }).then((r) => r.json()),
@@ -446,7 +450,8 @@ export default function BatchDetail() {
   const [nominations, setNominations] = useState([{ truckId: "", driverId: "", product: "AGO", capacity: "" }]);
   const [nominateTab, setNominateTab] = useState<"manual" | "import">("manual");
   const [importStep, setImportStep] = useState<"upload" | "pick" | "review">("upload");
-  type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no"; driverMatch: "ok" | "none" | "no" };
+  type NewTruckInfo = { unitType: "horse" | "trailer"; companyOwned: boolean; subcontractorId: string; newSubName: string; driverName: string; driverPhone: string; };
+  type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no" | "new"; driverMatch: "ok" | "none" | "no"; newTruck?: NewTruckInfo; };
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importRaw, setImportRaw] = useState<{ headers: string[]; rows: Record<string, any>[] }>({ headers: [], rows: [] });
   const [importCols, setImportCols] = useState({ plate: "", driver: "", capacity: "" });
@@ -551,6 +556,7 @@ export default function BatchDetail() {
         const driverMatch = rawDriver
           ? activeDrvs.find((d: any) => d.name.toLowerCase() === rawDriver.toLowerCase() || norm(d.name) === norm(rawDriver))
           : null;
+        const isNewTruck = !truckMatch && !!rawPlate;
         return {
           rawPlate,
           rawDriver,
@@ -558,8 +564,9 @@ export default function BatchDetail() {
           truckId: truckMatch ? String(truckMatch.id) : "",
           driverId: driverMatch ? String(driverMatch.id) : "",
           capacity: rawCapacity,
-          plateMatch: (truckMatch ? "ok" : "no") as "ok" | "no",
+          plateMatch: (truckMatch ? "ok" : isNewTruck ? "new" : "no") as "ok" | "no" | "new",
           driverMatch: (rawDriver === "" ? "none" : driverMatch ? "ok" : "no") as "ok" | "none" | "no",
+          newTruck: isNewTruck ? { unitType: "horse", companyOwned: false, subcontractorId: "", newSubName: "", driverName: rawDriver, driverPhone: "" } : undefined,
         };
       })
       .filter((r) => r.rawPlate || r.rawCapacity);
@@ -690,16 +697,50 @@ export default function BatchDetail() {
   const updateImportRow = (i: number, field: keyof ImportRow, value: string) => {
     setImportRows((prev) => prev.map((r, idx) => idx !== i ? r : { ...r, [field]: value }));
   };
+  const updateNewTruck = (i: number, field: keyof NewTruckInfo, value: string | boolean) => {
+    setImportRows((prev) => prev.map((r, idx) => idx !== i ? r : { ...r, newTruck: r.newTruck ? { ...r.newTruck, [field]: value } : r.newTruck }));
+  };
 
   const handleImportSubmit = async () => {
     const resolvedProduct = batchProduct;
-    const valid = importRows.filter((r) => r.truckId && r.capacity);
+    // Rows that are ready: existing trucks need truckId+capacity; new trucks need rawPlate+capacity
+    const valid = importRows.filter((r) => (r.truckId || r.plateMatch === "new") && r.capacity);
     if (!valid.length) return;
     try {
+      // 1. Register any new trucks first (sequentially to surface errors cleanly)
+      const resolvedRows = await Promise.all(valid.map(async (r) => {
+        if (r.plateMatch !== "new" || !r.newTruck) return r;
+        const nt = r.newTruck;
+        if (!nt.companyOwned && !nt.subcontractorId && !nt.newSubName.trim()) {
+          throw new Error(`Truck "${r.rawPlate}": choose a subcontractor or enter a new subcontractor name, or mark as company-owned.`);
+        }
+        const res = await fetch("/api/trucks/register-with-driver", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            plateNumber: r.rawPlate,
+            unitType: nt.unitType,
+            companyOwned: nt.companyOwned,
+            subcontractorId: nt.subcontractorId ? parseInt(nt.subcontractorId) : undefined,
+            newSubName: nt.newSubName.trim() || undefined,
+            driverName: nt.driverName.trim() || undefined,
+            driverPhone: nt.driverPhone.trim() || undefined,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? `Failed to register truck "${r.rawPlate}"`);
+        }
+        const { truckId, driverId } = await res.json();
+        return { ...r, truckId: String(truckId), driverId: driverId ? String(driverId) : r.driverId };
+      }));
+
+      // 2. Nominate all
       await nominate({
         id,
         data: {
-          nominations: valid.map((r) => ({
+          nominations: resolvedRows.map((r) => ({
             truckId: parseInt(r.truckId),
             driverId: r.driverId ? parseInt(r.driverId) : undefined,
             product: (resolvedProduct ?? "AGO") as "AGO" | "PMS",
@@ -707,13 +748,17 @@ export default function BatchDetail() {
           })),
         },
       });
+      // Refresh trucks + drivers lists so newly registered appear immediately
+      qc.invalidateQueries({ queryKey: ["/api/trucks"] });
+      qc.invalidateQueries({ queryKey: ["/api/drivers"] });
+      qc.invalidateQueries({ queryKey: ["/api/subcontractors"] });
       invalidate();
       setShowNominate(false);
       setImportRows([]);
       setImportStep("upload");
       setNominateTab("manual");
     } catch (err: any) {
-      const msg = err?.data?.error ?? err?.message ?? "Nomination failed. Please try again.";
+      const msg = err?.message ?? err?.data?.error ?? "Nomination failed. Please try again.";
       toast({ variant: "destructive", title: "Cannot nominate", description: msg });
     }
   };
@@ -1609,58 +1654,137 @@ export default function BatchDetail() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {importRows.map((row, i) => {
-                            const isReady = row.truckId && row.capacity;
+                            const nt = row.newTruck;
+                            const isNew = row.plateMatch === "new";
+                            // "new" rows are ready if capacity set + ownership resolved
+                            const newReady = isNew && !!row.capacity && (nt?.companyOwned || !!nt?.subcontractorId || !!nt?.newSubName?.trim());
+                            const isReady = isNew ? newReady : (!!row.truckId && !!row.capacity);
+                            const missingDriver = isNew && !!nt && !nt.driverName.trim();
                             return (
-                              <tr key={i} className={isReady ? "bg-emerald-500/5" : "bg-amber-500/5"}>
-                                <td className="px-3 py-2">
-                                  {isReady ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                              <tr key={i} className={isReady ? (missingDriver ? "bg-sky-500/5" : "bg-emerald-500/5") : "bg-amber-500/5"}>
+                                <td className="px-3 py-2 align-top pt-3">
+                                  {isReady
+                                    ? missingDriver
+                                      ? <AlertTriangle className="w-3.5 h-3.5 text-sky-400" title="No driver — will import without one" />
+                                      : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                    : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
                                 </td>
-                                <td className="px-3 py-2">
-                                  {row.plateMatch === "ok"
-                                    ? <span className="font-mono font-semibold text-foreground">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
-                                    : (
-                                      <div className="space-y-0.5">
-                                        <Select value={row.truckId} onValueChange={(v) => updateImportRow(i, "truckId", v)}>
-                                          <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
-                                            <SelectValue placeholder={row.rawPlate ? `"${row.rawPlate}" — not found` : "Pick truck"} />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {(trucks as any[]).filter((t: any) => (t.status === "available" || t.status === "idle") && !nominatedTruckIds.has(String(t.id))).map((t: any) => (
-                                              <SelectItem key={t.id} value={String(t.id)}>{t.plateNumber}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                        {row.rawPlate && <p className="text-[10px] text-amber-400 font-mono pl-1">"{row.rawPlate}"</p>}
+
+                                {/* ── Plate column ── */}
+                                <td className="px-3 py-2 align-top">
+                                  {row.plateMatch === "ok" ? (
+                                    <span className="font-mono font-semibold text-foreground text-xs">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
+                                  ) : row.plateMatch === "new" ? (
+                                    /* ─── NEW TRUCK INLINE REGISTRATION ─── */
+                                    <div className="space-y-2 min-w-[220px]">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-semibold text-xs text-foreground">{row.rawPlate}</span>
+                                        <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-medium">New truck</span>
                                       </div>
-                                    )}
-                                </td>
-                                <td className="px-3 py-2">
-                                  {row.driverMatch === "ok"
-                                    ? <span className="text-foreground">{(drivers as any[]).find((d: any) => String(d.id) === row.driverId)?.name ?? row.rawDriver}</span>
-                                    : row.driverMatch === "none"
-                                      ? <span className="text-muted-foreground italic">—</span>
-                                      : (
-                                        <div className="space-y-0.5">
-                                          <Select value={row.driverId || "__skip__"} onValueChange={(v) => updateImportRow(i, "driverId", v === "__skip__" ? "" : v)}>
-                                            <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
-                                              <SelectValue placeholder={row.rawDriver ? `"${row.rawDriver}" — not found` : "Pick driver"} />
+
+                                      {/* Unit type */}
+                                      <div className="flex gap-1">
+                                        {(["horse", "trailer"] as const).map((ut) => (
+                                          <button key={ut} onClick={() => updateNewTruck(i, "unitType", ut)}
+                                            className={`text-[10px] px-2 py-0.5 rounded border capitalize transition-colors ${nt?.unitType === ut ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
+                                            {ut}
+                                          </button>
+                                        ))}
+                                      </div>
+
+                                      {/* Ownership toggle */}
+                                      <div className="flex gap-1">
+                                        <button onClick={() => updateNewTruck(i, "companyOwned", true)}
+                                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${nt?.companyOwned ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
+                                          Company
+                                        </button>
+                                        <button onClick={() => updateNewTruck(i, "companyOwned", false)}
+                                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${!nt?.companyOwned ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-foreground"}`}>
+                                          Subcontractor
+                                        </button>
+                                      </div>
+
+                                      {/* Subcontractor section */}
+                                      {!nt?.companyOwned && (
+                                        <div className="space-y-1">
+                                          <Select value={nt?.subcontractorId || "__new__"} onValueChange={(v) => updateNewTruck(i, "subcontractorId", v === "__new__" ? "" : v)}>
+                                            <SelectTrigger className="h-7 text-xs">
+                                              <SelectValue placeholder="Select subcontractor…" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                              <SelectItem value="__skip__">— Skip driver —</SelectItem>
-                                              {(drivers as any[]).filter((d: any) => d.status === "active").map((d: any) => (
-                                                <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                                              <SelectItem value="__new__">+ New subcontractor</SelectItem>
+                                              {(subcontractors as any[]).filter((s: any) => s.isActive !== false).map((s: any) => (
+                                                <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                                               ))}
                                             </SelectContent>
-                                            
                                           </Select>
-                                          {row.rawDriver && <p className="text-[10px] text-amber-400 pl-1">"{row.rawDriver}"</p>}
+                                          {/* New sub name field — shown when "+ New" is selected */}
+                                          {!nt?.subcontractorId && (
+                                            <Input
+                                              value={nt?.newSubName ?? ""}
+                                              onChange={(e) => updateNewTruck(i, "newSubName", e.target.value)}
+                                              placeholder="New subcontractor name…"
+                                              className="h-7 text-xs"
+                                            />
+                                          )}
                                         </div>
                                       )}
+                                    </div>
+                                  ) : (
+                                    /* ── Unrecognized — pick existing ── */
+                                    <div className="space-y-0.5">
+                                      <Select value={row.truckId} onValueChange={(v) => updateImportRow(i, "truckId", v)}>
+                                        <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
+                                          <SelectValue placeholder={row.rawPlate ? `"${row.rawPlate}" — not found` : "Pick truck"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {(trucks as any[]).filter((t: any) => (t.status === "available" || t.status === "idle") && !nominatedTruckIds.has(String(t.id))).map((t: any) => (
+                                            <SelectItem key={t.id} value={String(t.id)}>{t.plateNumber}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {row.rawPlate && <p className="text-[10px] text-amber-400 font-mono pl-1">"{row.rawPlate}"</p>}
+                                    </div>
+                                  )}
                                 </td>
-                                <td className="px-3 py-2">
+
+                                {/* ── Driver column ── */}
+                                <td className="px-3 py-2 align-top">
+                                  {isNew ? (
+                                    /* For new trucks: editable name + phone */
+                                    <div className="space-y-1 min-w-[160px]">
+                                      <Input value={nt?.driverName ?? ""} onChange={(e) => updateNewTruck(i, "driverName", e.target.value)}
+                                        placeholder="Driver name (optional)" className={`h-7 text-xs ${missingDriver ? "border-sky-400/50" : ""}`} />
+                                      <Input value={nt?.driverPhone ?? ""} onChange={(e) => updateNewTruck(i, "driverPhone", e.target.value)}
+                                        placeholder="Phone" className="h-7 text-xs" />
+                                      {missingDriver && <p className="text-[10px] text-sky-400">No driver — will warn</p>}
+                                    </div>
+                                  ) : row.driverMatch === "ok" ? (
+                                    <span className="text-foreground text-xs">{(drivers as any[]).find((d: any) => String(d.id) === row.driverId)?.name ?? row.rawDriver}</span>
+                                  ) : row.driverMatch === "none" ? (
+                                    <span className="text-muted-foreground italic text-xs">—</span>
+                                  ) : (
+                                    <div className="space-y-0.5">
+                                      <Select value={row.driverId || "__skip__"} onValueChange={(v) => updateImportRow(i, "driverId", v === "__skip__" ? "" : v)}>
+                                        <SelectTrigger className="h-7 text-xs border-amber-500/50 bg-amber-500/10 min-w-[150px]">
+                                          <SelectValue placeholder={row.rawDriver ? `"${row.rawDriver}" — not found` : "Pick driver"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="__skip__">— Skip driver —</SelectItem>
+                                          {(drivers as any[]).filter((d: any) => d.status === "active").map((d: any) => (
+                                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      {row.rawDriver && <p className="text-[10px] text-amber-400 pl-1">"{row.rawDriver}"</p>}
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="px-3 py-2 align-top pt-3">
                                   <Input type="number" value={row.capacity} onChange={(e) => updateImportRow(i, "capacity", e.target.value)} className="h-7 text-xs w-24" placeholder="0.000" />
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-2 align-top pt-3">
                                   <button onClick={() => setImportRows((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-destructive transition-colors">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
@@ -1673,10 +1797,16 @@ export default function BatchDetail() {
                     </div>
                   </div>
 
-                  {importRows.some((r) => !r.truckId || !r.capacity) && (
+                  {importRows.some((r) => r.plateMatch === "new" && r.newTruck && !r.newTruck.driverName.trim()) && (
+                    <p className="text-xs text-sky-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Blue rows will be registered without a driver — you can assign one later.
+                    </p>
+                  )}
+                  {importRows.some((r) => (r.plateMatch !== "new" && !r.truckId) || !r.capacity) && (
                     <p className="text-xs text-amber-400 flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5" />
-                      Amber rows won't be submitted. Fix the truck or remove the row.
+                      Amber rows won't be submitted. Fix the truck / ownership or remove the row.
                     </p>
                   )}
                 </div>
@@ -1692,12 +1822,15 @@ export default function BatchDetail() {
                 {nominating ? "Nominating..." : `Nominate ${nominations.filter((n) => n.truckId).length || ""} Truck${nominations.filter((n) => n.truckId).length !== 1 ? "s" : ""}`}
               </Button>
             )}
-            {nominateTab === "import" && importStep === "review" && (
-              <Button onClick={handleImportSubmit} disabled={nominating || importRows.filter((r) => r.truckId && r.capacity).length === 0}>
-                {nominating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCheck className="w-4 h-4 mr-2" />}
-                {nominating ? "Nominating..." : `Submit ${importRows.filter((r) => r.truckId && r.capacity).length} Truck${importRows.filter((r) => r.truckId && r.capacity).length !== 1 ? "s" : ""}`}
-              </Button>
-            )}
+            {nominateTab === "import" && importStep === "review" && (() => {
+              const readyCount = importRows.filter((r) => (r.truckId || r.plateMatch === "new") && r.capacity && (r.plateMatch !== "new" || r.newTruck?.companyOwned || r.newTruck?.subcontractorId || r.newTruck?.newSubName?.trim())).length;
+              return (
+                <Button onClick={handleImportSubmit} disabled={nominating || readyCount === 0}>
+                  {nominating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCheck className="w-4 h-4 mr-2" />}
+                  {nominating ? "Registering & Nominating..." : `Submit ${readyCount} Truck${readyCount !== 1 ? "s" : ""}`}
+                </Button>
+              );
+            })()}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -134,6 +134,70 @@ router.get("/", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /trucks/register-with-driver — used by batch import to create a new truck (+ optional sub + optional driver) in one shot.
+// Returns { truckId, driverId? } so the caller can immediately nominate.
+router.post("/register-with-driver", async (req, res, next) => {
+  try {
+    const {
+      plateNumber,
+      unitType = "horse",
+      companyOwned = false,
+      subcontractorId: existingSubId,
+      newSubName,
+      driverName,
+      driverPhone,
+    } = req.body;
+
+    if (!plateNumber?.trim()) return res.status(400).json({ error: "Plate number is required." });
+
+    // 1. Subcontractor
+    let subcontractorId: number | null = existingSubId ?? null;
+    if (!companyOwned && newSubName?.trim()) {
+      const [newSub] = await db
+        .insert(subcontractorsTable)
+        .values({ name: newSubName.trim() })
+        .returning({ id: subcontractorsTable.id });
+      subcontractorId = newSub.id;
+      await logAudit(req, { action: "create", entity: "subcontractor", entityId: newSub.id, description: `Quick-registered subcontractor "${newSubName.trim()}" during batch import` });
+    }
+
+    // 2. Truck
+    const [truck] = await db
+      .insert(trucksTable)
+      .values({
+        plateNumber: plateNumber.trim().toUpperCase(),
+        unitType,
+        companyOwned: !!companyOwned,
+        subcontractorId: companyOwned ? null : subcontractorId,
+        status: "available",
+      })
+      .returning({ id: trucksTable.id });
+    await logAudit(req, { action: "create", entity: "truck", entityId: truck.id, description: `Quick-registered truck ${plateNumber.trim().toUpperCase()} during batch import` });
+
+    // 3. Driver (optional)
+    let driverId: number | null = null;
+    if (driverName?.trim()) {
+      const [driver] = await db
+        .insert(driversTable)
+        .values({ name: driverName.trim(), phone: driverPhone?.trim() ?? null, status: "active" })
+        .returning({ id: driversTable.id });
+      driverId = driver.id;
+      // Link driver to truck
+      await db.insert(truckDriverAssignmentsTable).values({
+        truckId: truck.id, driverId: driver.id, assignedAt: new Date(), isActive: true,
+      });
+      await logAudit(req, { action: "create", entity: "driver", entityId: driver.id, description: `Quick-registered driver "${driverName.trim()}" and linked to truck ${plateNumber.trim().toUpperCase()}` });
+    }
+
+    res.status(201).json({ truckId: truck.id, driverId });
+  } catch (e: any) {
+    if (e?.constraint === "trucks_plate_number_unique" || e?.message?.includes("unique")) {
+      return res.status(409).json({ error: `Plate ${req.body.plateNumber} already exists.` });
+    }
+    next(e);
+  }
+});
+
 // POST /trucks — register a horse, trailer, or full unit (horse + trailer)
 router.post("/", async (req, res, next) => {
   try {
