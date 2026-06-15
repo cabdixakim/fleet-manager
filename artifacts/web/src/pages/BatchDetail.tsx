@@ -730,7 +730,14 @@ export default function BatchDetail() {
   const handleImportSubmit = async () => {
     const resolvedProduct = batchProduct;
     // Rows that are ready: existing trucks need truckId+capacity; new trucks need rawPlate+capacity
-    const valid = importRows.filter((r) => (r.truckId || r.plateMatch === "new") && r.capacity);
+    const seenTruckIds = new Set<string>();
+    const valid = importRows.filter((r) => {
+      if (!(( r.truckId || r.plateMatch === "new") && r.capacity)) return false;
+      if (r.plateMatch === "ok" && nominatedTruckIds.has(r.truckId)) return false;
+      if (r.truckId && seenTruckIds.has(r.truckId)) return false;
+      if (r.truckId) seenTruckIds.add(r.truckId);
+      return true;
+    });
     if (!valid.length) return;
     try {
       // 1. Register any new trucks first (sequentially to surface errors cleanly)
@@ -1707,24 +1714,33 @@ export default function BatchDetail() {
                           {importRows.map((row, i) => {
                             const nt = row.newTruck;
                             const isNew = row.plateMatch === "new";
+                            const isDupOnBatch = row.plateMatch === "ok" && nominatedTruckIds.has(row.truckId);
+                            const isDupInImport = !isNew && !!row.truckId && importRows.some((r2, j) => j !== i && r2.truckId === row.truckId);
+                            const isDup = isDupOnBatch || isDupInImport;
                             // "new" rows are ready if capacity set + ownership resolved
                             const newReady = isNew && !!row.capacity && (nt?.companyOwned || !!nt?.subcontractorId || !!nt?.newSubName?.trim());
                             const isReady = isNew ? newReady : (!!row.truckId && !!row.capacity);
                             const missingDriver = isNew && !!nt && !nt.driverName.trim();
                             return (
-                              <tr key={i} className={isReady ? (missingDriver ? "bg-sky-500/5" : "bg-emerald-500/5") : "bg-amber-500/5"}>
+                              <tr key={i} className={isDup ? "bg-destructive/5" : isReady ? (missingDriver ? "bg-sky-500/5" : "bg-emerald-500/5") : "bg-amber-500/5"}>
                                 <td className="px-3 py-2 align-top pt-3">
-                                  {isReady
-                                    ? missingDriver
-                                      ? <AlertTriangle className="w-3.5 h-3.5 text-sky-400" title="No driver — will import without one" />
-                                      : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                                    : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
+                                  {isDup
+                                    ? <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                                    : isReady
+                                      ? missingDriver
+                                        ? <AlertTriangle className="w-3.5 h-3.5 text-sky-400" title="No driver — will import without one" />
+                                        : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                      : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />}
                                 </td>
 
                                 {/* ── Plate column ── */}
                                 <td className="px-3 py-2 align-top">
                                   {row.plateMatch === "ok" ? (
-                                    <span className="font-mono font-semibold text-foreground text-xs">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
+                                    <div>
+                                      <span className="font-mono font-semibold text-foreground text-xs">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
+                                      {isDupOnBatch && <p className="text-[10px] text-destructive flex items-center gap-0.5 mt-0.5"><AlertCircle className="w-2.5 h-2.5 shrink-0" /> Already on this batch — will be skipped</p>}
+                                      {isDupInImport && !isDupOnBatch && <p className="text-[10px] text-destructive flex items-center gap-0.5 mt-0.5"><AlertCircle className="w-2.5 h-2.5 shrink-0" /> Duplicate in file — will be skipped</p>}
+                                    </div>
                                   ) : row.plateMatch === "new" ? (
                                     /* ─── NEW TRUCK — collapsible registration ─── */
                                     (() => {
@@ -1871,6 +1887,18 @@ export default function BatchDetail() {
                     </div>
                   </div>
 
+                  {importRows.some((r) => r.plateMatch === "ok" && nominatedTruckIds.has(r.truckId)) && (
+                    <p className="text-xs text-destructive flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Red rows are already nominated on this batch and will be skipped on submit.
+                    </p>
+                  )}
+                  {importRows.some((r) => !nominatedTruckIds.has(r.truckId) && !r.newTruck && !!r.truckId && importRows.some((r2) => r2 !== r && r2.truckId === r.truckId)) && (
+                    <p className="text-xs text-destructive flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      Some trucks appear more than once in the file — duplicates will be skipped.
+                    </p>
+                  )}
                   {importRows.some((r) => r.plateMatch === "new" && r.newTruck && !r.newTruck.driverName.trim()) && (
                     <p className="text-xs text-sky-400 flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5" />
@@ -1897,7 +1925,16 @@ export default function BatchDetail() {
               </Button>
             )}
             {nominateTab === "import" && importStep === "review" && (() => {
-              const readyCount = importRows.filter((r) => (r.truckId || r.plateMatch === "new") && r.capacity && (r.plateMatch !== "new" || r.newTruck?.companyOwned || r.newTruck?.subcontractorId || r.newTruck?.newSubName?.trim())).length;
+              const seenForCount = new Set<string>();
+              const readyCount = importRows.filter((r) => {
+                if (!((r.truckId || r.plateMatch === "new") && r.capacity)) return false;
+                if (r.plateMatch !== "new" && !(r.newTruck?.companyOwned || r.newTruck?.subcontractorId || r.newTruck?.newSubName?.trim())) {
+                  if (r.plateMatch === "ok" && nominatedTruckIds.has(r.truckId)) return false;
+                  if (r.truckId && seenForCount.has(r.truckId)) return false;
+                  if (r.truckId) seenForCount.add(r.truckId);
+                }
+                return true;
+              }).length;
               return (
                 <Button onClick={handleImportSubmit} disabled={nominating || readyCount === 0}>
                   {nominating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCheck className="w-4 h-4 mr-2" />}
