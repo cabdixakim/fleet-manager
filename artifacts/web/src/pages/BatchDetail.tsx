@@ -451,7 +451,7 @@ export default function BatchDetail() {
   const [nominateTab, setNominateTab] = useState<"manual" | "import">("manual");
   const [importStep, setImportStep] = useState<"upload" | "pick" | "review">("upload");
   type NewTruckInfo = { unitType: "horse" | "trailer"; companyOwned: boolean; subcontractorId: string; newSubName: string; driverName: string; driverPhone: string; driverPassport: string; driverLicense: string; };
-  type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no" | "new"; driverMatch: "ok" | "none" | "no"; newTruck?: NewTruckInfo; };
+  type ImportRow = { rawPlate: string; rawDriver: string; rawCapacity: string; truckId: string; driverId: string; capacity: string; plateMatch: "ok" | "no" | "new"; driverMatch: "ok" | "none" | "no"; truckStatus?: string; newTruck?: NewTruckInfo; };
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importRaw, setImportRaw] = useState<{ headers: string[]; rows: Record<string, any>[] }>({ headers: [], rows: [] });
   const [importCols, setImportCols] = useState({ plate: "", driver: "", capacity: "", phone: "", passport: "", license: "" });
@@ -571,6 +571,7 @@ export default function BatchDetail() {
           capacity: rawCapacity,
           plateMatch: (truckMatch ? "ok" : isNewTruck ? "new" : "no") as "ok" | "no" | "new",
           driverMatch: (rawDriver === "" ? "none" : driverMatch ? "ok" : "no") as "ok" | "none" | "no",
+          truckStatus: truckMatch?.status ?? undefined,
           newTruck: isNewTruck ? { unitType: "horse", companyOwned: false, subcontractorId: "", newSubName: "", driverName: rawDriver, driverPhone: rawPhone, driverPassport: rawPassport, driverLicense: rawLicense } : undefined,
         };
       })
@@ -1738,6 +1739,21 @@ export default function BatchDetail() {
                                   {row.plateMatch === "ok" ? (
                                     <div>
                                       <span className="font-mono font-semibold text-foreground text-xs">{(trucks as any[]).find((t: any) => String(t.id) === row.truckId)?.plateNumber ?? row.rawPlate}</span>
+                                      {row.truckStatus && !["available", "idle"].includes(row.truckStatus) && (
+                                        <p className="text-[10px] text-amber-400 flex items-center gap-0.5 mt-0.5">
+                                          <Truck className="w-2.5 h-2.5 shrink-0" />
+                                          {{
+                                            on_trip: "On a trip",
+                                            nominated: "Nominated elsewhere",
+                                            loading: "Currently loading",
+                                            loaded: "Loaded — in yard",
+                                            in_transit: "In transit",
+                                            at_zambia_entry: "At Zambia border",
+                                            at_drc_entry: "At DRC border",
+                                            delivered: "Delivered",
+                                          }[row.truckStatus] ?? row.truckStatus.replace(/_/g, " ")}
+                                        </p>
+                                      )}
                                       {isDupOnBatch && <p className="text-[10px] text-destructive flex items-center gap-0.5 mt-0.5"><AlertCircle className="w-2.5 h-2.5 shrink-0" /> Already on this batch — will be skipped</p>}
                                       {isDupInImport && !isDupOnBatch && <p className="text-[10px] text-destructive flex items-center gap-0.5 mt-0.5"><AlertCircle className="w-2.5 h-2.5 shrink-0" /> Duplicate in file — will be skipped</p>}
                                     </div>
