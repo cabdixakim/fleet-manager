@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, companySettingsTable, tripsTable, batchesTable } from "@workspace/db/schema";
+import { usersTable, companySettingsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
@@ -137,45 +137,5 @@ router.delete("/reset-trips-batches", async (req, res, next) => {
 });
 
 
-// POST /api/admin/fix-op27-product
-// One-shot: voids INV-0007, sets all OP-27 trips product → PMS, reverts batch to delivered.
-router.post("/fix-op27-product", async (req, res, next) => {
-  try {
-    const callerRole = await getCallerRole(req);
-    if (callerRole !== "owner") {
-      return res.status(403).json({ error: "Only the owner can run this fix." });
-    }
-
-    const BATCH_DB_ID = 3;
-    const INVOICE_ID = 7;
-
-    await db.transaction(async (tx) => {
-      // 1. Clear invoice_id on all trips + set product to PMS
-      await tx.update(tripsTable)
-        .set({ product: "PMS", invoiceId: null })
-        .where(eq(tripsTable.batchId, BATCH_DB_ID));
-
-      // 2. Delete client transactions for INV-0007
-      await tx.execute(sql`DELETE FROM client_transactions WHERE invoice_id = ${INVOICE_ID}`);
-
-      // 3. Delete the invoice
-      await tx.execute(sql`DELETE FROM invoices WHERE id = ${INVOICE_ID}`);
-
-      // 4. Revert batch to delivered
-      await tx.update(batchesTable)
-        .set({ status: "delivered" })
-        .where(eq(batchesTable.id, BATCH_DB_ID));
-    });
-
-    await logAudit(req, {
-      action: "fix_op27_product",
-      entity: "admin",
-      entityId: BATCH_DB_ID,
-      description: "One-shot fix: OP-27 all trips product set to PMS, INV-0007 voided, batch reverted to delivered.",
-    });
-
-    res.json({ success: true, message: "Done. INV-0007 voided, all OP-27 trips set to PMS, batch back to delivered." });
-  } catch (e) { next(e); }
-});
 
 export default router;
