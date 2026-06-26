@@ -4,11 +4,9 @@ import { Link, useRoute, useLocation } from "wouter";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatementDateFilter, DateFilterValue, StatementPeriod } from "@/components/StatementDateFilter";
 import { ArrowLeft, Building2, Printer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-
-type Period = { id: number; name: string; startDate: string; endDate: string; isClosed: boolean };
 type TxLine = {
   id: number;
   type: string;
@@ -65,7 +63,7 @@ function StatRow({ label, value, deduct, isSub, isTotal }: {
   );
 }
 
-function generateClientStatementHtml(statement: Statement, company: any, userName?: string): string {
+function generateClientStatementHtml(statement: Statement, company: any, userName?: string, periodLabel?: string): string {
   const s = statement.summary;
   const companyName = company?.name ?? "Optima Transport LLC";
   const companyAddress = [company?.address, company?.city, company?.country].filter(Boolean).join(", ");
@@ -104,7 +102,7 @@ function generateClientStatementHtml(statement: Statement, company: any, userNam
   </div>
   <div style="padding:14px 16px 4px;">
     <div style="font-size:17px;font-weight:700;">${statement.client.name}</div>
-    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;Duration: ${statement.periodName}</div>
+    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;Duration: ${periodLabel ?? statement.periodName}</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ddd;margin:10px 16px 4px;border-radius:3px;overflow:hidden;">
     <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
@@ -150,19 +148,19 @@ export default function ClientStatement() {
   const [, params] = useRoute("/clients/:id/statement");
   const [, navigate] = useLocation();
   const clientId = Number(params?.id);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("all");
+  const [filter, setFilter] = useState<DateFilterValue>({ dateFrom: null, dateTo: null, label: "All Time" });
   const { user } = useAuth();
 
-  const { data: periods = [] } = useQuery<Period[]>({
+  const { data: periods = [] } = useQuery<StatementPeriod[]>({
     queryKey: ["/api/periods"],
     queryFn: () => fetch("/api/periods", { credentials: "include" }).then((r) => r.json()),
   });
 
-  const periodParam = selectedPeriodId !== "all" ? `?periodId=${selectedPeriodId}` : "";
+  const dateParam = filter.dateFrom && filter.dateTo ? `?dateFrom=${filter.dateFrom}&dateTo=${filter.dateTo}` : "";
   const { data: statement, isLoading } = useQuery<Statement>({
-    queryKey: ["/api/clients", clientId, "period-statement", selectedPeriodId],
+    queryKey: ["/api/clients", clientId, "period-statement", filter.dateFrom, filter.dateTo],
     queryFn: () =>
-      fetch(`/api/clients/${clientId}/period-statement${periodParam}`, { credentials: "include" }).then((r) => r.json()),
+      fetch(`/api/clients/${clientId}/period-statement${dateParam}`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!clientId,
   });
 
@@ -175,7 +173,7 @@ export default function ClientStatement() {
     if (!statement) return;
     const w = window.open("", "_blank");
     if (!w) return;
-    const html = generateClientStatementHtml(statement, company, (user as any)?.name ?? (user as any)?.email);
+    const html = generateClientStatementHtml(statement, company, (user as any)?.name ?? (user as any)?.email, filter.label);
     const title = `${statement.client.name} — Account Statement`;
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>*{box-sizing:border-box;}body{margin:0;padding:0;background:#fff;}@media print{@page{size:A4;margin:8mm;}}</style></head><body>${html}</body></html>`);
     w.document.close();
@@ -197,20 +195,10 @@ export default function ClientStatement() {
     <Layout>
       <PageHeader
         title={statement?.client?.name ?? "Client Statement"}
-        subtitle={`Account Statement — ${statement?.periodName ?? "All Time"}`}
+        subtitle={`Account Statement — ${filter.label}`}
         actions={
           <div className="flex items-center gap-2">
-            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-              <SelectTrigger className="w-44 h-8 text-xs">
-                <SelectValue placeholder="Select period" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                {(periods as Period[]).map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <StatementDateFilter value={filter} onChange={setFilter} periods={periods} />
             <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5" disabled={!statement}>
               <Printer className="w-3.5 h-3.5" />Print
             </Button>

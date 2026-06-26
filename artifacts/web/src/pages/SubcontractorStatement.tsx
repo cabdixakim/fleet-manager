@@ -4,12 +4,10 @@ import { Link, useRoute } from "wouter";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StatementDateFilter, DateFilterValue, StatementPeriod } from "@/components/StatementDateFilter";
 import { ArrowLeft, TruckIcon, Printer } from "lucide-react";
 import { getRouteLabel } from "@/lib/routes";
 import { useAuth } from "@/contexts/AuthContext";
-
-type Period = { id: number; name: string; startDate: string; endDate: string; isClosed: boolean };
 type TripLine = {
   tripId: number; tripNumber: string; truckPlate: string; batchName: string; route: string;
   status: string; createdAt: string;
@@ -159,20 +157,20 @@ function generateSubStatementHtml(statement: Statement, company: any, periodLabe
 export default function SubcontractorStatement() {
   const [, params] = useRoute("/subcontractors/:id/statement");
   const subId = params?.id;
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("all");
+  const [filter, setFilter] = useState<DateFilterValue>({ dateFrom: null, dateTo: null, label: "All Time" });
   const [activeTab, setActiveTab] = useState<"statement" | "expenses">("statement");
   const { user } = useAuth();
 
-  const { data: periods = [] } = useQuery<Period[]>({
+  const { data: periods = [] } = useQuery<StatementPeriod[]>({
     queryKey: ["/api/periods"],
     queryFn: () => fetch("/api/periods", { credentials: "include" }).then((r) => r.json()),
   });
 
-  const periodParam = selectedPeriodId !== "all" ? `?periodId=${selectedPeriodId}` : "";
+  const dateParam = filter.dateFrom && filter.dateTo ? `?dateFrom=${filter.dateFrom}&dateTo=${filter.dateTo}` : "";
   const { data: statement, isLoading } = useQuery<Statement>({
-    queryKey: [`/api/subcontractors/${subId}/period-statement`, selectedPeriodId],
+    queryKey: [`/api/subcontractors/${subId}/period-statement`, filter.dateFrom, filter.dateTo],
     queryFn: () =>
-      fetch(`/api/subcontractors/${subId}/period-statement${periodParam}`, { credentials: "include" }).then((r) => r.json()),
+      fetch(`/api/subcontractors/${subId}/period-statement${dateParam}`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!subId,
   });
 
@@ -181,18 +179,11 @@ export default function SubcontractorStatement() {
     queryFn: () => fetch("/api/company-settings", { credentials: "include" }).then((r) => r.json()),
   });
 
-  const selectedPeriod = selectedPeriodId !== "all"
-    ? (periods as Period[]).find((p) => String(p.id) === selectedPeriodId)
-    : null;
-  const periodLabel = selectedPeriod
-    ? `${formatDate(selectedPeriod.startDate)} – ${formatDate(selectedPeriod.endDate)}`
-    : "All Time";
-
   const handlePrint = () => {
     if (!statement) return;
     const w = window.open("", "_blank");
     if (!w) return;
-    const html = generateSubStatementHtml(statement, company, periodLabel, (user as any)?.name ?? (user as any)?.email);
+    const html = generateSubStatementHtml(statement, company, filter.label, (user as any)?.name ?? (user as any)?.email);
     const title = `${statement.subcontractor.name} — Settlement Statement`;
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>*{box-sizing:border-box;}body{margin:0;padding:0;background:#fff;}@media print{@page{size:A4;margin:8mm;}}</style></head><body>${html}</body></html>`);
     w.document.close();
@@ -212,20 +203,10 @@ export default function SubcontractorStatement() {
     <Layout>
       <PageHeader
         title={statement?.subcontractor?.name ?? "Subcontractor Statement"}
-        subtitle={`Settlement Statement — ${periodLabel}`}
+        subtitle={`Settlement Statement — ${filter.label}`}
         actions={
           <div className="flex items-center gap-2">
-            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-              <SelectTrigger className="w-44 h-8 text-xs">
-                <SelectValue placeholder="Select period" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                {(periods as Period[]).map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <StatementDateFilter value={filter} onChange={setFilter} periods={periods} />
             <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5" disabled={!statement}>
               <Printer className="w-3.5 h-3.5" />Print
             </Button>

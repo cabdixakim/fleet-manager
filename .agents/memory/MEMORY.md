@@ -1,0 +1,1 @@
+- [Statement date filter pattern](statement-date-filter.md) — all 4 statement pages use StatementDateFilter component; API accepts ?dateFrom/dateTo as alternative to ?periodId

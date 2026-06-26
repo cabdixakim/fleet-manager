@@ -3,6 +3,7 @@ import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { format } from "date-fns";
+import { StatementDateFilter, DateFilterValue, StatementPeriod } from "@/components/StatementDateFilter";
 import { ArrowLeft, CreditCard, Building2, TrendingDown, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,11 +26,18 @@ export default function SupplierStatement() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [showPay, setShowPay] = useState(false);
+  const [filter, setFilter] = useState<DateFilterValue>({ dateFrom: null, dateTo: null, label: "All Time" });
   const [payForm, setPayForm] = useState({ amount: "", reference: "", notes: "", paymentDate: format(new Date(), "yyyy-MM-dd"), bankAccountId: "" });
 
+  const { data: periods = [] } = useQuery<StatementPeriod[]>({
+    queryKey: ["/api/periods"],
+    queryFn: () => fetch("/api/periods", { credentials: "include" }).then((r) => r.json()),
+  });
+
+  const dateParam = filter.dateFrom && filter.dateTo ? `?dateFrom=${filter.dateFrom}&dateTo=${filter.dateTo}` : "";
   const { data, isLoading } = useQuery({
-    queryKey: [`/api/suppliers/${id}/statement`],
-    queryFn: () => fetchStatement(id),
+    queryKey: [`/api/suppliers/${id}/statement`, filter.dateFrom, filter.dateTo],
+    queryFn: () => fetch(`/api/suppliers/${id}/statement${dateParam}`, { credentials: "include" }).then((r) => r.json()),
   });
 
   const { data: bankAccounts = [] } = useQuery<any[]>({
@@ -77,7 +85,8 @@ export default function SupplierStatement() {
         subtitle={`Supplier statement · ${supplier.country ?? ""}${supplier.contactPerson ? ` · ${supplier.contactPerson}` : ""}`}
         icon={<Building2 className="w-5 h-5" />}
         actions={
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <StatementDateFilter value={filter} onChange={setFilter} periods={periods} />
             <Button variant="outline" size="sm" onClick={() => navigate("/suppliers")}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </Button>

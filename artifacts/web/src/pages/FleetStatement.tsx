@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Layout, PageHeader, PageContent } from "@/components/Layout";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatementDateFilter, DateFilterValue, StatementPeriod } from "@/components/StatementDateFilter";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-function generateFleetStatementHtml(data: any, company: any, userName?: string): string {
+function generateFleetStatementHtml(data: any, company: any, userName?: string, periodLabel?: string): string {
   const truck = data.truck ?? {};
   const trips: any[] = (data.trips ?? []).filter((t: any) => !["cancelled", "amended_out"].includes(t.status));
   const otherExpenses: any[] = data.otherExpenses ?? [];
@@ -65,7 +67,7 @@ function generateFleetStatementHtml(data: any, company: any, userName?: string):
   </div>
   <div style="padding:14px 16px 4px;">
     <div style="font-size:17px;font-weight:700;">${truckLabel}</div>
-    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;${[truck.subcontractorName].filter(Boolean).join(" · ") || "Company Owned"} · ${trips.length} active trips</div>
+    <div style="font-size:11px;color:#555;margin-top:3px;">&nbsp;${[truck.subcontractorName].filter(Boolean).join(" · ") || "Company Owned"} · ${trips.length} active trips${periodLabel ? ` &nbsp;·&nbsp; ${periodLabel}` : ""}</div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #ddd;margin:10px 16px 4px;border-radius:3px;overflow:hidden;">
     <div style="padding:12px 16px;text-align:center;border-right:1px solid #ddd;">
@@ -108,11 +110,18 @@ function generateFleetStatementHtml(data: any, company: any, userName?: string):
 export default function FleetStatement() {
   const [, params] = useRoute("/fleet/:id/statement");
   const truckId = Number(params?.id);
+  const [filter, setFilter] = useState<DateFilterValue>({ dateFrom: null, dateTo: null, label: "All Time" });
   const { user } = useAuth();
 
+  const { data: periods = [] } = useQuery<StatementPeriod[]>({
+    queryKey: ["/api/periods"],
+    queryFn: () => fetch("/api/periods", { credentials: "include" }).then((r) => r.json()),
+  });
+
+  const dateParam = filter.dateFrom && filter.dateTo ? `?dateFrom=${filter.dateFrom}&dateTo=${filter.dateTo}` : "";
   const { data, isLoading } = useQuery<any>({
-    queryKey: [`/api/trucks/${truckId}/detail`],
-    queryFn: () => fetch(`/api/trucks/${truckId}/detail`, { credentials: "include" }).then((r) => r.json()),
+    queryKey: [`/api/trucks/${truckId}/detail`, filter.dateFrom, filter.dateTo],
+    queryFn: () => fetch(`/api/trucks/${truckId}/detail${dateParam}`, { credentials: "include" }).then((r) => r.json()),
     enabled: !!truckId,
   });
 
@@ -129,7 +138,7 @@ export default function FleetStatement() {
     if (!data) return;
     const w = window.open("", "_blank");
     if (!w) return;
-    const html = generateFleetStatementHtml(data, company, (user as any)?.name ?? (user as any)?.email);
+    const html = generateFleetStatementHtml(data, company, (user as any)?.name ?? (user as any)?.email, filter.label);
     const title = `${truck?.plateNumber ?? "Truck"} — Fleet Statement`;
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>*{box-sizing:border-box;}body{margin:0;padding:0;background:#fff;}@media print{@page{size:A4;margin:8mm;}}</style></head><body>${html}</body></html>`);
     w.document.close();
@@ -144,6 +153,7 @@ export default function FleetStatement() {
         subtitle={truck?.subcontractorName ? `Subcontractor: ${truck.subcontractorName}` : "Company Owned"}
         actions={
           <div className="flex items-center gap-2">
+            <StatementDateFilter value={filter} onChange={setFilter} periods={periods} />
             <Button variant="outline" size="sm" onClick={handlePrint} disabled={!data} className="gap-1.5">
               <Printer className="w-3.5 h-3.5" />Print Statement
             </Button>

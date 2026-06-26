@@ -537,6 +537,8 @@ router.get("/:id/period-statement", async (req, res, next) => {
   try {
     const subId = parseInt(req.params.id);
     const periodId = req.query.periodId ? parseInt(req.query.periodId as string) : null;
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
 
     const [sub] = await db.select().from(subcontractorsTable).where(eq(subcontractorsTable.id, subId));
     if (!sub) return res.status(404).json({ error: "Subcontractor not found" });
@@ -552,6 +554,11 @@ router.get("/:id/period-statement", async (req, res, next) => {
       end = new Date(period.endDate);
       end.setHours(23, 59, 59, 999);
       periodName = period.name;
+    } else if (dateFrom && dateTo) {
+      start = new Date(dateFrom);
+      end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      periodName = `${dateFrom} – ${dateTo}`;
     }
 
     const tripQuery = db

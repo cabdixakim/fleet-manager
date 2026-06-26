@@ -6,7 +6,7 @@ import {
   tripExpensesTable,
   companyExpensesTable,
 } from "@workspace/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { postJournalEntry, postOrUpdateOpeningBalance, resolveBankGlCode } from "../lib/glPosting";
 
@@ -84,6 +84,11 @@ router.put("/:id", async (req, res, next) => {
 router.get("/:id/statement", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+    const filterStart = dateFrom ? new Date(dateFrom) : null;
+    const filterEnd = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
+
     const [supplier] = await db.select().from(suppliersTable).where(eq(suppliersTable.id, id));
     if (!supplier) return res.status(404).json({ error: "Not found" });
 
@@ -96,7 +101,11 @@ router.get("/:id/statement", async (req, res, next) => {
         amount: tripExpensesTable.amount,
       })
       .from(tripExpensesTable)
-      .where(eq(tripExpensesTable.supplierId, id))
+      .where(
+        filterStart && filterEnd
+          ? and(eq(tripExpensesTable.supplierId, id), gte(tripExpensesTable.expenseDate, filterStart), lte(tripExpensesTable.expenseDate, filterEnd))
+          : eq(tripExpensesTable.supplierId, id)
+      )
       .orderBy(desc(tripExpensesTable.expenseDate));
 
     const companyExpenses = await db
@@ -108,13 +117,21 @@ router.get("/:id/statement", async (req, res, next) => {
         amount: companyExpensesTable.amount,
       })
       .from(companyExpensesTable)
-      .where(eq(companyExpensesTable.supplierId, id))
+      .where(
+        filterStart && filterEnd
+          ? and(eq(companyExpensesTable.supplierId, id), gte(companyExpensesTable.expenseDate, filterStart), lte(companyExpensesTable.expenseDate, filterEnd))
+          : eq(companyExpensesTable.supplierId, id)
+      )
       .orderBy(desc(companyExpensesTable.expenseDate));
 
     const payments = await db
       .select()
       .from(supplierPaymentsTable)
-      .where(eq(supplierPaymentsTable.supplierId, id))
+      .where(
+        filterStart && filterEnd
+          ? and(eq(supplierPaymentsTable.supplierId, id), gte(supplierPaymentsTable.paymentDate, filterStart), lte(supplierPaymentsTable.paymentDate, filterEnd))
+          : eq(supplierPaymentsTable.supplierId, id)
+      )
       .orderBy(desc(supplierPaymentsTable.paymentDate));
 
     const ob = parseFloat(supplier.openingBalance ?? "0");

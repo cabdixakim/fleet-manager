@@ -5,7 +5,7 @@ import {
   truckDriverAssignmentsTable, tripsTable, batchesTable,
   tripExpensesTable,
 } from "@workspace/db/schema";
-import { eq, desc, and, isNull, inArray, sql, ne } from "drizzle-orm";
+import { eq, desc, and, isNull, inArray, sql, ne, gte, lte } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 import { calculateTripFinancials } from "../lib/financials";
 import { blockIfClosed, bumpDateIfClosed, appendNote } from "../lib/financialPeriod";
@@ -409,6 +409,10 @@ router.delete("/:id", async (req, res, next) => {
 router.get("/:id/detail", async (req, res, next) => {
   try {
     const id = parseInt(req.params.id);
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+    const filterStart = dateFrom ? new Date(dateFrom) : null;
+    const filterEnd = dateTo ? (() => { const d = new Date(dateTo); d.setHours(23,59,59,999); return d; })() : null;
     const [truck] = await db
       .select({
         id: trucksTable.id,
@@ -451,7 +455,11 @@ router.get("/:id/detail", async (req, res, next) => {
       .select({ id: tripsTable.id, status: tripsTable.status, loadedQty: tripsTable.loadedQty, deliveredQty: tripsTable.deliveredQty, product: tripsTable.product, createdAt: tripsTable.createdAt, batchName: batchesTable.name, route: batchesTable.route, ratePerMt: batchesTable.ratePerMt })
       .from(tripsTable)
       .leftJoin(batchesTable, eq(tripsTable.batchId, batchesTable.id))
-      .where(eq(tripsTable.truckId, id))
+      .where(
+        filterStart && filterEnd
+          ? and(eq(tripsTable.truckId, id), gte(tripsTable.createdAt, filterStart), lte(tripsTable.createdAt, filterEnd))
+          : eq(tripsTable.truckId, id)
+      )
       .orderBy(desc(tripsTable.createdAt));
 
     const trips = await Promise.all(rawTrips.map(async (t) => {
@@ -463,7 +471,11 @@ router.get("/:id/detail", async (req, res, next) => {
       }
     }));
 
-    const otherExpenses = await db.select().from(tripExpensesTable).where(and(eq(tripExpensesTable.truckId, id), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"))).orderBy(desc(tripExpensesTable.expenseDate));
+    const otherExpenses = await db.select().from(tripExpensesTable).where(
+      filterStart && filterEnd
+        ? and(eq(tripExpensesTable.truckId, id), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"), gte(tripExpensesTable.expenseDate, filterStart), lte(tripExpensesTable.expenseDate, filterEnd))
+        : and(eq(tripExpensesTable.truckId, id), isNull(tripExpensesTable.tripId), eq(tripExpensesTable.tier, "truck"))
+    ).orderBy(desc(tripExpensesTable.expenseDate));
 
     const activeTrips = trips.filter((t) => !["cancelled", "amended_out"].includes(t.status));
     const totalRevenue = activeTrips.reduce((s, t) => s + t.grossRevenue, 0);
