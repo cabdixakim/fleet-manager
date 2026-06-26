@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, companySettingsTable, tripsTable, batchesTable } from "@workspace/db/schema";
+import { usersTable, companySettingsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { logAudit } from "../lib/audit";
 
@@ -136,61 +136,5 @@ router.delete("/reset-trips-batches", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/admin/fix-op27-qty
-// One-shot: divides all trip loaded_qty/delivered_qty by 1000 (litres → m³),
-// voids both invoices (INV-0005, INV-0006), and reverts batch to delivered.
-// Owner-only. Safe to call again — idempotent check on qty size.
-router.post("/fix-op27-qty", async (req, res, next) => {
-  try {
-    const callerRole = await getCallerRole(req);
-    if (callerRole !== "owner") {
-      return res.status(403).json({ error: "Only the owner can run this fix." });
-    }
-
-    const BATCH_DB_ID = 3;
-
-    const batchTrips = await db
-      .select({ id: tripsTable.id, loadedQty: tripsTable.loadedQty, deliveredQty: tripsTable.deliveredQty })
-      .from(tripsTable)
-      .where(eq(tripsTable.batchId, BATCH_DB_ID));
-
-    // Idempotent guard: if all loaded_qty < 100 already in m³, skip
-    const alreadyFixed = batchTrips.every(t => parseFloat(t.loadedQty ?? "0") < 100);
-    if (alreadyFixed) {
-      return res.json({ success: true, message: "Already fixed — quantities are already in m³.", tripsUpdated: 0 });
-    }
-
-    await db.transaction(async (tx) => {
-      // 1. Divide qty by 1000 and clear invoice_id on all trips
-      for (const t of batchTrips) {
-        const newLoaded = (parseFloat(t.loadedQty ?? "0") / 1000).toFixed(3);
-        const newDelivered = t.deliveredQty != null ? (parseFloat(t.deliveredQty) / 1000).toFixed(3) : null;
-        await tx.update(tripsTable)
-          .set({ loadedQty: newLoaded, deliveredQty: newDelivered, invoiceId: null })
-          .where(eq(tripsTable.id, t.id));
-      }
-
-      // 2. Delete client transactions for these invoices
-      await tx.execute(sql`DELETE FROM client_transactions WHERE invoice_id IN (5, 6)`);
-
-      // 3. Delete the duplicate invoices
-      await tx.execute(sql`DELETE FROM invoices WHERE id IN (5, 6)`);
-
-      // 4. Revert batch to delivered
-      await tx.update(batchesTable)
-        .set({ status: "delivered" })
-        .where(eq(batchesTable.id, BATCH_DB_ID));
-    });
-
-    await logAudit(req, {
-      action: "fix_op27_qty",
-      entity: "admin",
-      entityId: BATCH_DB_ID,
-      description: `One-shot fix: OP-27 trip quantities divided by 1000 (L→m³), INV-0005/INV-0006 voided, batch reverted to delivered. ${batchTrips.length} trips corrected.`,
-    });
-
-    res.json({ success: true, message: `Fixed. ${batchTrips.length} trips corrected, invoices voided, batch reverted to delivered.`, tripsUpdated: batchTrips.length });
-  } catch (e) { next(e); }
-});
 
 export default router;
