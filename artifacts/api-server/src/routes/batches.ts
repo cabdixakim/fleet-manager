@@ -552,9 +552,9 @@ router.post("/:id/raise-invoice", async (req, res, next) => {
       batchId: id,
       type: "invoice",
       amount: netRevenue.toFixed(2),
-      reference: invoiceNumber,
+      reference: finalInvoiceNumber,
       invoiceId: invoice.id,
-      description: `Invoice ${invoiceNumber} — ${batch.name} (${selectedIds.length} trip${selectedIds.length !== 1 ? "s" : ""})`,
+      description: `Invoice ${finalInvoiceNumber} — ${batch.name} (${selectedIds.length} trip${selectedIds.length !== 1 ? "s" : ""})`,
       transactionDate: txDate,
     }).returning();
 
@@ -575,12 +575,12 @@ router.post("/:id/raise-invoice", async (req, res, next) => {
 
     await logAudit(req, {
       action: "create", entity: "invoice", entityId: invoice.id,
-      description: `Invoice ${invoiceNumber} raised for batch ${batch.name}: $${grossRevenue.toFixed(2)} gross (${selectedIds.length} trip${selectedIds.length !== 1 ? "s" : ""})`,
+      description: `Invoice ${finalInvoiceNumber} raised for batch ${batch.name}: $${grossRevenue.toFixed(2)} gross (${selectedIds.length} trip${selectedIds.length !== 1 ? "s" : ""})`,
     });
 
     res.status(201).json({
       invoiceId: invoice.id,
-      invoiceNumber,
+      invoiceNumber: finalInvoiceNumber,
       transaction: { ...tx, amount: parseFloat(tx.amount) },
       grossRevenue,
       netRevenue,
